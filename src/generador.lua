@@ -3,9 +3,6 @@ local rarezas = require "datos.rarezas"
 
 local generador = {}
 
-local SOBRES_PIEDAD = 12   -- sin holo o mejor en tantos sobres -> el siguiente la trae
-local PROB_GODPACK = 1 / 200
-
 local porRareza = {}
 for _, c in ipairs(cartas) do
     porRareza[c.rareza] = porRareza[c.rareza] or {}
@@ -14,56 +11,59 @@ end
 
 local sequia = 0
 
-local function alAzar(lista)
-    return lista[love.math.random(#lista)]
-end
-
-local function tirarBuena(nivelMinimo)
-    local total = 0
+local function tirar(pesos, nivelMinimo)
+    local candidatas, total = {}, 0
     for _, r in ipairs(rarezas.lista) do
-        if r.nivel >= nivelMinimo then total = total + r.peso end
+        local peso = pesos[r.id]
+        if peso and r.nivel >= nivelMinimo and porRareza[r.id] then
+            table.insert(candidatas, { id = r.id, peso = peso })
+            total = total + peso
+        end
     end
+    -- si el minimo deja el hueco vacio se ignora
+    if #candidatas == 0 then return tirar(pesos, 1) end
     local tirada = love.math.random() * total
-    for _, r in ipairs(rarezas.lista) do
-        if r.nivel >= nivelMinimo and r.peso > 0 then
-            tirada = tirada - r.peso
-            if tirada <= 0 then return r.id end
-        end
+    for _, c in ipairs(candidatas) do
+        tirada = tirada - c.peso
+        if tirada <= 0 then return c.id end
     end
-    return "rara"
+    return candidatas[#candidatas].id
 end
 
--- 3 comunes, 1 infrecuente y la buena al final, ordenadas de peor a mejor
-function generador.sobre()
-    local godpack = love.math.random() < PROB_GODPACK
-    local ids = {}
-
-    for i = 1, 3 do
-        if godpack then
-            ids[i] = tirarBuena(3)
-        else
-            ids[i] = love.math.random() < 0.12 and "infrecuente" or "comun"
-        end
+-- dentro de un sobre no se repite carta mientras queden otras de esa rareza
+local function elegir(rareza, usadas)
+    local libres = {}
+    for _, c in ipairs(porRareza[rareza]) do
+        if not usadas[c.id] then table.insert(libres, c) end
     end
+    if #libres == 0 then libres = porRareza[rareza] end
+    local c = libres[love.math.random(#libres)]
+    usadas[c.id] = true
+    return c
+end
 
-    if godpack then
-        ids[4] = tirarBuena(3)
-    else
-        ids[4] = love.math.random() < 0.15 and "rara" or "infrecuente"
-    end
-
-    ids[5] = tirarBuena(sequia >= SOBRES_PIEDAD and 4 or 3)
-
-    local sobre = {}
+-- tipo: una entrada de datos/sobres.lua. Devuelve las cartas de peor a mejor
+function generador.sobre(tipo)
+    local godpack = love.math.random() < tipo.godpack
+    local ultimo = tipo.huecos[#tipo.huecos]
+    local sobre, usadas = {}, {}
     local mejorNivel = 0
-    for i, id in ipairs(ids) do
-        sobre[i] = alAzar(porRareza[id])
-        mejorNivel = math.max(mejorNivel, rarezas[id].nivel)
+
+    for _, hueco in ipairs(tipo.huecos) do
+        local pesos = godpack and ultimo.rarezas or hueco.rarezas
+        local minimo = (hueco == ultimo and sequia >= tipo.piedad) and 4 or 1
+        for _ = 1, hueco.cantidad do
+            local rareza = tirar(pesos, minimo)
+            table.insert(sobre, elegir(rareza, usadas))
+            mejorNivel = math.max(mejorNivel, rarezas[rareza].nivel)
+        end
     end
     sequia = mejorNivel >= 4 and 0 or sequia + 1
 
     table.sort(sobre, function(a, b)
-        return rarezas[a.rareza].nivel < rarezas[b.rareza].nivel
+        local na, nb = rarezas[a.rareza].nivel, rarezas[b.rareza].nivel
+        if na ~= nb then return na < nb end
+        return a.id < b.id
     end)
     return sobre, godpack
 end
