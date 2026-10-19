@@ -22,7 +22,8 @@ local function rejilla(alto)
 end
 
 -- ancho par; e = elemento (cuerpo, luz, sombra)
-function bicho.crear(semilla, ancho, alto, e)
+-- cerrados: el mismo bicho con los ojos cerrados, para que parpadee
+function bicho.crear(semilla, ancho, alto, e, cerrados)
     local rng = love.math.newRandomGenerator(semilla)
     local mitad = ancho / 2
 
@@ -136,8 +137,13 @@ function bicho.crear(semilla, ancho, alto, e)
         end
     end
 
-    pintar(ojoX, ojoY, p.blanco)
-    pintar(ojoX, ojoY + 1, p.negro)
+    if cerrados then
+        pintar(ojoX, ojoY, e.cuerpo)
+        pintar(ojoX, ojoY + 1, p.negro)
+    else
+        pintar(ojoX, ojoY, p.blanco)
+        pintar(ojoX, ojoY + 1, p.negro)
+    end
 
     local img = love.graphics.newImage(datos)
     img:setFilter("nearest", "nearest")
