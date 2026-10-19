@@ -25,7 +25,6 @@ local function botones()
         { "dev_dinero1", "+1 €" }, { "dev_dinero10", "+10 €" }, { "dev_dinero100", "+100 €" },
         { "SOBRES" },
         { "dev_sobres5", "+5 DE CADA" }, { "dev_sobres20", "+20 DE CADA" },
-        { "dev_almacen", "+5 ESTANTERÍAS Y +4 CAJAS" },
         { "dev_lote5", "ABRIR 5 DE GOLPE" }, { "dev_lote20", "ABRIR 20 DE GOLPE" },
         { "dev_velocidad", "VELOCIDAD x" .. dev.velocidad },
         { "dev_saltar", dev.saltar and "SALTAR ANIMACIÓN: SÍ" or "SALTAR ANIMACIÓN: NO", dev.saltar },
@@ -115,9 +114,6 @@ function dev.click(id)
         regalarSobres(5)
     elseif id == "dev_sobres20" then
         regalarSobres(20)
-    elseif id == "dev_almacen" then
-        partida.estanterias = partida.estanterias + 5
-        partida.cajas = partida.cajas + 4
     elseif id == "dev_lote5" or id == "dev_lote20" then
         local n = id == "dev_lote5" and 5 or 20
         local faltan = n - partida.sobresGuardados()

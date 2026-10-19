@@ -144,9 +144,14 @@ function love.mousepressed(x, y, boton)
     if boton ~= 1 then return end
     local mx, my = aJuego(x, y)
     local id = ui.click(mx, my)
+    if ui.clickModal(id) or ui.clickOverlay(id) then
+        if id then sonido.tocar("click") end
+        return
+    end
+    -- en las listas del movil el click se resuelve al soltar (se puede arrastrar)
+    if escena == "movil" and movil.presionar(id, mx, my) then return end
     if id then sonido.tocar("click") end
 
-    if ui.clickModal(id) then return end
     if id and id:match("^dev_") then
         dev.click(id)
     elseif id == "ir_dev" then
@@ -165,13 +170,19 @@ function love.mousepressed(x, y, boton)
 end
 
 function love.mousereleased(x, y, boton)
-    if boton ~= 1 or not ui.cogida then return end
+    if boton ~= 1 then return end
+    movil.soltar()
+    armario.acabarBarrido()
+    if not ui.cogida then return end
     local mx, my = aJuego(x, y)
     armario.soltar(ui.soltar(), mx, my)
 end
 
 function love.mousemoved(x, y)
-    ui.moverRaton(aJuego(x, y))
+    local mx, my = aJuego(x, y)
+    ui.moverRaton(mx, my)
+    if escena == "armario" then armario.mover(mx, my) end
+    if escena == "movil" then movil.arrastrar(mx, my) end
 end
 
 function love.wheelmoved(_, y)
@@ -190,12 +201,14 @@ function love.keypressed(tecla)
         intro.saltar()
         return
     end
-    if ui.modal then
-        if tecla == "escape" then ui.modal = nil end
+    if ui.modal or ui.overlay then
+        if tecla == "escape" then ui.modal, ui.overlay = nil, nil end
         return
     end
     if tecla == "f1" then
         dev.abierto = not dev.abierto
+    elseif tecla == "escape" and escena == "armario" and armario.tecla("escape") then
+        return
     elseif tecla == "escape" then
         if escena == "menu" then
             love.event.quit()
@@ -237,8 +250,7 @@ local function dibujarBarra()
     if not bloqueado() then
         ui.boton("ir_tienda", "TIENDA", 6, 3, 52, 14, escena == "tienda" and p.verde or p.gris)
         ui.boton("ir_armario", "ARMARIO", 62, 3, 52, 14, escena == "armario" and p.verde or p.gris)
-        local ofertas = 0
-        for _, a in ipairs(partida.anuncios) do ofertas = ofertas + #a.ofertas end
+        local ofertas = partida.ofertasTotales()
         ui.boton("ir_movil", ofertas > 0 and ("MÓVIL (" .. ofertas .. ")") or "MÓVIL", 118, 3, 52, 14, escena == "movil" and p.verde or (ofertas > 0 and p.naranja or p.gris))
     end
     ui.boton("ir_dev", "DEV", 176, 3, 26, 14, dev.abierto and p.naranja or p.grisosc)
@@ -247,7 +259,7 @@ local function dibujarBarra()
     local dinero = ui.dinero(dineroVisto)
     local x = ANCHO - 8 - fuentes.ancho(dinero, 2)
     fuentes.texto(dinero, x, 4, 2, p.amarillo)
-    local info = "DÍA " .. mercado.dia() .. "   SOBRES " .. partida.sobresGuardados() .. "/" .. partida.huecoSobres()
+    local info = "DÍA " .. mercado.dia() .. "   SOBRES " .. partida.sobresGuardados()
     fuentes.texto(info, x - 12 - fuentes.ancho(info), 8, 1, p.grisclaro)
 end
 
@@ -316,57 +328,9 @@ function love.draw()
         if escena ~= "movil" then movil.dibujarToast() end
         dev.dibujar()
     end
-    ui.dibujarTooltip(ANCHO, ALTO)
     fx.dibujarDestello(ANCHO, ALTO)
+    ui.dibujarOverlay(ANCHO, ALTO)
+    ui.dibujarTooltip(ANCHO, ALTO)
     ui.dibujarModal(ANCHO, ALTO)
     presentar(true, escena ~= "menu")
-end
-
--- ===== solo en la APK: controles táctiles =====
--- En el móvil del juego, arrastrar el dedo hace scroll (la rueda no existe en
--- Android). El toque se resuelve al levantar el dedo: si no se ha arrastrado,
--- cuenta como pulsación normal.
-local so = love.system.getOS()
-if so == "Android" or so == "iOS" then
-    local pulsarOrig, soltarOrig, moverOrig = love.mousepressed, love.mousereleased, love.mousemoved
-    local pend, arrastrando, ultimaY
-
-    function love.mousepressed(x, y, boton, tactil)
-        if escena == "movil" and boton == 1 and not ui.modal and not movil.ocupado() then
-            pend = { x = x, y = y }
-            arrastrando = false
-            ultimaY = select(2, aJuego(x, y))
-            ui.moverRaton(aJuego(x, y))
-            return
-        end
-        pulsarOrig(x, y, boton, tactil)
-    end
-
-    function love.mousemoved(x, y, dx, dy, tactil)
-        moverOrig(x, y, dx, dy, tactil)
-        if not pend then return end
-        local gy = select(2, aJuego(x, y))
-        if not arrastrando and math.abs(gy - select(2, aJuego(pend.x, pend.y))) > 4 then
-            arrastrando = true
-            ultimaY = gy
-        end
-        if arrastrando then
-            movil.rueda((gy - ultimaY) / 18)
-            ultimaY = gy
-        end
-    end
-
-    function love.mousereleased(x, y, boton, tactil)
-        if pend and boton == 1 then
-            local p0 = pend
-            pend = nil
-            if not arrastrando then
-                ui.moverRaton(aJuego(p0.x, p0.y))
-                pulsarOrig(p0.x, p0.y, 1, tactil)
-                soltarOrig(x, y, boton, tactil)
-            end
-            return
-        end
-        soltarOrig(x, y, boton, tactil)
-    end
 end

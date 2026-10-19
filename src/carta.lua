@@ -23,7 +23,7 @@ local MODOS = { reflejo = 1, foil = 2, purpurina = 3, oro = 4 }
 -- LÖVE ya manda los vertices transformados a pantalla, asi que el centro
 -- y la profundidad van en pixeles de pantalla.
 -- El pixel pone el acabado de cada rareza, que se mueve con la inclinacion.
-local codigo = [[
+local CODIGO_SHADER = [[
 extern vec2 giro;
 extern vec2 centro;
 extern number prof;
@@ -294,7 +294,7 @@ local function lienzo(w, h, pintar, ...)
 end
 
 function carta.preparar()
-    shader = lg.newShader(codigo)
+    shader = lg.newShader(CODIGO_SHADER)
     dorso = lienzo(carta.ANCHO, carta.ALTO, pintarDorso)
     sello = lienzo(SELLO.w, SELLO.h, pintarSello)
     local W, H = carta.ANCHO, carta.ALTO

@@ -198,6 +198,20 @@ function ui.clickModal(id)
     return true
 end
 
+-- panel encima de todo (como el aviso, pero lo pinta quien lo abre):
+-- ui.overlay = { dibujar = function(ancho, alto), click = function(id) }
+function ui.dibujarOverlay(ancho, alto)
+    if not ui.overlay then return end
+    zonas = {}
+    ui.overlay.dibujar(ancho, alto)
+end
+
+function ui.clickOverlay(id)
+    if not ui.overlay then return false end
+    if id then ui.overlay.click(id) end
+    return true
+end
+
 -- arrastrar: la pantalla dice que cosas se pueden arrastrar y donde se sueltan
 function ui.cogerSi(id, x, y)
     ui.cogida = { id = id, x0 = x, y0 = y, moviendo = false }

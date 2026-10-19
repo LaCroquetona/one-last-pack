@@ -99,10 +99,10 @@ function apertura.lote(n)
         if na ~= nb then return na > nb end
         return a.id < b.id
     end)
-    local n = 0
-    for _ in pairs(nuevas) do n = n + 1 end
+    local numNuevas = 0
+    for _ in pairs(nuevas) do numNuevas = numNuevas + 1 end
     lote = { cartas = orden, cuenta = cuenta, nuevas = nuevas, abiertos = abiertos,
-             total = total, valor = valor, numNuevas = n, godpacks = godpacks }
+             total = total, valor = valor, numNuevas = numNuevas, godpacks = godpacks }
     partida.guardar()
     sonido.carga(0)
     sonido.tocar(rarezas[orden[1].rareza].id)
@@ -443,12 +443,12 @@ end
 
 -- cartel de NUEVA encima de la carta: entra con rebote y parpadea
 local function dibujarNueva(c)
-    local t = c.tVista or 0
-    local q = math.min(1, t / 0.3)
+    local tv = c.tVista or 0
+    local q = math.min(1, tv / 0.3)
     local s = q < 1 and fx.salidaRebote(q) or 1
     local x, y = CX, CY - 84
     local w, h = 70, 18
-    local fondo = math.floor(t * 6) % 2 == 0 and p.rojo or p.naranja
+    local fondo = math.floor(tv * 6) % 2 == 0 and p.rojo or p.naranja
     lg.push()
     lg.translate(x, y)
     lg.scale(s, s)
@@ -462,7 +462,7 @@ local function dibujarNueva(c)
     fuentes.texto("¡NUEVA!", -w / 2, -5, 2, p.amarillo, "center", w)
     lg.pop()
     fx.chispas(x, y, 90, 26, p.amarillo, 14)
-    texto("+1 A TU COLECCIÓN  (" .. c.coleccion .. ")", 280, 1, { p.amarillo[1], p.amarillo[2], p.amarillo[3], math.min(1, t * 3) })
+    texto("+1 A TU COLECCIÓN  (" .. c.coleccion .. ")", 280, 1, { p.amarillo[1], p.amarillo[2], p.amarillo[3], math.min(1, tv * 3) })
 end
 
 local function dibujarActual(c)
@@ -543,9 +543,9 @@ local function dibujarResumen()
             end
             if c.nueva then
                 local pulso = 0.6 + math.sin(love.timer.getTime() * 6) * 0.4
-                local w, h = carta.ANCHO * er + 6, carta.ALTO * er + 6
+                local mw, mh = carta.ANCHO * er + 6, carta.ALTO * er + 6
                 lg.setColor(p.amarillo[1], p.amarillo[2], p.amarillo[3], pulso)
-                lg.rectangle("line", math.floor(c.x - w / 2) + 0.5, math.floor(c.y - h / 2) + 0.5, w, h)
+                lg.rectangle("line", math.floor(c.x - mw / 2) + 0.5, math.floor(c.y - mh / 2) + 0.5, mw, mh)
                 fuentes.texto("¡NUEVA!", c.x - 40, 84, 1, p.amarillo, "center", 80)
             end
             if ui.encima == id then

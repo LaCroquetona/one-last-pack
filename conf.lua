@@ -11,10 +11,4 @@ function love.conf(t)
     t.window.usedpiscale = false
     t.modules.joystick = false
     t.modules.physics = false
-    -- en el movil: pantalla completa (sin barra de estado ni de navegacion) y
-    -- sin redimensionar, que si no Android deja girar a vertical
-    if love._os == "Android" or love._os == "iOS" then
-        t.window.fullscreen = true
-        t.window.resizable = false
-    end
 end
