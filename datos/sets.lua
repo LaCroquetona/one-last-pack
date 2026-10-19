@@ -4,19 +4,19 @@
 local lista = {
     {
         id = "s1", codigo = "S1", nombre = "Set 1", sobre = "set1",
-        valores = { comun = 3, infrecuente = 10, rara = 45, holo = 250, fullart = 900, secreta = 3500 },
+        valores = { comun = 1.5, infrecuente = 3, rara = 10, holo = 70, fullart = 450, secreta = 2400 },
     },
     {
         id = "s2", codigo = "S2", nombre = "Set 2", sobre = "set2",
-        valores = { comun = 8, infrecuente = 25, rara = 130, holo = 1500, fullart = 6000, secreta = 30000 },
+        valores = { comun = 4, infrecuente = 10, rara = 60, holo = 800, fullart = 3600, secreta = 20000 },
     },
     {
         id = "s3", codigo = "S3", nombre = "Set 3", sobre = "set3",
-        valores = { comun = 5, infrecuente = 15, rara = 70, holo = 550, fullart = 2400, secreta = 11000 },
+        valores = { comun = 3, infrecuente = 6, rara = 25, holo = 300, fullart = 1500, secreta = 7500 },
     },
     {
         id = "s4", codigo = "S4", nombre = "Set 4", sobre = "set4",
-        valores = { comun = 12, infrecuente = 35, rara = 120, holo = 950, fullart = 4800, secreta = 24000 },
+        valores = { comun = 6, infrecuente = 12, rara = 35, holo = 400, fullart = 3000, secreta = 16000 },
     },
 }
 
