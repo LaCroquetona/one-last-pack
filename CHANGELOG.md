@@ -5,6 +5,49 @@ parte de una fase); el del medio solo cuando termino una fase entera y la doy
 por buena. Los arreglos de una versión que todavía estoy probando van en esa
 misma versión. El juego se queda por debajo de 1.0 hasta que esté completo.
 
+## v0.7.0 - 2026-10-20 - Mercado con memoria
+
+- **Rachas que duran.** Cada carta y cada set van una temporada subiendo,
+  bajando o quietos (de una a varias semanas). Lo que sube no vuelve solo a
+  la media: el precio se queda donde lo dejó la racha y solo regresa muy
+  despacio.
+- **Los picos dejan huella.** Una noticia (vídeo viral, torneo, copias
+  falsas...) da un golpe al precio que se va deshaciendo, pero un 30% se
+  queda para siempre.
+- **Sets de moda.** Un set entero puede ponerse de moda o perder interés
+  durante semanas, y sale en las noticias. Si sus chase suben mucho, tiran
+  del resto del set.
+- **1ª edición con precio propio.** Cada carta tiene ya dos precios con su
+  historial: el de 1ª edición (desde que sale el set) y el normal (desde la
+  primera reimpresión). La gráfica de la ficha enseña las dos líneas.
+- **Vintage sin techo.** La 1ª edición agotada sube cada vez más despacio
+  pero sin pararse nunca: unas x2 a los 100 días, x3,7 a los 300, x5 a los
+  600 (las chase y los sobres cerrados, más). Antes se quedaba plana a los
+  dos meses.
+- **Tirada de 1ª edición.** Cada set imprime al menos 2.000 sobres de 1ª
+  edición. Lo que compras tú nunca pasa de entre un 5% y un 15% de la
+  tirada (se sortea por set): si compras más, se imprimen más, y cuanto más
+  grande la tirada, más baratas sus 1ª ediciones. No se puede acaparar un
+  set. Se ve en la tienda y en el móvil.
+- **Crashes.** A veces aparece un almacén lleno de sobres de 1ª edición de
+  un set agotado: su tirada crece para siempre y su 1ª edición se hunde.
+  También pueden aparecer cajas de reimpresión que hunden las normales.
+- **Ganar dinero cuesta más.** Los valores de las cartas se han bajado para
+  que abrir un sobre dé de media un 70% de lo que cuesta, como en los TCG de
+  verdad. Se gana guardando sobres y cartas de 1ª edición, acertando rachas
+  y con la suerte de sacar una chase. La secreta del Set 1 vale entre 12 y
+  16 veces el sobre al salir.
+- **Arreglado**: con pocas copias, la bandeja las ponía a la izquierda en
+  vez de en el centro, y la carta con el ratón encima se veía doble.
+- **Arreglado**: cuando ya había 40 noticias guardadas dejaban de llegar
+  avisos de noticias nuevas al móvil.
+- **Arreglado**: empezar una partida nueva con la ficha de una carta abierta
+  en el móvil podía cerrar el juego.
+- Herramientas de desarrollador: pasar 100 y 300 días, poner un set de
+  moda, hacer que pierda interés y forzar un crash.
+- Las partidas de la v0.6 se convierten al cargar: los precios de hoy se
+  respetan.
+
 ## v0.6.0 - 2026-10-20 - Copias una a una
 
 - **Cada copia va por separado.** El juego ya no guarda "tienes 25 de esta

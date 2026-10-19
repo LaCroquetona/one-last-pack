@@ -11,7 +11,7 @@ local nav = require "src.nav"
 
 local menu = {}
 
-local VERSION = "v0.6.0"
+local VERSION = "v0.7.0"
 local abanico = {}
 
 function menu.preparar()
