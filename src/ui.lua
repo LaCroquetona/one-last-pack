@@ -32,12 +32,30 @@ function ui.empezar(mx, my)
     tip = nil
 end
 
+-- ui.recorte: si esta puesto, las zonas se recortan a ese rectangulo (listas con scroll)
+-- ui.sinZonas: no se apunta ninguna (mientras se anima una pantalla)
 function ui.zona(id, x, y, w, h)
+    if ui.sinZonas then return end
+    local r = ui.recorte
+    if r then
+        local x2, y2 = math.min(x + w, r.x + r.w), math.min(y + h, r.y + r.h)
+        x, y = math.max(x, r.x), math.max(y, r.y)
+        w, h = x2 - x, y2 - y
+        if w <= 0 or h <= 0 then return end
+    end
     table.insert(zonas, { id = id, x = x, y = y, w = w, h = h })
 end
 
 function ui.click(mx, my)
     return buscar(mx, my)
+end
+
+-- la zona de arriba del todo en (x, y) cuyo id empieza por prefijo
+function ui.zonaEn(x, y, prefijo)
+    for i = #zonas, 1, -1 do
+        local z = zonas[i]
+        if z.id:sub(1, #prefijo) == prefijo and dentro(z, x, y) then return z.id end
+    end
 end
 
 -- valor que va suave hacia el objetivo, uno por id
@@ -112,10 +130,94 @@ function ui.dibujarTooltip(anchoPantalla, altoPantalla)
     end
 end
 
-function ui.dinero(n)
-    local s = tostring(math.floor(n + 0.5))
-    local con = s:reverse():gsub("(%d%d%d)", "%1."):reverse()
-    return "$" .. con:gsub("^%.", "")
+-- centimos -> "1.234,50 €"
+function ui.dinero(c)
+    c = math.floor(c + 0.5)
+    local signo = c < 0 and "-" or ""
+    c = math.abs(c)
+    local euros = tostring(math.floor(c / 100))
+    euros = euros:reverse():gsub("(%d%d%d)", "%1."):reverse():gsub("^%.", "")
+    return string.format("%s%s,%02d €", signo, euros, c % 100)
+end
+
+-- 0.12 -> "+12%"
+function ui.porcentaje(v)
+    local n = math.floor(v * 100 + 0.5)
+    if n > 0 then return "+" .. n .. "%" end
+    return n .. "%"
+end
+
+function ui.colorCambio(v)
+    if v > 0.005 then return p.lima end
+    if v < -0.005 then return p.rojo end
+    return p.grisclaro
+end
+
+-- aviso grande en rojo: mientras esta abierto solo valen sus dos botones
+function ui.confirmar(titulo, lineas, textoSi, accion)
+    ui.modal = { titulo = titulo, lineas = lineas, si = textoSi, accion = accion, t = 0 }
+end
+
+function ui.dibujarModal(ancho, alto)
+    local m = ui.modal
+    if not m then return end
+    m.t = m.t + love.timer.getDelta()
+    lg.setColor(0, 0, 0, 0.7)
+    lg.rectangle("fill", 0, 0, ancho, alto)
+
+    local w, h = 360, 150
+    local x, y = math.floor((ancho - w) / 2), math.floor((alto - h) / 2)
+    local pulso = 0.75 + math.sin(m.t * 8) * 0.25
+    lg.setColor(p.negro)
+    lg.rectangle("fill", x - 2, y - 2, w + 4, h + 4)
+    lg.setColor(p.rojo[1] * pulso, p.rojo[2] * pulso, p.rojo[3] * pulso)
+    lg.rectangle("fill", x, y, w, h)
+    lg.setColor(p.morado)
+    lg.rectangle("fill", x + 4, y + 4, w - 8, h - 8)
+
+    fuentes.texto(m.titulo, x, y + 14, 3, p.amarillo, "center", w)
+    for i, l in ipairs(m.lineas) do
+        fuentes.texto(l, x, y + 44 + i * 10, 1, p.blanco, "center", w)
+    end
+
+    -- los botones del aviso se pintan aqui, encima de todo
+    zonas = {}
+    ui.boton("modal_si", m.si, x + 24, y + h - 34, 150, 20, p.rojo)
+    ui.boton("modal_no", "CANCELAR", x + w - 174, y + h - 34, 150, 20, p.gris)
+end
+
+function ui.clickModal(id)
+    local m = ui.modal
+    if not m then return false end
+    if id == "modal_si" then
+        ui.modal = nil
+        m.accion()
+    elseif id == "modal_no" then
+        ui.modal = nil
+    end
+    return true
+end
+
+-- arrastrar: la pantalla dice que cosas se pueden arrastrar y donde se sueltan
+function ui.cogerSi(id, x, y)
+    ui.cogida = { id = id, x0 = x, y0 = y, moviendo = false }
+end
+
+function ui.moverRaton(x, y)
+    local c = ui.cogida
+    if c and not c.moviendo and (math.abs(x - c.x0) + math.abs(y - c.y0)) > 4 then
+        c.moviendo = true
+    end
+end
+
+function ui.soltar()
+    local c = ui.cogida
+    ui.cogida = nil
+    return c
+end
+
+function ui.arrastrando()
+    return ui.cogida and ui.cogida.moviendo and ui.cogida.id
 end
 
 return ui
