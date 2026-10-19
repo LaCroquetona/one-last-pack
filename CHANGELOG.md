@@ -5,6 +5,44 @@ parte de una fase); el del medio solo cuando termino una fase entera y la doy
 por buena. Los arreglos de una versión que todavía estoy probando van en esa
 misma versión. El juego se queda por debajo de 1.0 hasta que esté completo.
 
+## v0.6.0 - 2026-10-20 - Copias una a una
+
+- **Cada copia va por separado.** El juego ya no guarda "tienes 25 de esta
+  carta, 10 de 1ª edición": guarda cada copia con lo suyo (1ª edición o
+  normal, con funda o sin ella, en el móvil, en la mesa). Las partidas de
+  la v0.5 se convierten solas al cargarlas, sin perder nada.
+- **Bandeja de copias.** Al pulsar un montón se abren abajo todas sus
+  copias en fila, primero las de 1ª edición (con una rayita amarilla
+  debajo). Click en una para elegirla o mantén y arrastra por encima para
+  elegir varias de golpe. Filtros rápidos: todas, 1ª edición, normales,
+  sin funda, ninguna. Con las elegidas: vender, publicar en el móvil,
+  enfundar, quitar funda o sacarlas a la mesa. Al pasar por encima de una
+  copia se ve en grande a la izquierda.
+- **Venta en lote con opciones.** Un solo botón, "Vender en lote", abre un
+  panel donde eliges: solo repes (deja la mejor copia de cada carta) o
+  todo, si entran las de 1ª edición, si entran las enfundadas y si es de
+  todos los sets o solo del que estás viendo. Dice cuántas cartas, por
+  cuánto y cuántas se irían del álbum. Por defecto no vende ni 1ª edición
+  ni enfundadas. Nunca vende las del móvil ni las de la mesa.
+- **La mesa ya no es un desorden.** Solo están las copias que sacas desde
+  la bandeja (10 como mucho). Al pulsar una se puede enfundar, vender o
+  devolver al armario.
+- **Fuera el almacén.** Sin estanterías ni cajas: no hay límite de sobres
+  ni de cartas.
+- **Gráfica de la ficha arreglada.** La línea de 1ª edición empezaba el
+  día de la reimpresión, como si hubiera salido después. Ahora la 1ª
+  edición va desde que salió el set y la normal desde la primera
+  reimpresión.
+- **Scroll arrastrando en el móvil.** En Android no hay rueda y las apps no
+  se podían mover. Ahora se arrastra la lista con el dedo (o el ratón); un
+  toque sin arrastrar sigue abriendo lo que pulsas.
+- El armario pasa páginas si un set no cabe (en el Set 2 no se veían las
+  últimas 15 cartas).
+- Más rápido: el valor de la colección, las ventas en lote y la lista de
+  la cartera ya no se recalculan cada frame, solo cuando cambia algo.
+- Se ha limpiado código que ya no se usaba y cargas de módulos dentro de
+  funciones que se repetían.
+
 ## v0.5.3 - 2026-10-19 - Precio y carta nueva al abrir
 
 - **Precio al revelar**: al girar una carta sale lo que vale al lado,
