@@ -76,11 +76,9 @@ local function colorTono(n)
 end
 
 function movil.pasarDia()
-    local antes = 0
-    for _, a in ipairs(partida.anuncios) do antes = antes + #a.ofertas end
+    local antes = partida.ofertasTotales()
     local noticias = partida.pasarDia()
-    local despues = 0
-    for _, a in ipairs(partida.anuncios) do despues = despues + #a.ofertas end
+    local despues = partida.ofertasTotales()
     partida.guardar()
     sinLeer = sinLeer + #noticias
     for i = math.min(3, #noticias), 1, -1 do
@@ -90,11 +88,7 @@ function movil.pasarDia()
     if #noticias == 0 and despues <= antes then sonido.tocar("giro") end
 end
 
-local function ofertasTotales()
-    local n = 0
-    for _, a in ipairs(partida.anuncios) do n = n + #a.ofertas end
-    return n
-end
+local ofertasTotales = partida.ofertasTotales
 
 -- navegacion
 
@@ -382,14 +376,14 @@ end
 
 -- cartera
 
-local function listaCartera()
+local function calcularCartera()
     local lista = {}
     if pestanaCartera == "seguidas" then
         for id in pairs(partida.seguidas) do
             if mercado.disponible(id) then table.insert(lista, { id = id, primera = mejorEdicion(id) }) end
         end
     else
-        for id in pairs(partida.coleccion) do
+        for id in pairs(partida.inv) do
             table.insert(lista, { id = id, primera = mejorEdicion(id) })
         end
     end
@@ -416,6 +410,11 @@ local function listaCartera()
         lista = filtrada
     end
     return lista
+end
+
+-- se ordena solo cuando cambia algo, no cada frame
+local function listaCartera()
+    return (partida.memo("cartera_" .. pestanaCartera, calcularCartera))
 end
 
 local function appCartera()
@@ -539,8 +538,7 @@ local function appSet()
             y = y + 12
             local compra = mercado.compraReventa(tipo, primera)
             local sufijo = primera and "1" or "r"
-            ui.boton("m_comprar" .. sufijo, "COMPRAR " .. ui.dinero(compra), x, y, 70, 12, p.verde,
-                partida.dinero >= compra and not partida.sinSitio(1))
+            ui.boton("m_comprar" .. sufijo, "COMPRAR " .. ui.dinero(compra), x, y, 70, 12, p.verde, partida.dinero >= compra)
             ui.boton("m_vender1" .. sufijo, "VENDER 1", x + 74, y, 52, 12, p.naranja, tengo > 0)
             ui.boton("m_venderT" .. sufijo, "VENDER TODOS", x + 130, y, w - 130, 12, p.naranja, tengo > 0)
             y = y + 16
@@ -596,14 +594,18 @@ local function appFicha()
     y = y + 15
 
     local h0, h, v = mercado.historial(def.id)
-    local series = { { datos = h, color = p.blanco, nombre = normales and "NORMAL" or "" } }
+    local series = { { datos = h, color = p.amarillo, nombre = "" } }
     if normales then
-        local h1 = {}
+        -- la 1ª edicion existe desde el primer dia; las normales, desde la primera reimpresion
+        local h1, hn = {}, {}
         for i, valor in ipairs(h) do
-            local prima = mercado.prima(def, h0 + i - 1)
-            h1[i] = prima > 1 and math.floor(valor * prima + 0.5) or 0
+            local dia = h0 + i - 1
+            h1[i] = math.floor(valor * mercado.prima(def, dia) + 0.5)
+            hn[i] = mercado.hayNormales(def.set, dia) and valor or 0
         end
-        table.insert(series, { datos = h1, color = p.amarillo, nombre = "1ª ED" })
+        local s1 = { datos = h1, color = p.amarillo, nombre = "1ª ED" }
+        local sn = { datos = hn, color = p.blanco, nombre = "NORMAL" }
+        series = primera and { s1, sn } or { sn, s1 }
     end
     grafica.dibujar({ x = x, y = y, w = w, h = 78, series = series, volumen = v, rango = rango, dia0 = h0,
         marcas = mercado.diasNoticia(def.id), formato = ui.dinero, id = "ficha" })
@@ -614,9 +616,13 @@ local function appFicha()
     local i0 = math.max(1, #h - 29)
     local max, min = 0, math.huge
     for i = i0, #h do
-        max = math.max(max, h[i])
-        min = math.min(min, h[i])
+        local valor = series[1].datos[i]
+        if valor > 0 then
+            max = math.max(max, valor)
+            min = math.min(min, valor)
+        end
     end
+    if min == math.huge then min = 0 end
     fuentes.texto("MÁX 30D " .. ui.dinero(max), x, y, 1, p.grisclaro)
     fuentes.texto("MÍN 30D " .. ui.dinero(min), x, y, 1, p.grisclaro, "right", w)
     y = y + 12
@@ -874,10 +880,10 @@ local function ladoIzquierdo()
         y = y + 9
     end
     y = y + 8
-    fuentes.texto("ALMACÉN", 18, y, 1, p.blanco)
+    fuentes.texto("TUYO", 18, y, 1, p.blanco)
     y = y + 10
-    fuentes.texto("SOBRES " .. partida.sobresGuardados() .. "/" .. partida.huecoSobres(), 22, y, 1, p.grisclaro)
-    fuentes.texto("CARTAS " .. partida.totalCartas() .. "/" .. partida.huecoCartas(), 22, y + 9, 1, p.grisclaro)
+    fuentes.texto("SOBRES SIN ABRIR " .. partida.sobresGuardados(), 22, y, 1, p.grisclaro)
+    fuentes.texto("CARTAS " .. partida.totalCartas(), 22, y + 9, 1, p.grisclaro)
 end
 
 local function ladoDerecho()
@@ -1254,6 +1260,36 @@ function movil.click(id)
     elseif id == "verCarta" then
         local a = partida.anuncios[elegido]
         movil.abrirFicha(a.id, a.primera)
+    end
+end
+
+-- en el movil (pantalla tactil) no hay rueda: se arrastra el contenido.
+-- Lo que se pulsa dentro de una lista se resuelve al soltar, si no se ha arrastrado
+local toque
+
+local function enLista(x, y)
+    return app ~= "inicio" and not envio and x >= CONT.x and x < CONT.x + CONT.w and y >= CONT.y and y < CONT.y + CONT.h
+end
+
+function movil.presionar(id, x, y)
+    if not enLista(x, y) then return false end
+    toque = { id = id, y0 = y, s0 = scroll[app] or 0, movido = false }
+    return true
+end
+
+function movil.arrastrar(_, y)
+    if not toque then return end
+    local dy = y - toque.y0
+    if math.abs(dy) > 4 then toque.movido = true end
+    if toque.movido then scroll[app] = math.max(0, toque.s0 - dy) end
+end
+
+function movil.soltar()
+    local t = toque
+    toque = nil
+    if t and not t.movido and t.id then
+        sonido.tocar("click")
+        movil.click(t.id)
     end
 end
 

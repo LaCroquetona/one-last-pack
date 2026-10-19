@@ -2,6 +2,8 @@ local cartas = require "datos.cartas"
 local sets = require "datos.sets"
 local sobres = require "datos.sobres"
 local datos = require "datos.mercado"
+local rarezas = require "datos.rarezas"
+local datosCalendario = require "datos.calendario"
 local calendario = require "src.calendario"
 
 local mercado = {}
@@ -127,9 +129,9 @@ function mercado.prima(def, dia)
     return prima
 end
 
--- si ya existen copias normales (ha habido reimpresion)
-function mercado.hayNormales(setId)
-    local fase, i = calendario.fase(setId, mercado.estado.dia)
+-- si ya existen copias normales (ha habido reimpresion) ese dia (nil: hoy)
+function mercado.hayNormales(setId, dia)
+    local fase, i = calendario.fase(setId, dia or mercado.estado.dia)
     return fase == "reimpresion" or ((fase == "agotado" or fase == "rumor") and i.k > 0)
 end
 
@@ -225,7 +227,7 @@ local function stockDelDia(tipo, dia)
     local fase, i = calendario.fase(tipo.set, dia)
     local S = datos.stock
     if fase == "impresion" then
-        return i.d < require("datos.calendario").lanzamiento and S.lanzamiento or S.impresion
+        return i.d < datosCalendario.lanzamiento and S.lanzamiento or S.impresion
     elseif fase == "reimpresion" then
         return S.reimpresion
     end
@@ -301,8 +303,8 @@ local function anadirNoticia(n)
     return n
 end
 
-local function anadirEvento(tipo, objetivo, efecto, dias)
-    table.insert(mercado.estado.eventos, { tipo = tipo, objetivo = objetivo, efecto = efecto, dias = dias })
+local function anadirEvento(tipo, meta, efecto, dias)
+    table.insert(mercado.estado.eventos, { tipo = tipo, objetivo = meta, efecto = efecto, dias = dias })
 end
 
 local function tono(efecto)
@@ -317,7 +319,7 @@ local function cartaAlAzar(soloChase)
     for id in pairs(mercado.estado.cartas) do
         local def = porId[id]
         if not soloChase or def.chase then
-            local peso = def.chase and 6 or (1 + require("datos.rarezas")[def.rareza].nivel * 0.5)
+            local peso = def.chase and 6 or (1 + rarezas[def.rareza].nivel * 0.5)
             table.insert(lista, { def = def, peso = peso })
             total = total + peso
         end

@@ -69,14 +69,6 @@ return {
         volumen = 4,
     },
 
-    -- almacen: cuantos sobres cerrados caben por estanteria y cartas por caja
-    almacen = {
-        sobresPorEstanteria = 20, cartasPorCaja = 250,
-        estanterias = 1, cajas = 2,                  -- al empezar
-        precioEstanteria = 500, subidaEstanteria = 1.6,
-        precioCaja = 300, subidaCaja = 1.5,
-    },
-
     anuncios = {
         maximo = 6,
         probOferta = 0.7,      -- cada dia, por anuncio
