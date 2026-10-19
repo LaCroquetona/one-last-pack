@@ -1,7 +1,11 @@
 local sobres = require "datos.sobres"
+local sets = require "datos.sets"
 local rarezas = require "datos.rarezas"
+local datosCalendario = require "datos.calendario"
 local p = require "datos.paleta"
 local partida = require "src.partida"
+local mercado = require "src.mercado"
+local calendario = require "src.calendario"
 local sobre = require "src.sobre"
 local fx = require "src.fx"
 local sonido = require "src.sonido"
@@ -14,6 +18,7 @@ local tienda = {}
 local tipo = sobres.lista[1]
 
 local PANEL_X, PANEL_Y, PANEL_W = 300, 30, 318
+local PRECIO_FUNDAS = 100
 
 local function porcentaje(peso, total)
     local v = math.floor(peso / total * 1000 + 0.5) / 10
@@ -42,62 +47,185 @@ local function lineaPesos(pesos, x, y, limite)
     return y
 end
 
+local function conocidos()
+    local lista = {}
+    for _, s in ipairs(sobres.lista) do
+        if calendario.conocido(s.set, mercado.dia()) then table.insert(lista, s) end
+    end
+    return lista
+end
+
+-- el sobre mas barato que hay hoy en la tienda
+local function masBarato()
+    local mejor
+    for _, s in ipairs(sobres.lista) do
+        local precio = mercado.enTienda(s)
+        if precio and (not mejor or precio < mejor.precio) then mejor = s end
+    end
+    return mejor
+end
+
+-- sin dinero, sin sobres y sin nada que vender que llegue para el sobre mas barato
 local function sinSalida()
-    local repes = partida.repetidas()
-    return partida.dinero < tipo.precio and partida.sobresGuardados() == 0 and repes == 0
+    local barato = masBarato()
+    if not barato then return false end
+    local _, valor = partida.lote(true)
+    return partida.dinero < barato.precio and partida.sobresGuardados() == 0 and partida.dinero + valor < barato.precio
+end
+
+local function selector()
+    local lista = conocidos()
+    local w = 66
+    local x0 = 160 - (#lista * w + (#lista - 1) * 4) / 2
+    for i, s in ipairs(lista) do
+        local activo = s == tipo
+        local salido = mercado.salido(s.set)
+        local texto = sets[s.set].codigo .. "  " .. (salido and ui.dinero(s.precio) or ("DÍA " .. calendario.plan[s.set][1].desde))
+        ui.boton("tipo_" .. s.id, texto, x0 + (i - 1) * (w + 4), 30, w, 16, activo and s.colores.rayas or p.grisosc)
+    end
+end
+
+local function chip(texto, x, y, color)
+    local w = fuentes.ancho(texto) + 6
+    love.graphics.setColor(color)
+    love.graphics.rectangle("fill", x, y, w, 9)
+    fuentes.texto(texto, x + 3, y + 2, 1, p.negro)
+end
+
+local function estado()
+    local fase, i = mercado.fase(tipo.set)
+    if fase == "impresion" then
+        if calendario.lanzando(tipo.set, mercado.dia()) then return "¡NOVEDAD! 1ª EDICIÓN", p.lima end
+        if i.quedan < datosCalendario.ultimos then return "1ª EDICIÓN: ÚLTIMOS DÍAS", p.amarillo end
+        return "1ª EDICIÓN", p.verde
+    elseif fase == "reimpresion" then
+        if i.quedan < datosCalendario.ultimos then return "REIMPRESIÓN: ÚLTIMOS DÍAS", p.amarillo end
+        return "REIMPRESIÓN", p.celeste
+    elseif fase == "anunciado" then
+        return "SALE EN " .. i.faltan .. (i.faltan == 1 and " DÍA" or " DÍAS"), p.amarillo
+    end
+    return "AGOTADO EN TIENDAS", p.grisclaro
+end
+
+local function panelAlmacen()
+    local x, y, w = 14, 296, 276
+    ui.caja(x, y, w, 58)
+    fuentes.texto("ALMACÉN", x + 6, y + 5, 1, p.blanco)
+    local sobresTxt = "ESTANTERÍAS " .. partida.estanterias .. "  -  SOBRES " .. partida.sobresGuardados() .. "/" .. partida.huecoSobres()
+    local cartasTxt = "CAJAS " .. partida.cajas .. "  -  CARTAS " .. partida.totalCartas() .. "/" .. partida.huecoCartas()
+    local llenoS = partida.sobresGuardados() >= partida.huecoSobres()
+    local llenoC = partida.totalCartas() >= partida.huecoCartas()
+    fuentes.texto(sobresTxt, x + 6, y + 15, 1, llenoS and p.rojo or p.grisclaro)
+    fuentes.texto(cartasTxt, x + 6, y + 25, 1, llenoC and p.rojo or p.grisclaro)
+    local pe, pc = partida.precioEstanteria(), partida.precioCaja()
+    ui.boton("estanteria", "+1 ESTANTERÍA " .. ui.dinero(pe), x + w - 98, y + 12, 92, 11, p.morado, partida.dinero >= pe)
+    ui.boton("caja", "+1 CAJA " .. ui.dinero(pc), x + w - 98, y + 24, 92, 11, p.morado, partida.dinero >= pc)
+    ui.boton("fundas", "20 FUNDAS " .. ui.dinero(PRECIO_FUNDAS) .. "  (TIENES " .. partida.fundasLibres .. ")", x + 6, y + 39, w - 12, 13,
+        p.verdeosc, partida.dinero >= PRECIO_FUNDAS)
 end
 
 function tienda.dibujar()
+    if not calendario.conocido(tipo.set, mercado.dia()) then tipo = sobres.lista[1] end
+    selector()
     local hora = love.timer.getTime()
-    local sx, sy = 160, 170 + math.sin(hora * 2) * 3
+    local sx, sy = 160, 160 + math.sin(hora * 2) * 3
     local h = ui.hoverCarta("escaparate", sx, sy, sobre.ANCHO * 4, sobre.ALTO * 4)
-    fx.aura(sx, sy, p.rojo, 110, 0.25)
-    sobre.dibujar(sx, sy, 4, math.sin(hora * 1.3) * 0.03, h and h.kx or 0, h and h.ky or 0)
+    local salido = mercado.salido(tipo.set)
+    fx.aura(sx, sy, tipo.colores.rayas, 110, salido and 0.25 or 0.08)
+    sobre.dibujar(tipo.id, sx, sy, 4, math.sin(hora * 1.3) * 0.03, h and h.lx * 0.05 or 0, 0)
+    if not salido then
+        love.graphics.setColor(0, 0, 0, 0.6)
+        love.graphics.rectangle("fill", sx - 62, sy - 90, 124, 180)
+        fuentes.texto("PRÓXIMAMENTE", sx - 60, sy - 4, 2, p.amarillo, "center", 120)
+    end
     ui.zona("escaparate", sx - 60, sy - 88, 120, 176)
 
-    local guardados = partida.sobresGuardados()
-    local frase = guardados == 1 and "TIENES 1 SOBRE SIN ABRIR" or ("TIENES " .. guardados .. " SOBRES SIN ABRIR")
-    fuentes.texto(frase, sx - 100, 274, 1, p.grisclaro, "center", 200)
+    local guardados = partida.sobres(tipo.id)
+    local frase = guardados == 1 and "TIENES 1 SIN ABRIR" or ("TIENES " .. guardados .. " SIN ABRIR")
+    local p1 = partida.sobres(tipo.id, true)
+    if p1 > 0 then frase = frase .. " (" .. p1 .. " DE 1ª ED)" end
+    fuentes.texto(frase, sx - 120, 256, 1, p.grisclaro, "center", 240)
+    fuentes.texto("COLECCIÓN " .. partida.distintas(tipo.set) .. "/" .. #partida.cartasDe(tipo.set), sx - 100, 266, 1, p.grisclaro, "center", 200)
 
     ui.caja(PANEL_X, PANEL_Y, PANEL_W, 236)
     fuentes.texto(tipo.nombre, PANEL_X + 10, PANEL_Y + 10, 2, p.blanco)
-    fuentes.texto(ui.dinero(tipo.precio), PANEL_X, PANEL_Y + 10, 2, p.amarillo, "right", PANEL_W - 10)
+    local precio, primera = mercado.enTienda(tipo)
+    if precio then
+        fuentes.texto(ui.dinero(precio), PANEL_X, PANEL_Y + 10, 2, p.amarillo, "right", PANEL_W - 10)
+    end
+    local texto, color = estado()
+    chip(texto, PANEL_X + 10, PANEL_Y + 28, color)
+    if precio then
+        fuentes.texto("QUEDAN " .. mercado.stock(tipo) .. " HOY", PANEL_X, PANEL_Y + 30, 1, mercado.stock(tipo) > 0 and p.blanco or p.rojo, "right", PANEL_W - 10)
+    end
 
     local cartasPorSobre = 0
     for _, hueco in ipairs(tipo.huecos) do cartasPorSobre = cartasPorSobre + hueco.cantidad end
-    fuentes.texto(cartasPorSobre .. " CARTAS POR SOBRE", PANEL_X + 10, PANEL_Y + 30, 1, p.grisclaro)
+    fuentes.texto(cartasPorSobre .. " CARTAS POR SOBRE  -  " .. #partida.cartasDe(tipo.set) .. " EN EL SET", PANEL_X + 10, PANEL_Y + 44, 1, p.grisclaro)
 
-    local y = PANEL_Y + 46
+    local y = PANEL_Y + 58
     for _, hueco in ipairs(tipo.huecos) do
         fuentes.texto(hueco.cantidad .. " x " .. hueco.nombre, PANEL_X + 10, y, 1, p.blanco)
-        y = lineaPesos(hueco.rarezas, PANEL_X + 18, y + 9, PANEL_X + PANEL_W - 10) + 14
+        y = lineaPesos(hueco.rarezas, PANEL_X + 18, y + 9, PANEL_X + PANEL_W - 10) + 13
     end
-
-    y = y + 4
-    fuentes.texto("GOD PACK: 1 DE CADA " .. math.floor(1 / tipo.godpack + 0.5) .. ", TODO EL SOBRE", PANEL_X + 10, y, 1, p.amarillo)
-    fuentes.texto("CON PROBABILIDADES DE RARA O MEJOR", PANEL_X + 10, y + 8, 1, p.amarillo)
-    fuentes.texto("PIEDAD: " .. tipo.piedad .. " SOBRES SIN HOLO Y EL SIGUIENTE", PANEL_X + 10, y + 22, 1, p.violeta)
-    fuentes.texto("TRAE HOLO O MEJOR SEGURO", PANEL_X + 10, y + 30, 1, p.violeta)
+    y = y + 2
+    fuentes.texto("GOD PACK: 1 DE CADA " .. math.floor(1 / tipo.godpack + 0.5) .. ", TODO EL SOBRE CON PROBABILIDADES", PANEL_X + 10, y, 1, p.amarillo)
+    fuentes.texto("DE RARA O MEJOR", PANEL_X + 10, y + 8, 1, p.amarillo)
+    fuentes.texto("PIEDAD: " .. tipo.piedad .. " SOBRES SIN HOLO Y EL SIGUIENTE LA TRAE SEGURO", PANEL_X + 10, y + 20, 1, p.violeta)
 
     local by = PANEL_Y + 246
-    ui.boton("comprar1", "COMPRAR " .. ui.dinero(tipo.precio), PANEL_X, by, 100, 16, p.verde, partida.dinero >= tipo.precio)
-    ui.boton("comprar5", "5 POR " .. ui.dinero(tipo.precio * 5), PANEL_X + 108, by, 100, 16, p.verde, partida.dinero >= tipo.precio * 5)
+    if precio then
+        local max = partida.maxCompra(tipo)
+        local cinco = math.min(5, max)
+        ui.boton("comprar1", "COMPRAR " .. ui.dinero(precio), PANEL_X, by, 100, 16, p.verde, max >= 1)
+        ui.boton("comprar5", (cinco > 1 and cinco or 5) .. " POR " .. ui.dinero(precio * math.max(2, cinco)), PANEL_X + 108, by, 100, 16, p.verde, cinco > 1)
+    elseif salido then
+        local reventa = mercado.compraReventa(tipo, true)
+        local r2 = mercado.compraReventa(tipo, false)
+        if r2 then
+            ui.boton("reventar", "REVENTA " .. ui.dinero(r2), PANEL_X, by, 100, 16, p.celeste, partida.dinero >= r2 and not partida.sinSitio(1))
+        end
+        if reventa then
+            ui.boton("reventa1", "1ª ED " .. ui.dinero(reventa), PANEL_X + 108, by, 100, 16, p.amarillo, partida.dinero >= reventa and not partida.sinSitio(1))
+        end
+    end
     ui.boton("abrir", "ABRIR (" .. guardados .. ")", PANEL_X + 216, by, PANEL_W - 216, 16, p.azul, guardados > 0)
 
+    local aviso
+    local sitio = partida.sinSitio(1)
     if sinSalida() then
-        ui.boton("rescate", "SOBRE DE RESCATE GRATIS", PANEL_X, by + 24, 208, 16, p.naranja)
-    elseif partida.dinero < tipo.precio and guardados == 0 then
-        fuentes.texto("SIN DINERO: VENDE REPES EN EL ARMARIO", PANEL_X, by + 28, 1, p.naranja)
+        ui.boton("rescate", "SOBRE DE RESCATE GRATIS", PANEL_X, by + 22, 208, 16, p.naranja)
+    elseif sitio == "estanteria" then
+        aviso = { "NO TE CABEN MÁS SOBRES: COMPRA UNA ESTANTERÍA", p.rojo }
+    elseif sitio == "cajas" then
+        aviso = { "NO TE CABEN MÁS CARTAS: VENDE O COMPRA UNA CAJA", p.rojo }
+    elseif precio and mercado.stock(tipo) == 0 then
+        aviso = { "HOY NO QUEDAN MÁS: MAÑANA LLEGAN MÁS SOBRES", p.naranja }
+    elseif not precio and salido then
+        aviso = { "YA NO SE IMPRIME: SOLO SE CONSIGUE DE REVENTA", p.grisclaro }
+    elseif precio and partida.dinero < precio and guardados == 0 then
+        aviso = { "SIN DINERO: VENDE CARTAS EN EL ARMARIO O EN EL MÓVIL", p.naranja }
     end
+    if aviso then fuentes.texto(aviso[1], PANEL_X, by + 26, 1, aviso[2]) end
+
+    panelAlmacen()
 end
 
 local function comprar(cantidad, boton)
-    if not partida.comprar(tipo.id, cantidad) then return end
+    local pagado = partida.comprar(tipo, cantidad)
+    if not pagado then return end
     sonido.tocar("moneda")
     local x = boton == "comprar1" and PANEL_X + 50 or PANEL_X + 158
-    fx.texto(x, PANEL_Y + 236, "-" .. ui.dinero(tipo.precio * cantidad), p.rojo)
-    fx.explosion(160, 170, p.amarillo, 20 * cantidad, 120)
+    fx.texto(x, PANEL_Y + 236, "-" .. ui.dinero(pagado), p.rojo)
+    fx.explosion(160, 160, p.amarillo, 20 * cantidad, 120)
     fx.sacudir(2)
+    partida.guardar()
+end
+
+local function pagar(pagado, texto, color)
+    if not pagado then return end
+    sonido.tocar("moneda")
+    fx.texto(ui.mx, ui.my - 10, texto or ("-" .. ui.dinero(pagado)), color or p.rojo)
     partida.guardar()
 end
 
@@ -105,11 +233,22 @@ function tienda.click(id)
     if id == "comprar1" then
         comprar(1, id)
     elseif id == "comprar5" then
-        comprar(5, id)
+        comprar(math.min(5, partida.maxCompra(tipo)), id)
+    elseif id == "reventa1" or id == "reventar" then
+        pagar(partida.comprarReventa(tipo, id == "reventa1"))
     elseif id == "abrir" then
-        nav.abrir()
+        nav.abrir(tipo.id)
+    elseif id:match("^tipo_") then
+        tipo = sobres[id:sub(6)]
+    elseif id == "fundas" then
+        if partida.comprarFundas(20, PRECIO_FUNDAS) then pagar(PRECIO_FUNDAS, "+20 FUNDAS", p.cian) end
+    elseif id == "estanteria" then
+        pagar(partida.comprarEstanteria(), "+20 SITIOS PARA SOBRES", p.morado)
+    elseif id == "caja" then
+        pagar(partida.comprarCaja(), "+250 SITIOS PARA CARTAS", p.morado)
     elseif id == "rescate" then
-        partida.regalar(tipo.id)
+        local barato = masBarato()
+        partida.regalar(barato.id, 1, select(2, mercado.enTienda(barato)))
         partida.guardar()
         sonido.tocar("nueva")
     elseif id == "escaparate" then
