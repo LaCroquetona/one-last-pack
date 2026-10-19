@@ -1,7 +1,10 @@
 -- Todo el dinero va en centimos: 200 = 2,00 €
--- El precio de cada carta persigue cada dia un "precio objetivo" que sale de
--- su valor base (datos/sets.lua), la fase de su set, las noticias y las
--- burbujas. Asi se mueve, pero siempre con un motivo.
+-- Cada carta tiene dos precios: el de 1ª edicion (desde que sale el set) y el
+-- normal (desde la primera reimpresion). Cada dia persiguen un "precio
+-- objetivo" que sale de:
+--   valor base (datos/sets.lua) x fase del set (calendario) x tendencia del set
+--   x tendencia de la carta x golpes de noticias x burbuja
+-- y la 1ª edicion ademas x vintage (sube sin techo desde que se agota) x tirada.
 return {
     -- cada carta se aleja un poco del valor de su rareza (entre estos dos)
     variacion = { 0.8, 1.3 },
@@ -15,24 +18,43 @@ return {
     -- cuanto se acerca el precio a su objetivo cada dia (0.3 = un 30%), y en burbuja
     seguimiento = 0.3,
     seguimientoBurbuja = 0.6,
-    -- ruido diario del precio (0.03 = un 3% arriba o abajo, mas o menos)
-    ruido = 0.03,
+    -- ruido diario del precio (0.015 = un 1,5% arriba o abajo, mas o menos)
+    ruido = 0.015,
 
     -- vender una copia suma esto a la saturacion de la carta (en el movil, la mitad);
     -- el precio se divide entre (1 + saturacion * golpe) y cada dia se recupera
     saturacion = { golpe = 0.15, recuperacion = 0.6 },
 
-    -- precio de una carta normal segun la fase de su set (1 = su valor base)
+    -- Rachas: cada carta y cada set van un tiempo subiendo, bajando o quietos.
+    -- deriva: lo que sube o baja al dia en una racha (0.01 = un 1%);
+    -- dias: lo que dura; pesos: lo facil que sale cada tipo;
+    -- vuelta: lo que vuelve cada dia hacia su precio normal (muy poco: las
+    -- rachas dejan huella); max: lo lejos que puede irse (en veces, x3 = 3)
+    rachas = {
+        carta = { pesos = { quieta = 2, sube = 1, baja = 1 }, deriva = { 0.003, 0.012 }, dias = { 5, 20 }, vuelta = 0.005, max = 3 },
+        set = { pesos = { quieta = 2, sube = 1, baja = 1 }, deriva = { 0.002, 0.007 }, dias = { 10, 35 }, vuelta = 0.002, max = 2.5 },
+        -- las chase se mueven mas
+        chase = 1.5,
+        -- un set que empieza a subir rapido sale en las noticias (deriva minima)
+        noticiaModa = 0.005,
+    },
+
+    -- Golpes de las noticias: un pico que se va deshaciendo (baja: lo que se
+    -- deshace cada dia) pero deja una parte para siempre (memoria)
+    golpes = { baja = 0.2, memoria = 0.3 },
+
+    -- lo que arrastra una chase a su set: si la chase sube un 30%, el set un 6%
+    contagio = 0.2,
+
+    -- precio segun la fase del set (1 = su valor base)
     fases = {
         -- al salir: sube y vuelve a la normalidad en unos dias
         hype = { normal = 0.25, chase = 0.6, dias = 3 },
-        -- mientras se imprime va bajando hasta perder esto al final de la tirada
+        -- mientras se imprime la 1ª edicion va bajando hasta perder esto
         caidaTirada = 0.18,
-        -- agotada sin reimprimir: sube hasta ganar esto
-        subidaAgotado = 0.6, ritmoAgotado = 7,
-        -- durante una reimpresion
+        -- normales: durante una reimpresion
         reimpresion = 0.72,
-        -- agotada otra vez tras una reimpresion
+        -- normales: agotadas tras una reimpresion suben un poco, con techo
         subidaTrasReimpresion = 0.45, ritmoTrasReimpresion = 10,
         -- cuando hay rumor de reimpresion
         caidaRumor = 0.12,
@@ -40,15 +62,22 @@ return {
         chase = 1.6,
     },
 
-    -- primera edicion: hasta que llega la primera reimpresion todas las copias
-    -- lo son. Despues su precio sigue subiendo desde que se agoto la tirada
-    -- (hasta ganar subida) y cada reimpresion nueva le quita caidaReimpresion
-    primera = { subida = 1.0, ritmo = 25, caidaReimpresion = 0.08, rampa = 5 },
+    -- Vintage: la 1ª edicion agotada sube sin techo, cada vez mas despacio pero
+    -- sin pararse: (1 + dias / tau) ^ alfa. Con tau 30 y alfa 0.55: x2,2 a los
+    -- 100 dias, x3,7 a los 300, x5,3 a los 600. Las chase y los sobres cerrados
+    -- con su propio alfa
+    vintage = { tau = 30, alfa = 0.55, alfaChase = 0.75, alfaSellado = 0.7, caidaRumor = 0.05 },
+
+    -- Tirada de 1ª edicion: cada set imprime como minimo "minima" sobres. Lo que
+    -- compras tu nunca pasa de una "cuota" de la tirada (entre 5% y 15%, se
+    -- sortea por set): si compras mas, se imprime mas. Cuanto mas grande la
+    -- tirada respecto a la minima, mas baratas sus 1ª ediciones: (tirada/minima)^-efecto
+    -- maxNoticias: los almacenes no suben la tirada por encima de minima x esto
+    tirada = { minima = 2000, cuota = { 0.05, 0.15 }, efecto = 0.3, maxNoticias = 4 },
 
     -- sobres cerrados respecto a su precio de tienda
     sellados = {
         tirada = 0.95,
-        subidaPrimera = 1.4, ritmoPrimera = 15,   -- 1ª edicion agotada
         reimpresion = 0.92,
         subidaReimpresion = 0.45, ritmoReimpresion = 12,
         caidaRumor = 0.1,
@@ -81,7 +110,10 @@ return {
 
     probNoticia = 0.4,
     -- noticias al azar de una carta ({carta}) o un set ({set})
-    -- efecto: multiplica el precio objetivo esos dias
+    -- efecto: golpe al precio (x2 = lo dobla de golpe; luego se va deshaciendo
+    -- y deja su memoria, ver golpes); dias: los que se vende mas de lo normal.
+    -- solo1 / soloNormal: solo a esa edicion; tirada: multiplica la tirada de
+    -- 1ª edicion (hay mas copias para siempre); desde: dia minimo
     noticias = {
         { tipo = "carta", clave = "viral",    texto = "{carta} sale en un vídeo viral", efecto = 2.0, dias = 3, peso = 1 },
         { tipo = "carta", clave = "streamer", texto = "Un streamer busca {carta} para su colección", efecto = 1.6, dias = 4, peso = 2 },
@@ -91,6 +123,11 @@ return {
         { tipo = "set",   clave = "aniversario", texto = "Aniversario del {set}: los coleccionistas vuelven a por él", efecto = 1.2, dias = 3, peso = 1, soloAgotado = true },
         { tipo = "set",   clave = "rumor",    texto = "Se rumorea una reimpresión del {set}", efecto = 0.88, dias = 3, peso = 1, soloAgotado = true },
         { tipo = "set",   clave = "escasez",  texto = "Escasez del {set}: hoy llegan menos sobres a la tienda", efecto = 1.1, dias = 1, peso = 0.5, soloTienda = true },
+        -- crashes: poco frecuentes y solo cuando ya hay historia
+        { tipo = "set",   clave = "almacen1", texto = "Encuentran un almacén lleno de sobres de 1ª edición del {set}", efecto = 0.6, dias = 6, peso = 0.12,
+          soloAgotado = true, solo1 = true, tirada = { 1.4, 2.0 }, desde = 60 },
+        { tipo = "set",   clave = "almacen",  texto = "Aparece un almacén con cajas de reimpresión del {set}", efecto = 0.7, dias = 4, peso = 0.15,
+          soloReimpreso = true, soloNormal = true, desde = 60 },
     },
 
     -- lo que se explica la primera vez que sale cada noticia
@@ -103,6 +140,10 @@ return {
         reimpresion = "Vuelven los sobres a la tienda, pero ya no son de 1ª edición. Las cartas normales bajan y las de 1ª edición suben.",
         burbuja = "Cuando una carta sube muy rápido y se vende muchísimo, puede ser una burbuja: tarde o temprano pincha.",
         escasez = "Hoy la tienda recibe menos sobres de ese set.",
+        almacen1 = "Si aparecen muchas copias de golpe, hay más oferta para siempre: la 1ª edición de ese set se hunde y tarda en recuperarse.",
+        almacen = "Más reimpresiones en el mercado: las cartas normales de ese set bajan. Las de 1ª edición casi no lo notan.",
+        moda = "Cuando un set se pone de moda sube todo: sus cartas, sus sobres cerrados... Las modas duran semanas, pero se acaban.",
+        caida = "A veces un set pierde interés durante unas semanas y baja poco a poco. No siempre vuelve a donde estaba.",
     },
 
     compradores = {
