@@ -72,6 +72,7 @@ end
 
 function nav.empezar()
     dineroVisto = partida.dinero
+    movil.reiniciar()
     nav.ir("armario")
 end
 

@@ -140,6 +140,19 @@ function ui.dinero(c)
     return string.format("%s%s,%02d €", signo, euros, c % 100)
 end
 
+-- 12345 -> "12.345"
+function ui.numero(n)
+    local s = tostring(math.floor(n + 0.5))
+    return (s:reverse():gsub("(%d%d%d)", "%1."):reverse():gsub("^%.", ""))
+end
+
+-- texto de la tirada de 1ª edicion de un set: cuantos sobres y cuantos son tuyos
+function ui.tirada(total, parte)
+    local pc = parte * 100
+    local txt = pc > 0 and pc < 1 and "<1" or tostring(math.floor(pc + 0.5))
+    return "TIRADA 1ª ED: " .. ui.numero(total) .. " SOBRES  -  TUYOS: " .. txt .. "%"
+end
+
 -- 0.12 -> "+12%"
 function ui.porcentaje(v)
     local n = math.floor(v * 100 + 0.5)

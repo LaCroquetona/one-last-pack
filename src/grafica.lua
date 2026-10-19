@@ -146,6 +146,9 @@ function grafica.mini(datos, x, y, w, h, dias)
     local n = #datos
     if n < 2 then return end
     local i0 = math.max(1, n - (dias or 14) + 1)
+    -- los ceros son dias en que aun no existia
+    while i0 < n and datos[i0] <= 0 do i0 = i0 + 1 end
+    if i0 >= n then return end
     local min, max = math.huge, -math.huge
     for i = i0, n do
         min = math.min(min, datos[i])

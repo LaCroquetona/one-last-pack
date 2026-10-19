@@ -33,8 +33,11 @@ local function botones()
         { "MERCADO" },
         { "dev_dia", "PASAR DÍA" }, { "dev_dia7", "PASAR 7 DÍAS" },
         { "dev_dia16", "PASAR 16 DÍAS" }, { "dev_dia30", "PASAR 30 DÍAS" },
+        { "dev_dia100", "PASAR 100 DÍAS" }, { "dev_dia300", "PASAR 300 DÍAS" },
         { "dev_ofertas", "OFERTAS AHORA" }, { "dev_noticia", "NOTICIA AL AZAR" },
         { "dev_burbuja", "BURBUJA EN UNA CHASE" },
+        { "dev_moda", "UN SET SE PONE DE MODA" }, { "dev_caida", "UN SET PIERDE INTERÉS" },
+        { "dev_crash", "CRASH: ALMACÉN DE 1ª EDICIÓN" },
         { "COLECCIÓN" },
         { "dev_completar", "+1 DE CADA CARTA" },
     }
@@ -134,7 +137,7 @@ function dev.click(id)
         generador.forzar = generador.forzar ~= "secreta" and "secreta" or nil
     elseif id == "dev_dia" then
         nav.pasarDia()
-    elseif id == "dev_dia7" or id == "dev_dia16" or id == "dev_dia30" then
+    elseif id:match("^dev_dia%d") then
         for _ = 1, tonumber(id:sub(8)) do nav.pasarDia() end
     elseif id == "dev_ofertas" then
         partida.generarOfertas()
@@ -142,6 +145,10 @@ function dev.click(id)
         mercado.noticia()
     elseif id == "dev_burbuja" then
         mercado.burbujaAhora()
+    elseif id == "dev_moda" or id == "dev_caida" then
+        mercado.forzarRacha(id == "dev_moda")
+    elseif id == "dev_crash" then
+        if not mercado.noticia("almacen1") then mercado.noticia("almacen") end
     elseif id == "dev_completar" then
         for _, c in ipairs(cartas) do
             if mercado.disponible(c.id) then partida.anadir(c.id, not mercado.hayNormales(c.set)) end

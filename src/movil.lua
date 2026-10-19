@@ -112,6 +112,15 @@ local function inicio()
     elegido = nil
 end
 
+-- al empezar o cargar una partida el movil vuelve al inicio (lo que estaba
+-- abierto puede no existir en la otra partida)
+function movil.reiniciar()
+    inicio()
+    scroll = {}
+    avisos = {}
+    sinLeer = 0
+end
+
 function movil.abrirFicha(id, primera)
     if app ~= "ficha" then table.insert(volver, app) end
     app = "ficha"
@@ -294,7 +303,7 @@ local function filaCarta(id, x, y, w, idZona, primera, tenue)
     if primera then sub = sub .. "  1ª ED" end
     if def.chase then sub = sub .. "  CHASE" end
     fuentes.texto(sub, x + 15, y + 11, 1, p.gris)
-    local _, h = mercado.historial(id)
+    local _, h = mercado.historial(id, primera)
     if h then grafica.mini(h, x + w - 100, y + 4, 36, 10) end
     local cambio = mercado.cambio(id, 7, primera)
     fuentes.texto(ui.dinero(mercado.valor(id, primera)), x, y + 3, 1, p.amarillo, "right", w - 4)
@@ -545,6 +554,8 @@ local function appSet()
         end
     end
     fuentes.texto("AL VENDER, LA APP SE QUEDA UN " .. math.floor(datosMercado.comision * 100 + 0.5) .. "%", x, y, 1, p.gris)
+    y = y + 10
+    fuentes.texto(ui.tirada(mercado.tirada(s.id)), x, y, 1, p.grisclaro)
     y = y + 12
 
     fuentes.texto("CARTAS DEL SET", x, y, 1, p.grisclaro)
@@ -593,19 +604,14 @@ local function appFicha()
     botonesRango(x + w - 76, y)
     y = y + 15
 
-    local h0, h, v = mercado.historial(def.id)
-    local series = { { datos = h, color = p.amarillo, nombre = "" } }
+    -- la 1ª edicion existe desde el primer dia; las normales, desde la primera reimpresion
+    local h0, h1, v = mercado.historial(def.id, true)
+    local _, hn = mercado.historial(def.id, false)
+    local h = primera and h1 or hn
+    local series = { { datos = h1, color = p.amarillo, nombre = normales and "1ª ED" or "" } }
     if normales then
-        -- la 1ª edicion existe desde el primer dia; las normales, desde la primera reimpresion
-        local h1, hn = {}, {}
-        for i, valor in ipairs(h) do
-            local dia = h0 + i - 1
-            h1[i] = math.floor(valor * mercado.prima(def, dia) + 0.5)
-            hn[i] = mercado.hayNormales(def.set, dia) and valor or 0
-        end
-        local s1 = { datos = h1, color = p.amarillo, nombre = "1ª ED" }
         local sn = { datos = hn, color = p.blanco, nombre = "NORMAL" }
-        series = primera and { s1, sn } or { sn, s1 }
+        series = primera and { series[1], sn } or { sn, series[1] }
     end
     grafica.dibujar({ x = x, y = y, w = w, h = 78, series = series, volumen = v, rango = rango, dia0 = h0,
         marcas = mercado.diasNoticia(def.id), formato = ui.dinero, id = "ficha" })

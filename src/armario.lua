@@ -502,9 +502,8 @@ local function geometriaBandeja(n)
     local visibles = math.min(n, caben)
     desplaza = math.max(0, math.min(desplaza, n - visibles))
     local paso = visibles > 1 and math.min(40, (ancho - CW) / (visibles - 1)) or 0
-    local x0 = B.x + 12 + CW / 2
-    if paso == 40 then x0 = B.x + B.w / 2 - (visibles - 1) * paso / 2 end
-    return x0, paso, visibles
+    -- siempre centradas: con pocas copias quedan en medio de la bandeja
+    return B.x + B.w / 2 - (visibles - 1) * paso / 2, paso, visibles
 end
 
 local function tooltipCopia(def, c)
@@ -554,6 +553,19 @@ local function dibujarBandeja()
     -- las copias en fila; las elegidas suben
     local x0, paso, visibles = geometriaBandeja(n)
     local cy = B.y + 60
+    local function pintarCopia(c, cx, alza, h)
+        local y = cy - (elegidas[c.u] and 6 or 0) - alza
+        if elegidas[c.u] then
+            lg.setColor(p.amarillo)
+            lg.rectangle("fill", cx - CW / 2 - 1, y - CH / 2 - 1, CW + 2, CH + 2)
+        end
+        carta.dibujar(def, cx, y, 1, 1, 0, true, h, c.f, { primera = c.p, quieta = h == nil })
+        if c.a or c.m then
+            lg.setColor(0, 0, 0, 0.5)
+            lg.rectangle("fill", cx - CW / 2, y - CH / 2, CW, CH)
+            fuentes.texto(c.a and "MÓVIL" or "MESA", cx - CW / 2, y - 2, 1, c.a and p.celeste or p.lima, "center", CW)
+        end
+    end
     local encima
     for k = 1, visibles do
         local c = lista[desplaza + k]
@@ -561,28 +573,19 @@ local function dibujarBandeja()
         local zid = "cp_" .. c.u
         local w = (k < visibles) and math.max(6, paso) or CW
         ui.zona(zid, cx - CW / 2, cy - CH / 2 - 6, w, CH + 6)
-        if ui.encima == zid then encima = { c = c, x = cx } end
-        local sube = elegidas[c.u] and 6 or 0
-        local y = cy - sube
-        if elegidas[c.u] then
-            lg.setColor(p.amarillo)
-            lg.rectangle("fill", cx - CW / 2 - 1, y - CH / 2 - 1, CW + 2, CH + 2)
-        end
-        carta.dibujar(def, cx, y, 1, 1, 0, true, nil, c.f, { primera = c.p, quieta = true })
         -- rayita debajo: amarilla si es de 1ª edicion
         lg.setColor(c.p and p.amarillo or p.grisosc)
         lg.rectangle("fill", cx - CW / 2, cy + CH / 2 + 2, math.min(CW, math.max(2, paso - 1)), 2)
-        if c.a or c.m then
-            lg.setColor(0, 0, 0, 0.5)
-            lg.rectangle("fill", cx - CW / 2, y - CH / 2, CW, CH)
-            fuentes.texto(c.a and "MÓVIL" or "MESA", cx - CW / 2, y - 2, 1, c.a and p.celeste or p.lima, "center", CW)
+        -- la del raton se pinta al final, levantada y entera (y solo una vez)
+        if ui.encima == zid then
+            encima = { c = c, x = cx }
+        else
+            pintarCopia(c, cx, 0)
         end
     end
-    -- la del raton se repite encima para que se vea entera
     if encima then
         local c = encima.c
-        local y = cy - (elegidas[c.u] and 6 or 0) - 3
-        carta.dibujar(def, encima.x, y, 1, 1, 0, true, ui.hoverCarta("cp_" .. c.u, encima.x, y, CW, CH), c.f, { primera = c.p })
+        pintarCopia(c, encima.x, 3, ui.hoverCarta("cp_" .. c.u, encima.x, cy - 3, CW, CH))
         if not barrido then tooltipCopia(def, c) end
         vista = c.u
     else

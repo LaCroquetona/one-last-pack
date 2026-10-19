@@ -165,6 +165,18 @@ function tienda.dibujar()
     fuentes.texto("GOD PACK: 1 DE CADA " .. math.floor(1 / tipo.godpack + 0.5) .. ", TODO EL SOBRE CON PROBABILIDADES", PANEL_X + 10, y, 1, p.amarillo)
     fuentes.texto("DE RARA O MEJOR", PANEL_X + 10, y + 8, 1, p.amarillo)
     fuentes.texto("PIEDAD: " .. tipo.piedad .. " SOBRES SIN HOLO Y EL SIGUIENTE LA TRAE SEGURO", PANEL_X + 10, y + 20, 1, p.violeta)
+    if salido then
+        fuentes.texto(ui.tirada(mercado.tirada(tipo.set)), PANEL_X + 10, y + 32, 1, p.grisclaro)
+        if ui.encima == "info_tirada" then
+            ui.tooltip("Tirada de 1ª edición", p.amarillo, {
+                { "Los sobres de 1ª edición que se han impreso." },
+                { "Si compras muchos, se imprimen más: nunca" },
+                { "tendrás más de una pequeña parte del total." },
+                { "Más tirada = 1ª ediciones más baratas.", p.amarillo },
+            })
+        end
+        ui.zona("info_tirada", PANEL_X + 10, y + 30, PANEL_W - 20, 9)
+    end
 
     local by = PANEL_Y + 246
     if precio then

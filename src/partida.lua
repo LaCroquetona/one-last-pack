@@ -334,6 +334,7 @@ function partida.comprar(tipo, cantidad)
     local coste = precio * cantidad
     partida.dinero = partida.dinero - coste
     mercado.gastarStock(tipo, cantidad)
+    if primera then mercado.comprados(tipo.set, cantidad) end
     partida.meterSobres(tipo.id, cantidad, primera)
     return coste
 end
