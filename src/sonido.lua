@@ -45,6 +45,19 @@ function sonido.preparar()
         return cuadrada(f, t) * (1 - p) * 0.08
     end)
 
+    fuentes.encima = crear(0.025, function(t, p)
+        return cuadrada(1800, t) * (1 - p) * 0.03
+    end)
+
+    fuentes.click = crear(0.05, function(t, p)
+        return cuadrada(900 - 400 * p, t) * (1 - p) * 0.09
+    end)
+
+    fuentes.moneda = crear(0.2, function(t, p)
+        local f = p < 0.3 and 1318.5 or 1975.5
+        return cuadrada(f, t) * (1 - p) * 0.09
+    end)
+
     -- arpegio que sube mas notas cuanto mas rara es la carta
     local notas = {523.25, 659.25, 783.99, 1046.5, 1318.5, 1568.0}
     for _, r in ipairs(rarezas.lista) do

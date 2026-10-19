@@ -1,8 +1,11 @@
+local fuentes = require "src.fuentes"
+
 local fx = {}
 
 local BASE = {0.06, 0.06, 0.10}
 
 local particulas = {}
+local textos = {}
 local temblor = 0
 local destello = { a = 0, color = {1, 1, 1} }
 local lenta = { t = 0, escala = 1 }
@@ -39,6 +42,11 @@ function fx.explosion(x, y, color, cantidad, fuerza)
     end
 end
 
+-- texto que sube y se desvanece (+$20, -$120...)
+function fx.texto(x, y, cad, color)
+    table.insert(textos, { x = x, y = y, cad = cad, color = color, vida = 1.2 })
+end
+
 function fx.sacudir(fuerza)
     temblor = math.max(temblor, fuerza)
 end
@@ -67,13 +75,19 @@ end
 -- dt real, sin camara lenta: los efectos de pantalla no se ralentizan
 function fx.update(dt)
     for i = #particulas, 1, -1 do
-        local p = particulas[i]
-        p.vy = p.vy + 260 * dt
-        p.vx = p.vx * (1 - dt * 1.5)
-        p.x = p.x + p.vx * dt
-        p.y = p.y + p.vy * dt
-        p.vida = p.vida - dt
-        if p.vida <= 0 then table.remove(particulas, i) end
+        local q = particulas[i]
+        q.vy = q.vy + 260 * dt
+        q.vx = q.vx * (1 - dt * 1.5)
+        q.x = q.x + q.vx * dt
+        q.y = q.y + q.vy * dt
+        q.vida = q.vida - dt
+        if q.vida <= 0 then table.remove(particulas, i) end
+    end
+    for i = #textos, 1, -1 do
+        local t = textos[i]
+        t.y = t.y - 18 * dt
+        t.vida = t.vida - dt
+        if t.vida <= 0 then table.remove(textos, i) end
     end
     temblor = temblor * math.exp(-dt * 9)
     destello.a = destello.a * math.exp(-dt * 7)
@@ -91,10 +105,17 @@ function fx.desplazamiento()
 end
 
 function fx.dibujarParticulas()
-    for _, p in ipairs(particulas) do
-        local c = p.color
-        love.graphics.setColor(c[1], c[2], c[3], p.vida / p.vidaMax)
-        love.graphics.rectangle("fill", math.floor(p.x), math.floor(p.y), p.tam, p.tam)
+    for _, q in ipairs(particulas) do
+        local c = q.color
+        love.graphics.setColor(c[1], c[2], c[3], q.vida / q.vidaMax)
+        love.graphics.rectangle("fill", math.floor(q.x), math.floor(q.y), q.tam, q.tam)
+    end
+    for _, t in ipairs(textos) do
+        local c = t.color
+        local a = math.min(1, t.vida * 2)
+        local w = fuentes.ancho(t.cad, 2)
+        fuentes.texto(t.cad, t.x - w / 2 + 1, t.y + 1, 2, {0, 0, 0, a * 0.6})
+        fuentes.texto(t.cad, t.x - w / 2, t.y, 2, {c[1], c[2], c[3], a})
     end
     love.graphics.setColor(1, 1, 1)
 end
