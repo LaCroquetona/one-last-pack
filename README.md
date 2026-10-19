@@ -1,6 +1,7 @@
 # One Last Pack
 
-Prototipo de apertura de sobres. Hecho con LÖVE 11.5.
+Juego de abrir sobres y completar la colección. Hecho con LÖVE 11.5.
+Versión actual: 0.2.0 (lo que cambia en cada versión está en `CHANGELOG.md`).
 
 ## Ejecutar
 
@@ -9,19 +10,23 @@ Prototipo de apertura de sobres. Hecho con LÖVE 11.5.
 
 ## Controles
 
+- TAB: cambiar entre tienda y armario
+- Espacio: abrir un sobre guardado
 - Mantener click o espacio: cargar y rasgar el sobre
-- Click / espacio: revelar la siguiente carta (manteniendo pasa las normales solas)
-- TAB: álbum
+- Click / espacio: revelar la siguiente carta (manteniendo pasan solas las normales)
+- Flechas: pasar páginas del álbum
 - ESC: salir
 
 La partida se guarda sola en `partida.txt` (en Windows está en `%APPDATA%/LOVE/one-last-pack/`). Bórralo para empezar de cero.
 
 ## Dónde se toca cada cosa
 
-- `datos/cartas.lua`: las cartas del set. Una línea por carta.
-- `datos/rarezas.lua`: colores, probabilidades y cuánto suspense tiene cada rareza.
-- `datos/elementos.lua`: colores de fondo y figura por elemento.
-- `sprites/`: si una carta tiene `sprite = "algo.png"`, se usa ese dibujo en vez de la forma.
-- `src/generador.lua`: cómo se rellena un sobre (huecos, god pack, piedad).
-- `src/apertura.lua`: toda la animación de abrir.
-- `src/sonido.lua`: los sonidos se generan por código, cambiarlos por .ogg cuando los haya.
+- `datos/cartas.lua`: las cartas del set, una línea por carta.
+- `datos/sobres.lua`: precio, huecos del sobre y sus probabilidades, god pack, piedad y con qué se empieza.
+- `datos/rarezas.lua`: colores, precio de venta y suspense de cada rareza.
+- `datos/elementos.lua`: colores y trama de fondo de cada elemento.
+- `datos/paleta.lua`: los 16 colores (Sweetie 16).
+- `sprites/`: si una carta tiene `sprite = "algo.png"`, se usa ese dibujo en vez del bicho generado.
+- `src/bicho.lua`: el generador de bichos.
+- `src/carta.lua`: cómo se pinta cada capa de la carta.
+- `src/apertura.lua`, `src/tienda.lua`, `src/armario.lua`: las tres pantallas.
