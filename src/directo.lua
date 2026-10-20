@@ -3,6 +3,10 @@
 -- La apertura avisa de lo que pasa (rasgar, suspense, carta, fin del sobre) y
 -- el chat reacciona segun cuanta gente haya.
 local datos = require "datos.directo"
+local datosEncargos = require "datos.encargos"
+local sobres = require "datos.sobres"
+local sets = require "datos.sets"
+local mercado = require "src.mercado"
 local rarezas = require "datos.rarezas"
 local p = require "datos.paleta"
 local partida = require "src.partida"
@@ -141,11 +145,16 @@ end
 
 -- propinas y seguidores
 
-local function cantidadPropina()
-    local total = 0
-    for _, c in ipairs(datos.propinas.cantidades) do total = total + c[3] end
-    local r = love.math.random() * total
+local function cantidadPropina(espectadores)
+    local posibles, total = {}, 0
     for _, c in ipairs(datos.propinas.cantidades) do
+        if espectadores >= (c[4] or 0) then
+            table.insert(posibles, c)
+            total = total + c[3]
+        end
+    end
+    local r = love.math.random() * total
+    for _, c in ipairs(posibles) do
         r = r - c[3]
         if r <= 0 then
             -- de 10 en 10 centimos, para que parezcan de verdad
@@ -160,7 +169,7 @@ local function tirarPropinas(espectadores, mult)
     local prob = math.min(0.6, datos.propinas.prob * mult)
     local lista = {}
     for _ = 1, math.floor(espectadores + 0.5) do
-        if love.math.random() < prob then table.insert(lista, cantidadPropina()) end
+        if love.math.random() < prob then table.insert(lista, cantidadPropina(espectadores)) end
     end
     return lista
 end
@@ -302,6 +311,14 @@ function directo.rasgar(godpack)
     end
 end
 
+-- abres una caja en directo: el chat se anima y llega algo de gente
+function directo.caja()
+    if not d then return end
+    d.quieto = 0
+    d.subidon = d.subidon + 0.3
+    if d.esp >= 1 then rafaga("caja", math.min(datos.chat.maxReaccion, 1 + cuantos(d.esp * 0.25)), 2) end
+end
+
 function directo.suspense()
     if not d or d.esp < 3 then return end
     rafaga("suspense", cuantos(math.min(5, d.esp * 0.06)), 0.8)
@@ -330,8 +347,52 @@ function directo.carta(def, nueva)
     if mult > 0 then cobrarPropinas(tirarPropinas(d.esp, mult), 0.8) end
 end
 
-function directo.finSobre(defs, godpack)
+-- peticiones del chat: alguien paga por que abras un sobre concreto
+
+local function nuevaPeticion()
+    local C = datosEncargos.chat
+    local tuyos, todos = {}, {}
+    for _, t in ipairs(sobres.lista) do
+        if mercado.salido(t.set) then
+            table.insert(todos, t)
+            if partida.sobres(t.id) > 0 then table.insert(tuyos, t) end
+        end
+    end
+    if #todos == 0 then return end
+    local lista = (#tuyos > 0 and love.math.random() < C.tuyos) and tuyos or todos
+    local t = lista[love.math.random(#lista)]
+    local pago = t.precio * (C.pago[1] + love.math.random() * (C.pago[2] - C.pago[1])) * (1 + d.esp * C.porEspectador2)
+    local idioma = partida.canal.idioma
+    local texto = azar(datosEncargos.textos[idioma]):gsub("{s}", sets[t.set].codigo)
+    d.peticion = { tipo = t.id, codigo = sets[t.set].codigo, pago = math.floor(pago / 10 + 0.5) * 10, t = C.segundos,
+                   nombre = nombreAlAzar(), color = colorAlAzar(), texto = texto }
+    table.insert(cola, { t = 0, nombre = d.peticion.nombre, color = d.peticion.color, texto = texto })
+    sonido.tocar("nueva", 1.4)
+end
+
+local function revisarPeticion(tipoId)
+    local pe = d.peticion
+    if not pe or pe.tipo ~= tipoId then return end
+    d.peticion = nil
+    local idioma = partida.canal.idioma
+    table.insert(cola, { t = 0.6, nombre = pe.nombre, color = p.amarillo, texto = azar(datosEncargos.textos.cumplida[idioma]),
+                         propina = pe.pago })
+    rafaga("holo", math.min(6, 1 + cuantos(d.esp * 0.1)), 1.5)
+    ganarSeguidores(datosEncargos.chat.seguidores)
+    d.cumplidas = (d.cumplidas or 0) + 1
+end
+
+function directo.peticion()
+    return d and d.peticion
+end
+
+function directo.forzarPeticion()
+    if d then nuevaPeticion() end
+end
+
+function directo.finSobre(defs, godpack, tipoId)
     if not d then return end
+    if tipoId then revisarPeticion(tipoId) end
     d.sobres = d.sobres + 1
     d.quieto = 0
     local S = datos.seguir
@@ -371,6 +432,21 @@ function directo.update(dt, enMesa)
     d.pico = math.max(d.pico, ahora)
     if ahora > antes and love.math.random() < 0.5 then decir("saludo", love.math.random()) end
 
+    -- peticiones del chat: mas cuanta mas gente; caducan si no las cumples
+    local C = datosEncargos.chat
+    if d.peticion then
+        d.peticion.t = d.peticion.t - dt
+        if d.peticion.t <= 0 then
+            local pe = d.peticion
+            d.peticion = nil
+            table.insert(cola, { t = 0, nombre = pe.nombre, color = pe.color,
+                                 texto = azar(datosEncargos.textos.caducada[partida.canal.idioma]) })
+        end
+    elseif d.esp >= C.espectadoresMin and d.t > 20 then
+        local porMinuto = math.min(C.maxPorMinuto, C.porMinuto + d.esp * C.porEspectador)
+        if love.math.random() < porMinuto * dt / 60 then nuevaPeticion() end
+    end
+
     -- seguidores que llegan solo por estar mirando
     ganarSeguidores(d.esp * datos.seguir.porMinuto * dt / 60 / cansancio())
 
@@ -408,7 +484,8 @@ function directo.update(dt, enMesa)
                 partida.guardar()
             end
             m.nace = d.t
-            poner(m)
+            -- sin nadie mirando no escribe nadie
+            if m.sistema or m.sigue or m.propina or directo.espectadores() > 0 then poner(m) end
         end
     end
 end
@@ -537,6 +614,22 @@ local function dibujarChat(x, y, w, h)
     fuentes.texto(ui.numero(partida.canal.seguidores) .. " SEG.  " .. ui.dinero(d.propinas), x + 5, y + 13, 1, p.grisclaro)
     ui.boton("dir_parar", "PARAR", x + w - 36, y + 4, 32, 11, p.rojo)
 
+    -- peticion del chat, fija arriba
+    local tope = y + 23
+    local pe = d.peticion
+    if pe then
+        local parpadeo = pe.t < 20 and math.floor(pe.t * 3) % 2 == 0
+        lg.setColor(p.amarillo[1], p.amarillo[2], p.amarillo[3], 0.18)
+        lg.rectangle("fill", x + 2, y + 23, w - 4, 26)
+        lg.setColor(parpadeo and p.rojo or p.amarillo)
+        lg.rectangle("line", x + 2.5, y + 23.5, w - 5, 25)
+        fuentes.texto("PETICIÓN: ABRE UN " .. pe.codigo, x + 6, y + 27, 1, p.amarillo)
+        fuentes.texto("+" .. ui.dinero(pe.pago), x + 6, y + 36, 1, p.lima)
+        fuentes.texto(string.format("%d:%02d", math.floor(pe.t / 60), math.floor(pe.t % 60)), x, y + 36, 1,
+            parpadeo and p.rojo or p.blanco, "right", w - 8)
+        tope = y + 51
+    end
+
     -- mensajes de abajo arriba
     local fondo = y + h - 4
     local ancho = w - 8
@@ -544,7 +637,7 @@ local function dibujarChat(x, y, w, h)
         local m = chat[i]
         local lineas = lineasMensaje(m, ancho)
         local alto = #lineas * 7 + 2
-        if fondo - alto < y + 23 then break end
+        if fondo - alto < tope then break end
         fondo = fondo - alto
         local entra = m.nace and math.min(1, (d.t - m.nace) / 0.15) or 1
         local dx = math.floor((1 - entra) * 8)

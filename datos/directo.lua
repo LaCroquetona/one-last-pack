@@ -32,11 +32,12 @@ return {
     -- propinas: cada espectador puede dar una al acabar un sobre (prob), y
     -- al salir una carta buena (prob x lo de su rareza)
     propinas = {
-        prob = 0.002,
+        prob = 0.012,
         rareza = { holo = 3, fullart = 8, secreta = 20 },
         chase = 12, godpack = 40,
-        -- cuanto dan: {minimo, maximo, peso}
-        cantidades = { { 50, 150, 70 }, { 200, 500, 24 }, { 1000, 2000, 5 }, { 5000, 10000, 1 } },
+        -- cuanto dan: {minimo, maximo, peso, espectadores que hacen falta}
+        -- (las propinas gordas solo llegan a canales con gente)
+        cantidades = { { 20, 60, 65, 0 }, { 60, 150, 27, 5 }, { 150, 400, 7, 25 }, { 400, 1000, 1, 60 } },
     },
 
     chat = {
