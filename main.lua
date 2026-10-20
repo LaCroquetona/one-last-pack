@@ -24,23 +24,72 @@ local directo = require "src.directo"
 
 local lg = love.graphics
 
+-- el juego se dibuja en 640x360; en pantallas mas alargadas (moviles de
+-- 20:9) se ve mas mesa a los lados: VISTO es el ancho que se ve y OX lo que
+-- sobra a cada lado. El lienzo va al triple para que el texto del movil
+-- (x4/3) quede nitido
 local ANCHO, ALTO = 640, 360
+local VISTO, OX = ANCHO, 0
+local DOBLE = 3
 local pantalla
 local escena = "intro"
 local escenas = { tienda = tienda, mesa = mesa, armario = armario, movil = movil, menu = menu }
 local dineroVisto = 0
+-- margen de la camara o la muesca del movil, en pixeles del juego
+local margenIzq, margenDer = 0, 0
 
 -- escala para llenar la ventana sin deformar: puede no ser entera (pantallas
 -- que no son 1080p, o Windows con el escalado al 125%)
 local function escalaVentana()
     local w, h = lg.getDimensions()
-    local e = math.min(w / ANCHO, h / ALTO)
-    return e, math.floor((w - ANCHO * e) / 2 + 0.5), math.floor((h - ALTO * e) / 2 + 0.5)
+    local e = math.min(w / VISTO, h / ALTO)
+    return e, math.floor((w - VISTO * e) / 2 + 0.5), math.floor((h - ALTO * e) / 2 + 0.5)
 end
 
+-- ancho visible segun la forma de la pantalla (16:9 = 640, 20:9 = 800)
+local function medirPantalla()
+    local w, h = lg.getDimensions()
+    local visto = math.floor(ALTO * w / h / 2) * 2
+    visto = math.max(ANCHO, math.min(900, visto))
+    if visto ~= VISTO or not pantalla then
+        VISTO, OX = visto, (visto - ANCHO) / 2
+        pantalla = lg.newCanvas(VISTO * DOBLE, ALTO * DOBLE)
+        fuentes.lienzo = pantalla
+        encima.escala = DOBLE
+    end
+    ui.izq, ui.der = -OX, ANCHO + OX
+    -- la zona segura (camara en la pantalla, barras del sistema)
+    margenIzq, margenDer = 0, 0
+    local sx, _, sw = love.window.getSafeArea()
+    local mw = love.window.getMode()
+    if sx and mw and mw > 0 then
+        local e = escalaVentana()
+        local px = w / mw
+        margenIzq = math.max(0, sx * px / e - (w / e - VISTO) / 2)
+        margenDer = math.max(0, (mw - sx - sw) * px / e - (w / e - VISTO) / 2)
+    end
+end
+
+-- de pixeles de la ventana a coordenadas del juego (0-640 es el centro)
 local function aJuego(x, y)
     local e, ox, oy = escalaVentana()
-    return (x - ox) / e, (y - oy) / e
+    return (x - ox) / e - OX, (y - oy) / e
+end
+
+-- los recortes (listas con scroll) se piden en coordenadas del juego; en el
+-- lienzo grande hay que pasarlos a sus pixeles
+local recorteOriginal = lg.setScissor
+lg.setScissor = function(x, y, w, h)
+    if not x then return recorteOriginal() end
+    if lg.getCanvas() == pantalla then
+        return recorteOriginal((x + OX) * DOBLE, y * DOBLE, w * DOBLE, h * DOBLE)
+    end
+    return recorteOriginal(x, y, w, h)
+end
+
+-- para las pruebas: ancho visible y lo que sobra a cada lado
+function nav.vista()
+    return VISTO, OX
 end
 
 local function raton()
@@ -115,7 +164,9 @@ end
 function love.load()
     lg.setDefaultFilter("nearest", "nearest")
     lg.setLineStyle("rough")
-    pantalla = lg.newCanvas(ANCHO, ALTO)
+    -- en el movil el texto va mas grande (OLP_MOVIL=1 lo prueba en el PC)
+    if love._os == "Android" or love._os == "iOS" or os.getenv("OLP_MOVIL") then fuentes.factor = 4 / 3 end
+    medirPantalla()
     if love.filesystem.read(ARCHIVO_PANTALLA) == "completa" then
         love.window.setFullscreen(true, "desktop")
     end
@@ -132,6 +183,10 @@ function love.load()
     menu.preparar()
     dineroVisto = partida.dinero
     intro.empezar(function() escena = "menu" end)
+end
+
+function love.resize()
+    medirPantalla()
 end
 
 function love.update(dt)
@@ -292,30 +347,41 @@ function love.quit()
 end
 
 local function dibujarBarra()
+    local izq, der = -OX + margenIzq, ANCHO + OX - margenDer
     lg.setColor(p.negro)
-    lg.rectangle("fill", 0, 0, ANCHO, 20)
+    lg.rectangle("fill", -OX, 0, VISTO, 20)
     lg.setColor(p.grisosc)
-    lg.rectangle("fill", 0, 20, ANCHO, 1)
+    lg.rectangle("fill", -OX, 20, VISTO, 1)
 
+    -- botones pegados a la izquierda de la pantalla y el dinero a la derecha;
+    -- en el movil un poco mas anchos para que se pulsen bien
+    local x = izq + 6
+    local extra = fuentes.factor > 1 and 8 or 0
+    local function boton(id, texto, w, color)
+        ui.boton(id, texto, x, 3, w + extra, 14, color)
+        x = x + w + extra + 3
+    end
     if not bloqueado() then
-        ui.boton("ir_tienda", "TIENDA", 6, 3, 38, 14, escena == "tienda" and p.verde or p.gris)
-        ui.boton("ir_mesa", "MESA", 47, 3, 34, 14, escena == "mesa" and p.verde or (directo.activo() and p.rojo or p.gris))
-        ui.boton("ir_armario", "ARMARIO", 84, 3, 42, 14, escena == "armario" and p.verde or p.gris)
+        boton("ir_tienda", "TIENDA", 38, escena == "tienda" and p.verde or p.gris)
+        boton("ir_mesa", "MESA", 34, escena == "mesa" and p.verde or (directo.activo() and p.rojo or p.gris))
+        boton("ir_armario", "ARMARIO", 42, escena == "armario" and p.verde or p.gris)
         local ofertas = partida.ofertasTotales()
-        ui.boton("ir_movil", ofertas > 0 and ("MÓVIL (" .. ofertas .. ")") or "MÓVIL", 129, 3, 50, 14, escena == "movil" and p.verde or (ofertas > 0 and p.naranja or p.gris))
+        boton("ir_movil", ofertas > 0 and ("MÓVIL (" .. ofertas .. ")") or "MÓVIL", 50, escena == "movil" and p.verde or (ofertas > 0 and p.naranja or p.gris))
         if ui.encima == "ir_movil" and directo.activo() then
             ui.tooltip("Se acaba el directo", p.rojo, { { "El móvil es el que graba" } })
         end
+    else
+        x = x + 179 + extra * 4
     end
-    ui.boton("ir_dev", "DEV", 182, 3, 24, 14, dev.abierto and p.naranja or p.grisosc)
-    if escena == "armario" then armario.pestanas() end
+    boton("ir_dev", "DEV", 24, dev.abierto and p.naranja or p.grisosc)
 
     local dinero = ui.dinero(dineroVisto)
-    local x = ANCHO - 8 - fuentes.ancho(dinero, 2)
-    fuentes.texto(dinero, x, 4, 2, p.amarillo)
+    local dx = der - 8 - fuentes.ancho(dinero, 2)
+    fuentes.texto(dinero, dx, 4, 2, p.amarillo)
     local info = "DÍA " .. mercado.dia() .. "   SOBRES " .. partida.sobresGuardados()
-    local ix = x - 12 - fuentes.ancho(info)
+    local ix = dx - 12 - fuentes.ancho(info)
     fuentes.texto(info, ix, 8, 1, p.grisclaro)
+    if escena == "armario" then armario.pestanas(x + 4, ix - 6) end
     -- fuera de la mesa se ve que sigues en directo
     if escena ~= "mesa" and directo.activo() then
         local cad = "EN DIRECTO " .. directo.espectadores()
@@ -331,23 +397,31 @@ local grande, factorGrande
 -- conBarra: la barra de arriba se alarga de lado a lado
 local function presentar(conMesa, conBarra)
     lg.setCanvas()
+    lg.origin()
     local e, ox, oy = escalaVentana()
-    local k = math.max(1, math.ceil(e - 0.001))
-    if factorGrande ~= k then
-        grande = lg.newCanvas(ANCHO * k, ALTO * k)
-        grande:setFilter("linear", "linear")
-        factorGrande = k
+    -- con pantallas de mucha resolucion (1080p o moviles) basta con ampliar
+    -- con pixeles duros; si no, se pasa por el lienzo grande
+    local r = e / DOBLE
+    local directa = r >= 1.25 or math.abs(r - 1) < 0.01
+    local k = directa and 1 or math.max(1, math.ceil(e / DOBLE - 0.001))
+    local origen = pantalla
+    if not directa then
+        if not grande or factorGrande ~= k or grande:getWidth() ~= VISTO * DOBLE * k then
+            grande = lg.newCanvas(VISTO * DOBLE * k, ALTO * DOBLE * k)
+            grande:setFilter("linear", "linear")
+            factorGrande = k
+        end
+        lg.setCanvas(grande)
+        lg.clear(0, 0, 0, 0)
+        lg.setBlendMode("alpha", "premultiplied")
+        lg.draw(pantalla, 0, 0, 0, k, k)
+        lg.setCanvas()
+        origen = grande
     end
-
-    lg.setCanvas(grande)
-    lg.clear(0, 0, 0, 0)
-    lg.setBlendMode("alpha", "premultiplied")
-    lg.draw(pantalla, 0, 0, 0, k, k)
-    lg.setCanvas()
 
     lg.setBlendMode("alpha")
     lg.clear(p.negro[1], p.negro[2], p.negro[3])
-    if conMesa then escritorio.dibujar(e, ox, oy, fx.tinteMesa()) end
+    if conMesa then escritorio.dibujar(e, ox + OX * e, oy, fx.tinteMesa()) end
     if conBarra then
         local w = lg.getDimensions()
         lg.setColor(p.negro)
@@ -357,7 +431,7 @@ local function presentar(conMesa, conBarra)
         lg.setColor(1, 1, 1)
     end
     lg.setBlendMode("alpha", "premultiplied")
-    lg.draw(grande, ox, oy, 0, e / k, e / k)
+    lg.draw(origen, ox, oy, 0, e / DOBLE / k, e / DOBLE / k)
     lg.setBlendMode("alpha")
     -- lo que gira (la mano, la caja volando) va encima a la resolucion real
     encima.dibujar(e, ox, oy)
@@ -367,12 +441,15 @@ function love.draw()
     ui.empezar(raton())
 
     lg.setCanvas(pantalla)
+    lg.clear(0, 0, 0, 0)
+    lg.origin()
+    lg.scale(DOBLE)
+    lg.translate(OX, 0)
     if escena == "intro" then
         intro.dibujar(ANCHO, ALTO)
         presentar(false, false)
         return
     end
-    lg.clear(0, 0, 0, 0)
 
     local dx, dy = fx.desplazamiento()
     lg.push()
@@ -388,7 +465,7 @@ function love.draw()
     end
     fx.dibujarDestello(ANCHO, ALTO)
     ui.dibujarOverlay(ANCHO, ALTO)
-    ui.dibujarTooltip(ANCHO, ALTO)
+    ui.dibujarTooltip(ANCHO + OX, ALTO)
     ui.dibujarModal(ANCHO, ALTO)
     presentar(true, escena ~= "menu")
 end

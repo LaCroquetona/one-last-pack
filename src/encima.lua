@@ -5,6 +5,8 @@ local lg = love.graphics
 
 local encima = {}
 local lista = {}
+-- el lienzo del juego va ampliado (main.lua): lo anotado viene en sus pixeles
+encima.escala = 1
 
 -- f se llama luego con las coordenadas del juego (640x360); se guarda el
 -- desplazamiento de ahora (el temblor de pantalla)
@@ -18,7 +20,7 @@ function encima.dibujar(e, ox, oy)
         local f, tx, ty = lista[i][1], lista[i][2], lista[i][3]
         lg.push("all")
         lg.origin()
-        lg.translate(ox + tx * e, oy + ty * e)
+        lg.translate(ox + tx / encima.escala * e, oy + ty / encima.escala * e)
         lg.scale(e, e)
         f()
         lg.pop()

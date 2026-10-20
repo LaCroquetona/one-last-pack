@@ -5,6 +5,32 @@ parte de una fase); el del medio solo cuando termino una fase entera y la doy
 por buena. Los arreglos de una versión que todavía estoy probando van en esa
 misma versión. El juego se queda por debajo de 1.0 hasta que esté completo.
 
+## v0.8.0 - 2026-10-21 - Pantalla de móvil, sets nuevos y dorso
+
+Fase 3 terminada: empieza la fase 4.
+
+- **Pantallas alargadas** (móviles 20:9 como el Redmi Note 13): el juego ya no
+  se queda en un 16:9 con bandas. Se ve más mesa a los lados, la barra de
+  arriba va de borde a borde (botones a la izquierda, dinero a la derecha) y
+  se respeta la zona de la cámara.
+- **Texto más grande en el móvil** (x4/3), automático en Android. Lo que no
+  cabe en su botón se queda a su tamaño. El juego se dibuja ahora al triple
+  de resolución para que la letra grande salga nítida (en PC se ve igual).
+- **4 sets nuevos**, uno cada 18 días como siempre, cada uno con su elemento
+  y su sobre:
+  - S5 (6 €, 60 cartas, 8 por sobre): veneno.
+  - S6 (3 €, 70 cartas, 7 por sobre): viento.
+  - S7 (15 €, 50 cartas, 8 por sobre): dragón. El caro y el más duro.
+  - S8 (9 €, 80 cartas, 10 por sobre): luz.
+  Equilibrados como los de antes: un sobre trae de media un 85-90% de lo que
+  cuesta sin mejoras.
+- **Dorso nuevo, "constelación rombo"**, igual para todas las cartas.
+- Con muchos sets: la tienda los enseña de 4 en 4 con flechas, las pestañas
+  del armario se desplazan con flechas, SELLADO va por páginas y la caja de
+  la mesa enseña primero los sobres que tienes (caben 4).
+- Las partidas de antes siguen igual: los sets nuevos salen cuando les toca
+  y las fechas de los viejos no cambian.
+
 ## v0.7.4 - 2026-10-20 - Vendedores, logros y torneos
 
 - **Vendedores de segunda mano** en Móvil > MERCADO. Cada set tiene ofertas
