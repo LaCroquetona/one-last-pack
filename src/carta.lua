@@ -114,6 +114,10 @@ local tramas = {
     rejilla   = function(x, y) return x % 3 == 0 or y % 3 == 0 end,
     rocas     = function(x, y) return (x * 7 + y * 3) % 5 == 0 or (x + y * 2) % 7 == 0 end,
     estrellas = function(x, y) return (x * 5 + y * 11) % 13 == 0 end,
+    burbujas = function(x, y) return (x % 5 == 2 and y % 4 == 1) or (x % 5 == 0 and y % 4 == 3) end,
+    rafagas = function(x, y) return y % 3 == 1 and (x + y * 3) % 8 < 4 end,
+    escamas = function(x, y) return (y % 2 == 0 and (x + y) % 4 == 0) or (y % 2 == 1 and (x + y) % 4 == 2) end,
+    destellos = function(x, y) return (x * 7 + y * 3) % 9 == 0 end,
 }
 
 -- degradado con trama ordenada (Bayer 4x4), el de la pixel art clasica
@@ -244,28 +248,51 @@ local function pintarSilueta(def)
     lg.draw(img, math.floor((W - img:getWidth()) / 2), ARTE.y + ARTE.h - SUELO - img:getHeight() + 2)
 end
 
+-- linea de puntos (un pixel si, otro no) entre dos puntos
+local function punteada(x1, y1, x2, y2)
+    local n = math.max(math.abs(x2 - x1), math.abs(y2 - y1))
+    for i = 0, n, 2 do
+        px(math.floor(x1 + (x2 - x1) * i / n + 0.5), math.floor(y1 + (y2 - y1) * i / n + 0.5))
+    end
+end
+
+-- estrella en cruz: centro claro y brazos azules
+local function estrellaCruz(x, y, brazo, centro)
+    lg.setColor(p.celeste)
+    for i = 1, brazo do
+        px(x - i, y); px(x + i, y); px(x, y - i); px(x, y + i)
+    end
+    lg.setColor(centro)
+    px(x, y)
+end
+
+-- dorso "constelacion rombo": fondo de noche con estrellas sueltas y dos
+-- rombos unidos por sus puntas, igual para todas las cartas
 local function pintarDorso()
     local W, H = carta.ANCHO, carta.ALTO
-    silueta(W, H, p.azulosc)
-    for y = 2, H - 3 do
-        for x = 2, W - 3 do
-            if (x + y) % 4 == 0 then
-                lg.setColor(p.azul)
-                px(x, y)
-            elseif (x - y) % 4 == 0 then
-                lg.setColor(p.rojo)
-                px(x, y)
-            end
-        end
-    end
-    lg.setColor(p.amarillo)
-    lg.rectangle("line", 2.5, 2.5, W - 5, H - 5)
-    local cx, cy = W / 2, H / 2
+    silueta(W, H, p.cian)
     lg.setColor(p.negro)
-    lg.polygon("fill", cx, cy - 13, cx + 11, cy, cx, cy + 13, cx - 11, cy)
-    lg.setColor(p.amarillo)
-    lg.polygon("line", cx, cy - 12, cx + 10, cy, cx, cy + 12, cx - 10, cy)
-    fuentes.texto("OLP", 0, cy - 2, 1, p.amarillo, "center", W)
+    lg.rectangle("fill", 2, 2, W - 4, H - 4)
+    -- estrellitas tenues, siempre en el mismo sitio
+    local r = love.math.newRandomGenerator(7)
+    for i = 1, 26 do
+        lg.setColor(i % 3 == 0 and p.gris or p.grisosc)
+        px(r:random(3, W - 4), r:random(3, H - 4))
+    end
+    local cx, cy = math.floor(W / 2), math.floor(H / 2)
+    local grande = { { cx, cy - 19 }, { cx + 13, cy }, { cx, cy + 19 }, { cx - 13, cy } }
+    local chico = { { cx, cy - 8 }, { cx + 6, cy }, { cx, cy + 8 }, { cx - 6, cy } }
+    lg.setColor(p.azul)
+    for i = 1, 4 do
+        local j = i % 4 + 1
+        punteada(grande[i][1], grande[i][2], grande[j][1], grande[j][2])
+        punteada(chico[i][1], chico[i][2], chico[j][1], chico[j][2])
+        punteada(grande[i][1], grande[i][2], chico[i][1], chico[i][2])
+    end
+    for i = 1, 4 do
+        estrellaCruz(grande[i][1], grande[i][2], 2, i % 2 == 1 and p.blanco or p.cian)
+        estrellaCruz(chico[i][1], chico[i][2], 1, p.cian)
+    end
     esquinas(W, H)
 end
 
