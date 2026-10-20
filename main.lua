@@ -5,6 +5,7 @@ local carta = require "src.carta"
 local sobre = require "src.sobre"
 local caja = require "src.caja"
 local encima = require "src.encima"
+local logros = require "src.logros"
 local sonido = require "src.sonido"
 local fx = require "src.fx"
 local ui = require "src.ui"
@@ -127,6 +128,7 @@ function love.load()
     movil.preparar()
     mesa.preparar()
     partida.cargar()
+    if partida.logrosSinAviso then logros.revisar(1, true) end
     menu.preparar()
     dineroVisto = partida.dinero
     intro.empezar(function() escena = "menu" end)
@@ -150,6 +152,7 @@ function love.update(dt)
     -- encargos del movil terminados o caducados
     local hecho = table.remove(partida.encargosHechos, 1)
     if hecho then
+        logros.marcar("encargo")
         movil.avisar("ENCARGO DE " .. hecho.nombre:upper() .. " HECHO: +" .. ui.dinero(hecho.pago), p.lima)
         fx.monedas(320, 40, 30, 160, 200)
         sonido.tocar("moneda")
@@ -157,6 +160,13 @@ function love.update(dt)
     end
     local caducado = table.remove(partida.encargosCaducados, 1)
     if caducado then movil.avisar("SE ACABÓ EL PLAZO DEL ENCARGO DE " .. caducado.nombre:upper(), p.naranja) end
+    -- logros nuevos
+    if escena ~= "menu" and escena ~= "intro" then logros.revisar(dt) end
+    local logro = logros.siguiente()
+    if logro then
+        movil.avisar("LOGRO: " .. logro.nombre .. " - " .. logro.texto:upper(), p.lima)
+        fx.confeti(320, 40, 30, 120)
+    end
     local dtJuego = dt * fx.escalaTiempo()
     if escena == "intro" then
         intro.update(dt)

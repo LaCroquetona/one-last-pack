@@ -68,6 +68,8 @@ function partida.nueva()
     partida.canal = { nombre = "MI_CANAL", idioma = "es", seguidores = 0, directos = 0, propinas = 0, record = 0 }
     partida.mejoras = {}
     partida.cajas, partida.cajas1 = {}, {}
+    partida.vendidos = nil      -- lo comprado hoy a los vendedores del movil
+    partida.logros = {}         -- id del logro = dia en que se consiguio
     partida.encargos = {}        -- aceptados: { nombre, tipo, n, hechos, pago, dias, primera }
     partida.ofertasEncargo = {}  -- sin aceptar: lo mismo + espera
     for tipo, n in pairs(sobres.inicio.sobres) do
@@ -517,6 +519,13 @@ function partida.venderCaja(tipo, primera)
     partida.dinero = partida.dinero + valor
     tocar()
     return valor
+end
+
+-- una caja cerrada comprada a un vendedor
+function partida.meterCaja(tipoId, primera)
+    partida.cajas[tipoId] = partida.cajasDe(tipoId) + 1
+    if primera then partida.cajas1[tipoId] = partida.cajasDe(tipoId, true) + 1 end
+    tocar()
 end
 
 function partida.meterSobres(tipoId, n, primera)
@@ -1015,7 +1024,7 @@ function partida.guardar()
 end
 
 local CAMPOS = { "dinero", "abiertos", "inv", "uid", "guardados", "guardados1", "anuncios",
-    "orden", "mesa", "seguidas", "opciones", "fundasLibres", "cartera", "premios", "canal", "mejoras", "encargos", "ofertasEncargo", "cajas", "cajas1", "cajaAbierta", "topsLibres", "apartados" }
+    "orden", "mesa", "seguidas", "opciones", "fundasLibres", "cartera", "premios", "canal", "mejoras", "encargos", "ofertasEncargo", "cajas", "cajas1", "cajaAbierta", "topsLibres", "apartados", "vendidos", "logros" }
 
 function partida.guardarYa()
     pendiente = false
@@ -1138,6 +1147,8 @@ function partida.cargar()
     end
     mercado.cargar(datos.mercado)
     repasar()
+    -- partidas de antes de los logros: lo que ya tenias se marca sin avisar
+    partida.logrosSinAviso = datos.logros == nil
     -- partidas de antes de los premios: lo que ya tenias cuenta como cobrado
     if datos.premios == nil then
         for _, s in ipairs(sets.lista) do partida.revisarPremios(s.id, false) end

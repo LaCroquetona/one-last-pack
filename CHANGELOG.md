@@ -5,6 +5,30 @@ parte de una fase); el del medio solo cuando termino una fase entera y la doy
 por buena. Los arreglos de una versión que todavía estoy probando van en esa
 misma versión. El juego se queda por debajo de 1.0 hasta que esté completo.
 
+## v0.7.4 - 2026-10-20 - Vendedores, logros y torneos
+
+- **Vendedores de segunda mano** en Móvil > MERCADO. Cada set tiene ofertas
+  de sobres y cajas (1ª ed y reimpresión), y la ficha de cada carta, las de
+  quien la vende. Cada vendedor tiene nombre, estrellas, ventas, unidades y
+  precio, y eliges a quién comprar. Las ofertas cambian cada día.
+- **Precios en campana**: mientras la tienda vende el set, alrededor de su
+  precio oficial (la tienda no cambia y siempre está); cuando ya no, del
+  precio de mercado. Lo normal, cerca; de vez en cuando un chollo (como
+  mucho dos unidades) o alguien carísimo. Las cartas suelen salir algo por
+  encima de lo que valen; los de más estrellas piden un poco más.
+- Ya no hay botón de comprar sobres de reventa a precio fijo: son los
+  vendedores.
+- **Logros** (app LOGROS): 17, de abrir sobres, sacar cartas buenas,
+  completar un set, el directo y el dinero. Avisan al conseguirlos; no dan
+  dinero. En partidas de antes se marcan solos sin avisar.
+- **Torneo nacional**: de vez en cuando se anuncia con unos días de
+  antelación diciendo de qué set se espera mucho. Ese día gana un mazo con
+  tres cartas de ese set y se disparan unos días. (DEV: TORNEO NACIONAL lo
+  anuncia y la segunda vez lo resuelve.)
+- **Emojis en el chat**: suben por el chat con las raras o mejores, las
+  chase, los god packs, las cajas y las propinas (calaveras si el sobre es
+  malo y hay gente).
+
 ## v0.7.3 - 2026-10-20 - Peticiones, encargos y suerte
 
 Arreglos tras probarla:

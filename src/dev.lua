@@ -35,7 +35,7 @@ local function botones()
         { "dev_dia16", "PASAR 16 DÍAS" }, { "dev_dia30", "PASAR 30 DÍAS" },
         { "dev_dia100", "PASAR 100 DÍAS" }, { "dev_dia300", "PASAR 300 DÍAS" },
         { "dev_ofertas", "OFERTAS AHORA" }, { "dev_noticia", "NOTICIA AL AZAR" },
-        { "dev_burbuja", "BURBUJA EN UNA CHASE" },
+        { "dev_burbuja", "BURBUJA EN UNA CHASE" }, { "dev_torneo", "TORNEO NACIONAL" },
         { "dev_moda", "UN SET SE PONE DE MODA" }, { "dev_caida", "UN SET PIERDE INTERÉS" },
         { "dev_crash", "CRASH: ALMACÉN DE 1ª EDICIÓN" },
         { "dev_encargo", "ENCARGO NUEVO" }, { "dev_peticion", "PETICIÓN DEL CHAT" },
@@ -144,6 +144,8 @@ function dev.click(id)
         partida.generarOfertas()
     elseif id == "dev_noticia" then
         mercado.noticia()
+    elseif id == "dev_torneo" then
+        mercado.torneo(true)
     elseif id == "dev_burbuja" then
         mercado.burbujaAhora()
     elseif id == "dev_moda" or id == "dev_caida" then

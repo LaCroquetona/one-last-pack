@@ -12,6 +12,7 @@ local fuentes = require "src.fuentes"
 local ui = require "src.ui"
 local nav = require "src.nav"
 local directo = require "src.directo"
+local logros = require "src.logros"
 
 local lg = love.graphics
 
@@ -107,6 +108,7 @@ function apertura.empezar(tipo, primera, desde)
         partida.guardar()
         estado = "resumen"
         directo.rasgar(godpack)
+    if godpack then logros.marcar("godpack") end
         for _, c in ipairs(mano) do directo.carta(c.def, c.nueva) end
         directo.finSobre(defs, godpack, tipo.id)
         partida.encargoSobre(tipo.id, primera)
@@ -179,6 +181,7 @@ local function rasgar()
     fx.destello({1, 1, 1}, 0.8)
     fx.explosion(CX, CY - 70, {1, 1, 1}, 40, 160)
     directo.rasgar(godpack)
+    if godpack then logros.marcar("godpack") end
     if godpack then
         fx.destello(rarezas.secreta.color, 1)
         fx.explosion(CX, CY, rarezas.secreta.color, 120, 260)

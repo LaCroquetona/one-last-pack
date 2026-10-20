@@ -13,6 +13,7 @@ local carta = require "src.carta"
 local sobre = require "src.sobre"
 local caja = require "src.caja"
 local encima = require "src.encima"
+local logros = require "src.logros"
 local apertura = require "src.apertura"
 local directo = require "src.directo"
 local fx = require "src.fx"
@@ -659,6 +660,7 @@ function mesa.soltar(x, y)
             apertura.recoger()
             partida.recogerMesa()
             mesaSel = nil
+            logros.marcar("caja")
             animCaja = { tipo = m.tipo, t = 0, x0 = m.x, y0 = m.y + caja.COLGADO * m.escala, x1 = ESQUINA.x, y1 = ESQUINA.y, e1 = ESQUINA.e,
                          quedan = sobres.caja.sobres }
             sonido.tocar("giro")
