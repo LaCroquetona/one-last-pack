@@ -18,6 +18,12 @@ local sequia = {}
 -- herramientas de desarrollador: "godpack" o "secreta" para el siguiente sobre
 generador.forzar = nil
 
+-- mejoras de suerte (las pone src/mejoras.lua):
+-- segunda: probabilidad de tirar otra vez el ultimo hueco y quedarte la mejor;
+-- extra: probabilidad de una carta mas (con las probabilidades del comodin);
+-- godpack: multiplica la probabilidad de god pack
+generador.suerte = { segunda = 0, extra = 0, godpack = 1 }
+
 local function tirar(porRareza, pesos, nivelMinimo)
     local candidatas, total = {}, 0
     for _, r in ipairs(rarezas.lista) do
@@ -56,9 +62,21 @@ local function elegir(porRareza, rareza, usadas)
     return c
 end
 
+-- una carta de ese hueco que no este ya en el sobre
+local function sacarDe(porRareza, pesos, minimo, usadas)
+    local rareza = tirar(porRareza, pesos, minimo)
+    -- si ya han salido todas las de esa rareza (god packs) se vuelve a tirar
+    for _ = 1, 10 do
+        if not agotada(porRareza, rareza, usadas) then break end
+        rareza = tirar(porRareza, pesos, minimo)
+    end
+    return elegir(porRareza, rareza, usadas)
+end
+
 -- tipo: una entrada de datos/sobres.lua. Devuelve las cartas de peor a mejor
 function generador.sobre(tipo)
-    local godpack = love.math.random() < tipo.godpack or generador.forzar == "godpack"
+    local S = generador.suerte
+    local godpack = love.math.random() < tipo.godpack * S.godpack or generador.forzar == "godpack"
     local secreta = generador.forzar == "secreta"
     generador.forzar = nil
     local ultimo = tipo.huecos[#tipo.huecos]
@@ -67,20 +85,37 @@ function generador.sobre(tipo)
     local sobre, usadas = {}, {}
     local mejorNivel = 0
 
+    -- god pack: todo holo o mejor (sin raras), con las proporciones del ultimo hueco
+    local pesosGod = {}
+    for r, peso in pairs(ultimo.rarezas) do
+        if rarezas[r].nivel >= 4 then pesosGod[r] = peso end
+    end
     for _, hueco in ipairs(tipo.huecos) do
-        local pesos = godpack and ultimo.rarezas or hueco.rarezas
+        local pesos = godpack and pesosGod or hueco.rarezas
         if secreta and hueco == ultimo then pesos = { secreta = 1 } end
         local minimo = (hueco == ultimo and seco >= tipo.piedad) and 4 or 1
         for _ = 1, hueco.cantidad do
-            local rareza = tirar(porRareza, pesos, minimo)
-            -- si ya han salido todas las de esa rareza (god packs) se vuelve a tirar
-            for _ = 1, 10 do
-                if not agotada(porRareza, rareza, usadas) then break end
-                rareza = tirar(porRareza, pesos, minimo)
+            local c = sacarDe(porRareza, pesos, minimo, usadas)
+            -- segunda oportunidad: el ultimo hueco se tira otra vez y te quedas la mejor
+            if hueco == ultimo and not secreta and love.math.random() < S.segunda then
+                local otra = sacarDe(porRareza, pesos, minimo, usadas)
+                if rarezas[otra.rareza].nivel > rarezas[c.rareza].nivel then
+                    usadas[c.id] = nil
+                    c = otra
+                else
+                    usadas[otra.id] = nil
+                end
             end
-            table.insert(sobre, elegir(porRareza, rareza, usadas))
-            mejorNivel = math.max(mejorNivel, rarezas[rareza].nivel)
+            table.insert(sobre, c)
+            mejorNivel = math.max(mejorNivel, rarezas[c.rareza].nivel)
         end
+    end
+    -- carta extra, con las probabilidades del comodin (el penultimo hueco)
+    if love.math.random() < S.extra then
+        local comodin = tipo.huecos[math.max(1, #tipo.huecos - 1)]
+        local c = sacarDe(porRareza, godpack and pesosGod or comodin.rarezas, 1, usadas)
+        table.insert(sobre, c)
+        mejorNivel = math.max(mejorNivel, rarezas[c.rareza].nivel)
     end
     sequia[tipo.id] = mejorNivel >= 4 and 0 or seco + 1
 

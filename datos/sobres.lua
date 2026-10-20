@@ -34,8 +34,8 @@ local lista = {
         huecos = {
             { cantidad = 4, nombre = "Comunes",      rarezas = { comun = 1 } },
             { cantidad = 3, nombre = "Infrecuentes", rarezas = { infrecuente = 90, rara = 10 } },
-            { cantidad = 2, nombre = "Comodín",      rarezas = { comun = 55, infrecuente = 30, rara = 12.5, holo = 2, fullart = 0.4, secreta = 0.1 } },
-            { cantidad = 1, nombre = "Rara o mejor", rarezas = { rara = 85, holo = 11.5, fullart = 3, secreta = 0.5 } },
+            { cantidad = 2, nombre = "Comodín",      rarezas = { comun = 55, infrecuente = 29, rara = 12.5, holo = 2.8, fullart = 0.55, secreta = 0.15 } },
+            { cantidad = 1, nombre = "Rara o mejor", rarezas = { rara = 80, holo = 15, fullart = 4.2, secreta = 0.8 } },
         },
     },
     {
@@ -72,9 +72,10 @@ local lista = {
 
 local sobres = {
     lista = lista,
-    -- cajas de sobres: muchos sobres de golpe mas baratos. Solo mientras el set
-    -- esta en la tienda (1ª edicion o reimpresion); llegan "porDia" cajas al dia
-    caja = { sobres = 18, descuento = 0.1, porDia = 2 },
+    -- cajas selladas: 18 sobres mas baratos. Se compran mientras el set esta en
+    -- la tienda (llegan "porDia" al dia); se guardan cerradas, se abren o se
+    -- venden a la tienda por "valor" veces lo que valen sus sobres cerrados
+    caja = { sobres = 18, descuento = 0.1, porDia = 2, valor = 0.85 },
     -- con lo que se empieza: dinero y sobres (de 1ª edicion) para abrir ya
     inicio = { dinero = 2000, sobres = { set1 = 3 } },
 }

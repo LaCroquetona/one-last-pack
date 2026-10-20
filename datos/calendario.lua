@@ -2,10 +2,10 @@
 -- empezar cada partida, asi no todas las partidas van igual.
 return {
     -- dias entre que sale un set y sale el siguiente
-    cada = 16,
+    cada = 18,
     -- lo que dura la primera tirada en la tienda: con cada = 16 se pisa con
     -- el set siguiente unos 8 dias
-    impresion = { 22, 26 },
+    impresion = { 24, 28 },
     -- dias agotado antes de la primera reimpresion del primer set
     espera = { 14, 18 },
     -- las reimpresiones van en rueda: cuando acaba una empieza la siguiente

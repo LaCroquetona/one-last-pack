@@ -340,10 +340,40 @@ local function preparar3D(gx, gy, cx, cy, alto, modo, fuerza, lx, ly, barrido)
     enviar("barrido", barrido or -1)
 end
 
+-- top loader: plastico rigido por encima de la funda, mas grueso y brillante
+-- lo que mide h en pantalla desde (x, y), con la escala que haya puesta
+local function altoEn(x, y, h)
+    local ax, ay = lg.transformPoint(x, y)
+    local bx, by = lg.transformPoint(x, y + h)
+    return math.sqrt((bx - ax) ^ 2 + (by - ay) ^ 2)
+end
+
+local function toploader(x, y, sx, sy, rot, gx, gy)
+    local W, H = carta.ANCHO, carta.ALTO
+    local cx, cy = lg.transformPoint(x, y)
+    preparar3D(gx, gy, cx, cy, altoEn(x, y, H * math.abs(sy)), 0, 0, 0, 0)
+    lg.push()
+    lg.translate(x, y)
+    lg.rotate(rot)
+    lg.scale(sx, sy)
+    lg.setColor(1, 1, 1, 0.1)
+    lg.rectangle("fill", -W / 2 - 3, -H / 2 - 4, W + 6, H + 7)
+    lg.setColor(1, 1, 1, 0.3)
+    lg.rectangle("fill", -W / 2 - 3, -H / 2 - 4, W + 6, 2)
+    lg.rectangle("fill", W / 2 - 1, -H / 2 - 2, 2, H + 3)
+    lg.setColor(p.blanco[1], p.blanco[2], p.blanco[3], 0.75)
+    lg.setLineWidth(1 / math.max(math.abs(sx), 0.01))
+    lg.rectangle("line", -W / 2 - 3, -H / 2 - 4, W + 6, H + 7)
+    lg.setLineWidth(1)
+    lg.pop()
+    lg.setShader()
+    lg.setColor(1, 1, 1)
+end
+
 local function funda(x, y, sx, sy, rot, gx, gy)
     local W, H = carta.ANCHO, carta.ALTO
     local cx, cy = lg.transformPoint(x, y)
-    preparar3D(gx, gy, cx, cy, H * math.abs(sy), 0, 0, 0, 0)
+    preparar3D(gx, gy, cx, cy, altoEn(x, y, H * math.abs(sy)), 0, 0, 0, 0)
     lg.push()
     lg.translate(x, y)
     lg.rotate(rot)
@@ -393,7 +423,8 @@ function carta.dibujar(def, x, y, sx, sy, rot, bocaArriba, h, enFunda, extra)
     lg.setColor(1, 1, 1)
 
     local cx, cy = lg.transformPoint(x, y - alza)
-    local alto = H * math.abs(sy)
+    -- lo que mide de verdad en pantalla (tambien si se pinta encima, ya escalada)
+    local alto = altoEn(x, y - alza, H * math.abs(sy))
     if not bocaArriba then
         preparar3D(gx, gy, cx, cy, alto, 0, 0, 0, 0)
         lg.draw(dorso, x, y - alza, rot, sx, sy, W / 2, H / 2)
@@ -412,6 +443,7 @@ function carta.dibujar(def, x, y, sx, sy, rot, bocaArriba, h, enFunda, extra)
     end
     lg.setShader()
     if enFunda then funda(x, y - alza, sx, sy, rot, gx, gy) end
+    if extra.top then toploader(x, y - alza, sx, sy, rot, gx, gy) end
 end
 
 -- carta que aun no tienes: hueco oscuro con la silueta del bicho
