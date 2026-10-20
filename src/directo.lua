@@ -252,7 +252,7 @@ end
 local function dibujarResumen(ancho, alto)
     local r = directo.resumenUltimo
     lg.setColor(0, 0, 0, 0.7)
-    lg.rectangle("fill", 0, 0, ancho, alto)
+    lg.rectangle("fill", ui.izq, 0, ui.der - ui.izq, alto)
     local w, h = 260, 150
     local x, y = math.floor((ancho - w) / 2), math.floor((alto - h) / 2)
     ui.caja(x, y, w, h, p.negro)
@@ -706,7 +706,10 @@ local function dibujarPanel(x, y, w, h)
         if t.proximamente then
             ui.caja(x + 6, by, w - 12, 11, p.negro)
             fuentes.texto(t.nombre, x + 10, by + 3, 1, p.gris)
-            fuentes.texto("PRÓXIMAMENTE", x + 6, by + 3, 1, p.grisosc, "right", w - 16)
+            -- con el texto grande no cabe la palabra larga
+            local pronto = "PRÓXIMAMENTE"
+            if fuentes.ancho(t.nombre) + fuentes.ancho(pronto) + 10 > w - 16 then pronto = "PRONTO" end
+            fuentes.texto(pronto, x + 6, by + 3, 1, p.grisosc, "right", w - 16)
         else
             ui.boton("dir_tipo_" .. t.id, t.nombre, x + 6, by, w - 12, 11, tipoElegido == t.id and p.morado or p.grisosc)
         end

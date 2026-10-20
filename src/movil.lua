@@ -800,13 +800,13 @@ local function appSuerte()
     y = y + 12
     for _, m in ipairs(datosMejoras) do
         local n = partida.nivelMejora(m.id)
-        local _, lineas = fuentes.pixel:getWrap(m.texto, w - 12)
-        local alto = 40 + #lineas * 8
+        local _, lineas = fuentes.envolver(m.texto, w - 12)
+        local alto = 40 + #lineas * fuentes.linea()
         lg.setColor(p.grisosc)
         lg.rectangle("fill", x, y, w, alto - 2)
         fuentes.texto(m.nombre, x + 5, y + 4, 1, p.blanco)
         fuentes.texto(m.texto, x + 5, y + 13, 1, p.grisclaro, "left", w - 12)
-        local py = y + 15 + #lineas * 8
+        local py = y + 15 + #lineas * fuentes.linea()
         for k = 1, #m.valores do
             lg.setColor(k <= n and p.lima or p.negro)
             lg.rectangle("fill", x + 5 + (k - 1) * 10, py, 8, 5)
@@ -886,10 +886,10 @@ local function appNoticias()
         fuentes.texto("PASA DÍAS PARA QUE PASEN COSAS", x, y + 70, 1, p.gris, "center", w)
     end
     for _, n in ipairs(lista) do
-        local _, lineas = fuentes.pixel:getWrap(n.texto, w - 12)
+        local _, lineas = fuentes.envolver(n.texto, w - 12)
         local lineasExp = {}
-        if n.explica then _, lineasExp = fuentes.pixel:getWrap(n.explica, w - 16) end
-        local alto = #lineas * 8 + 15 + (#lineasExp > 0 and (#lineasExp * 8 + 8) or 0)
+        if n.explica then _, lineasExp = fuentes.envolver(n.explica, w - 16) end
+        local alto = #lineas * fuentes.linea() + 15 + (#lineasExp > 0 and (#lineasExp * fuentes.linea() + 8) or 0)
         lg.setColor(p.grisosc)
         lg.rectangle("fill", x - 2, y - 2, w + 4, alto)
         lg.setColor(colorTono(n))
@@ -901,9 +901,9 @@ local function appNoticias()
         end
         fuentes.texto(n.texto, x + 3, y + 10, 1, p.blanco, "left", w - 12)
         if #lineasExp > 0 then
-            local ey = y + 12 + #lineas * 8
+            local ey = y + 12 + #lineas * fuentes.linea()
             lg.setColor(0, 0, 0, 0.3)
-            lg.rectangle("fill", x + 3, ey, w - 6, #lineasExp * 8 + 4)
+            lg.rectangle("fill", x + 3, ey, w - 6, #lineasExp * fuentes.linea() + 4)
             fuentes.texto(n.explica, x + 6, ey + 3, 1, p.amarillo, "left", w - 16)
         end
         y = y + alto + 4
@@ -983,6 +983,11 @@ local function appCalendario()
     local leyenda = { { "EN TIENDA", p.verde }, { "REIMPRESIÓN", p.celeste }, { "AGOTADO", p.gris }, { "ANUNCIADO", p.amarillo } }
     local lx = x
     for _, l in ipairs(leyenda) do
+        -- si no cabe en la linea, a la siguiente
+        if lx + 8 + fuentes.ancho(l[1]) > x + w then
+            lx = x
+            y = y + 9
+        end
         lg.setColor(l[2])
         lg.rectangle("fill", lx, y + 1, 5, 5)
         fuentes.texto(l[1], lx + 8, y, 1, p.grisclaro)
@@ -1014,8 +1019,8 @@ local function appCalendario()
     local ayuda = "CADA " .. datosCalendario.cada .. " DÍAS MÁS O MENOS SALE UN SET NUEVO. CUANDO UNO SE AGOTA, " ..
         "TARDE O TEMPRANO VUELVE COMO REIMPRESIÓN."
     fuentes.texto(ayuda, x, y, 1, p.gris, "left", w)
-    local _, l = fuentes.pixel:getWrap(ayuda, w)
-    acabarLista(y + #l * 8 + 4)
+    local _, l = fuentes.envolver(ayuda, w)
+    acabarLista(y + #l * fuentes.linea() + 4)
 end
 
 -- lados del escritorio
@@ -1128,7 +1133,7 @@ local function dibujarEnvio()
     local cx, cy = 320, 170
 
     lg.setColor(0, 0, 0, math.min(0.75, t * 3))
-    lg.rectangle("fill", 0, 0, 640, 360)
+    lg.rectangle("fill", ui.izq, 0, ui.der - ui.izq, 360)
 
     local vuelo = math.max(0, t - 1.5)
     local x = cx + vuelo * vuelo * 2400
@@ -1192,8 +1197,8 @@ local function dibujarAvisos()
     lg.setScissor(PANT.x, PANT.y + BARRA + mano.dy, PANT.w, PANT.h - BARRA - INICIO)
     for i, a in ipairs(avisos) do
         if i > 3 then break end
-        local _, lineas = fuentes.pixel:getWrap(a.texto, PANT.w - 24)
-        local alto = #lineas * 8 + 8
+        local _, lineas = fuentes.envolver(a.texto, PANT.w - 24)
+        local alto = #lineas * fuentes.linea() + 8
         local bajada = math.min(1, a.t / 0.25)
         if a.t > 4 then bajada = 1 - (a.t - 4) / 0.5 end
         local ay = y - (1 - fx.salidaSuave(math.max(0, bajada))) * (alto + 14)
@@ -1219,11 +1224,11 @@ function movil.dibujarToast()
         return
     end
     local w = 230
-    local _, lineas = fuentes.pixel:getWrap(a.texto, w - 16)
-    local alto = #lineas * 8 + 8
+    local _, lineas = fuentes.envolver(a.texto, w - 16)
+    local alto = #lineas * fuentes.linea() + 8
     local entra = math.min(1, a.t / 0.25)
     if a.t > 4 then entra = 1 - (a.t - 4) / 0.5 end
-    local x = 640 - (w + 6) * fx.salidaSuave(math.max(0, entra))
+    local x = ui.der - (w + 6) * fx.salidaSuave(math.max(0, entra))
     ui.caja(x, 26, w, alto, p.negro)
     lg.setColor(a.color)
     lg.rectangle("fill", x + 3, 29, 2, alto - 6)
@@ -1346,7 +1351,7 @@ function movil.dibujar()
     if envio then
         dibujarEnvio()
         -- mientras se empaqueta, todo el click va a saltarlo
-        ui.zona("saltarEnvio", 0, 0, 640, 360)
+        ui.zona("saltarEnvio", ui.izq, 0, ui.der - ui.izq, 360)
     end
 end
 

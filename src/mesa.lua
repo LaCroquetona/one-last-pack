@@ -51,11 +51,15 @@ local function dentro(r, x, y)
     return x >= r.x and x < r.x + r.w and y >= r.y and y < r.y + r.h
 end
 
--- tipos de sobre que se ven en la caja (los de sets ya salidos)
+-- tipos de sobre que se ven en la caja: caben 4; primero los que tienes y
+-- luego huecos vacios de sets ya salidos
 local function tiposCaja()
     local lista = {}
     for _, tipo in ipairs(sobres.lista) do
-        if mercado.salido(tipo.set) or partida.disponibles(tipo.id) > 0 then table.insert(lista, tipo) end
+        if partida.disponibles(tipo.id) > 0 and #lista < 4 then table.insert(lista, tipo) end
+    end
+    for _, tipo in ipairs(sobres.lista) do
+        if mercado.salido(tipo.set) and partida.disponibles(tipo.id) == 0 and #lista < 4 then table.insert(lista, tipo) end
     end
     return lista
 end
@@ -184,7 +188,7 @@ local function dibujarCaja()
             lg.rectangle("line", x - 14.5, y - 21.5, 29, 43)
         end
         fuentes.texto(sets[tipo.set].codigo .. " X" .. quedan, x - 23, y + 26, 1, quedan > 0 and p.blanco or p.gris, "center", 46)
-        if p1 > 0 then fuentes.texto(p1 .. " 1ª ED", x - 23, y + 33, 1, p.amarillo, "center", 46) end
+        if p1 > 0 then fuentes.texto(p1 .. " 1ª ED", x - 23, y + 28 + fuentes.alto(), 1, p.amarillo, "center", 46) end
     end
 
     -- cajas cerradas: se arrastran al tapete para abrirlas
@@ -423,7 +427,7 @@ function mesa.dibujar()
     if apertura.enLote() then
         -- abrir en lote (DEV) ocupa toda la pantalla
         lg.setColor(0, 0, 0, 0.85)
-        lg.rectangle("fill", 0, 0, 640, 360)
+        lg.rectangle("fill", ui.izq, 0, ui.der - ui.izq, 360)
         lg.setColor(1, 1, 1)
         apertura.dibujar()
         return
