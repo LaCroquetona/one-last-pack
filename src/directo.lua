@@ -14,6 +14,7 @@ local fuentes = require "src.fuentes"
 local sonido = require "src.sonido"
 local fx = require "src.fx"
 local ui = require "src.ui"
+local emojis = require "src.emojis"
 
 local lg = love.graphics
 local utf8 = require "utf8"
@@ -76,6 +77,7 @@ end
 -- chat
 
 local function poner(msg)
+    if msg.propina and love.math.random() < 0.5 then emojis.lanzar({ "moneda" }, 1, 0) end
     table.insert(chat, msg)
     while #chat > datos.chat.max do table.remove(chat, 1) end
 end
@@ -242,6 +244,7 @@ function directo.empezar()
     d = { t = 0, esp = 0, pico = 0, objetivo = base(partida.canal.seguidores), ruido = 0, subidon = 1,
           quieto = 0, sobres = 0, propinas = 0, seguidores = 0, acumulado = 0, tipo = tipoElegido, sueltos = 0 }
     chat, cola = {}, {}
+    emojis.limpiar()
     sonido.tocar("nueva")
     poner({ sistema = true, texto = "EMPIEZA EL DIRECTO", color = p.rojo })
 end
@@ -308,6 +311,7 @@ function directo.rasgar(godpack)
     if godpack then
         d.subidon = d.subidon + datos.subidon.godpack
         rafaga("godpack", math.min(datos.chat.maxReaccion, 2 + cuantos(d.esp * 0.5)), 2)
+        if d.esp >= 1 then emojis.lanzar({ "fuego", "estrella", "corona", "67", "GG" }, 4 + math.floor(d.esp * 0.2), 2.5) end
     end
 end
 
@@ -316,7 +320,10 @@ function directo.caja()
     if not d then return end
     d.quieto = 0
     d.subidon = d.subidon + 0.3
-    if d.esp >= 1 then rafaga("caja", math.min(datos.chat.maxReaccion, 1 + cuantos(d.esp * 0.25)), 2) end
+    if d.esp >= 1 then
+        rafaga("caja", math.min(datos.chat.maxReaccion, 1 + cuantos(d.esp * 0.25)), 2)
+        emojis.lanzar({ "fuego", "W", "ojos" }, 2 + math.floor(d.esp * 0.1), 2)
+    end
 end
 
 function directo.suspense()
@@ -337,6 +344,13 @@ function directo.carta(def, nueva)
         n = math.min(C.maxReaccion, cuantos(d.esp * (C.reaccion[def.rareza] or 0)))
     end
     if n > 0 then rafaga(def.rareza, n, r.nivel >= 5 and 2.5 or 1.2) end
+    -- emojis: de rara para arriba, mas cuanta mas gente y mejor la carta
+    if r.nivel >= 3 and d.esp >= 1 then
+        local tipos = ({ { "corazon", "fuego" }, { "fuego", "corazon", "ojos" }, { "fuego", "estrella", "67" },
+                         { "estrella", "fuego", "67", "W", "corona" } })[r.nivel - 2]
+        emojis.lanzar(tipos, 1 + math.floor(d.esp * 0.05 * (r.nivel - 2)), r.nivel >= 5 and 2 or 1)
+    end
+    if def.chase and d.esp >= 1 then emojis.lanzar({ "corona", "estrella" }, 3, 1.5) end
     if def.chase and d.esp >= 1 then rafaga("chase", math.min(C.maxReaccion, 1 + cuantos(d.esp * 0.3)), 2) end
     if nueva and d.esp >= 6 and love.math.random() < 0.3 then decir("nueva", 0.8) end
     -- las buenas traen mirones y propinas al momento
@@ -397,6 +411,7 @@ function directo.finSobre(defs, godpack, tipoId)
     d.quieto = 0
     local S = datos.seguir
     local mejor, chase = mejorDe(defs, godpack)
+    if rarezas[mejor.rareza].nivel <= 2 and d.esp >= 4 and love.math.random() < 0.5 then emojis.lanzar({ "calavera" }, 2, 1) end
     local extra = (S.mejor[mejor.rareza] or 0) + (chase and S.chase or 0) + (godpack and S.godpack or 0)
     ganarSeguidores((S.porSobre + d.esp * S.porEspectador + extra * (1 + d.esp * 0.02)) / cansancio())
     cobrarPropinas(tirarPropinas(d.esp, 1), 0.5)
@@ -411,6 +426,7 @@ end
 -- cada frame (tambien fuera de la mesa: el directo sigue)
 function directo.update(dt, enMesa)
     if not d then return end
+    emojis.update(dt)
     d.t = d.t + dt
     d.quieto = d.quieto + dt
     local seguidores = partida.canal.seguidores
@@ -649,6 +665,7 @@ local function dibujarChat(x, y, w, h)
             fuentes.trozos(l, x + 4 + dx, fondo + (k - 1) * 7, 1)
         end
     end
+    emojis.dibujar(x, tope, w, y + h - tope)
 end
 
 local function dibujarPanel(x, y, w, h)
