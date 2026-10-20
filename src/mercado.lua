@@ -248,6 +248,19 @@ function mercado.stock(tipo)
     return mercado.estado.stock[tipo.id] or 0
 end
 
+-- cajas de sobres que quedan hoy en la tienda
+function mercado.stockCajas(tipo)
+    return (mercado.estado.cajas or {})[tipo.id] or 0
+end
+
+-- precio de una caja en la tienda (nil si hoy no se vende)
+function mercado.precioCaja(tipo)
+    local precio = mercado.enTienda(tipo)
+    if not precio then return nil end
+    local C = sobres.caja
+    return math.floor(precio * C.sobres * (1 - C.descuento) / 10 + 0.5) * 10
+end
+
 function mercado.gastarStock(tipo, n)
     local s = mercado.estado.stock
     s[tipo.id] = math.max(0, (s[tipo.id] or 0) - n)
@@ -273,7 +286,7 @@ local function objetivoSellado(tipo, dia, primera)
     local m
     if primera then
         if fase == "impresion" then
-            m = S.tirada * (1 + datos.fases.hype.normal * math.exp(-i.d / datos.fases.hype.dias))
+            m = S.tirada * (1 + S.hype * math.exp(-i.d / datos.fases.hype.dias))
         else
             m = S.tirada * vintage(calendario.finPrimera(tipo.set, dia) or 0, datos.vintage.alfaSellado)
         end
@@ -491,9 +504,9 @@ local function avanzarBurbujas()
                 local def = porId[id]
                 anadirNoticia({ clave = "burbuja", tono = "baja", carta = id, set = def.set, texto = "Se desinfla " .. def.nombre .. ": todo el mundo vende a la vez" })
             end
-            if b.d >= 2 then b.fase, b.d = "vuelve", 0 end
+            if b.d >= B.diasPinchazo then b.fase, b.d = "vuelve", 0 end
         else
-            b.m = b.m + (1 - b.m) * 0.3
+            b.m = b.m + (1 - b.m) * 0.15
             if math.abs(b.m - 1) < 0.03 then e.burbujas[id] = nil end
         end
     end
@@ -648,8 +661,10 @@ local function abrirSets(dia)
 end
 
 local function reponerStock(dia)
+    mercado.estado.cajas = mercado.estado.cajas or {}
     for _, tipo in ipairs(sobres.lista) do
         mercado.estado.stock[tipo.id] = stockDelDia(tipo, dia)
+        mercado.estado.cajas[tipo.id] = stockDelDia(tipo, dia) > 0 and sobres.caja.porDia or 0
     end
 end
 
@@ -718,6 +733,13 @@ function mercado.cargar(estado)
     if (estado.version or 1) < VERSION then desdeV1(estado) end
     for _, s in ipairs(sets.lista) do
         estado.sets[s.id] = estado.sets[s.id] or nuevoSet()
+    end
+    -- partidas de antes de las cajas: hoy llegan las de siempre
+    if not estado.cajas then
+        estado.cajas = {}
+        for _, tipo in ipairs(sobres.lista) do
+            estado.cajas[tipo.id] = stockDelDia(tipo, estado.dia) > 0 and sobres.caja.porDia or 0
+        end
     end
 end
 

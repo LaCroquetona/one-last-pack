@@ -8,8 +8,8 @@
 return {
     -- cada carta se aleja un poco del valor de su rareza (entre estos dos)
     variacion = { 0.8, 1.3 },
-    -- la tienda te paga esta parte del valor si vendes al momento
-    ventaRapida = 0.5,
+    -- la tienda te paga esta parte del valor si vendes al momento (1 = todo)
+    ventaRapida = 1.0,
     -- lo que se queda la app por cada venta del movil (cartas y sobres cerrados)
     comision = 0.08,
     -- comprar sobres cerrados de reventa cuesta esto mas que su precio de mercado
@@ -41,17 +41,18 @@ return {
 
     -- Golpes de las noticias: un pico que se va deshaciendo (baja: lo que se
     -- deshace cada dia) pero deja una parte para siempre (memoria)
-    golpes = { baja = 0.2, memoria = 0.3 },
+    golpes = { baja = 0.08, memoria = 0.3 },
 
     -- lo que arrastra una chase a su set: si la chase sube un 30%, el set un 6%
     contagio = 0.2,
 
     -- precio segun la fase del set (1 = su valor base)
     fases = {
-        -- al salir: sube y vuelve a la normalidad en unos dias
-        hype = { normal = 0.25, chase = 0.6, dias = 3 },
+        -- al salir todo el mundo quiere las cartas: valen algo mas y se va
+        -- pasando en una semana o asi (abrir el dia de salida compensa)
+        hype = { normal = 0.35, chase = 0.7, dias = 6 },
         -- mientras se imprime la 1ª edicion va bajando hasta perder esto
-        caidaTirada = 0.18,
+        caidaTirada = 0.1,
         -- normales: durante una reimpresion
         reimpresion = 0.72,
         -- normales: agotadas tras una reimpresion suben un poco, con techo
@@ -78,6 +79,8 @@ return {
     -- sobres cerrados respecto a su precio de tienda
     sellados = {
         tirada = 0.95,
+        -- al salir los sobres cerrados apenas suben (la tienda aun los tiene)
+        hype = 0.15,
         reimpresion = 0.92,
         subidaReimpresion = 0.45, ritmoReimpresion = 12,
         caidaRumor = 0.1,
@@ -92,9 +95,10 @@ return {
     -- burbujas: solo en chase, a partir de cierto dia
     burbuja = {
         prob = 0.03, desdeDia = 12,
-        dias = { 4, 7 },          -- dias subiendo
-        subida = { 1.15, 1.3 },   -- cada dia que sube
-        pinchazo = 0.55,          -- lo que queda al pinchar (dos dias seguidos)
+        dias = { 7, 14 },         -- dias subiendo
+        subida = { 1.05, 1.11 },  -- cada dia que sube
+        pinchazo = 0.8,           -- lo que queda cada dia que se desinfla
+        diasPinchazo = 4,
         volumen = 4,
     },
 
@@ -103,7 +107,7 @@ return {
         probOferta = 0.7,      -- cada dia, por anuncio
         probSegunda = 0.3,
         ofertasMax = 3,        -- por anuncio a la vez
-        rango = { 0.75, 1.2 }, -- lo que ofrecen respecto al valor
+        rango = { 1.0, 1.4 },   -- lo que ofrecen respecto al valor (antes de la comision)
         dias = 2,              -- lo que dura una oferta
         subida = 0.15,         -- "pedir mas"
     },
