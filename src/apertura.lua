@@ -74,10 +74,11 @@ local function resumenX(i)
 end
 
 local function resumenY(i)
-    if filasResumen() == 1 then return 150 end
+    -- un poco bajado: arriba a la derecha va la caja abierta
+    if filasResumen() == 1 then return 165 end
     local alto = carta.ALTO * escalaResumen()
     local fila = math.floor((i - 1) / porFila())
-    return 150 + (fila == 0 and -1 or 1) * (alto / 2 + 12)
+    return 172 + (fila == 0 and -1 or 1) * (alto / 2 + 11)
 end
 
 -- tipo: entrada de datos/sobres.lua (ya descontada de los guardados)
@@ -107,7 +108,8 @@ function apertura.empezar(tipo, primera, desde)
         estado = "resumen"
         directo.rasgar(godpack)
         for _, c in ipairs(mano) do directo.carta(c.def, c.nueva) end
-        directo.finSobre(defs, godpack)
+        directo.finSobre(defs, godpack, tipo.id)
+        partida.encargoSobre(tipo.id, primera)
     end
 end
 
@@ -121,6 +123,7 @@ function apertura.lote(n)
         abiertos = abiertos + 1
         local defs, gp = generador.sobre(tipo)
         if gp then godpacks = godpacks + 1 end
+        partida.encargoSobre(tipo.id, primera)
         for _, def in ipairs(defs) do
             if partida.anadir(def.id, primera) then nuevas[def.id] = true end
             if not cuenta[def.id] then
@@ -306,7 +309,8 @@ local function actualizarCarta(dt, mantenido)
                 partida.guardar()
                 local defs = {}
                 for i, m in ipairs(mano) do defs[i] = m.def end
-                directo.finSobre(defs, godpack)
+                directo.finSobre(defs, godpack, tipoActual.id)
+                partida.encargoSobre(tipoActual.id, primeraActual)
             else
                 fase, tf = "esperando", 0
             end
@@ -602,7 +606,9 @@ local function dibujarResumen()
             if c.brillo <= 0 then c.brillo = nil end
         end
         if funda and c.brillo then fx.aura(c.x, c.y, p.cian, cw, c.brillo * 0.6) end
-        carta.dibujar(c.def, c.x, c.y, c.escala, c.escala, 0, true, h, funda, extra())
+        local ex = extra()
+        ex.top = c.copia and c.copia.t
+        carta.dibujar(c.def, c.x, c.y, c.escala, c.escala, 0, true, h, funda, ex)
         if r.nivel >= 5 then fx.chispas(c.x, c.y, cw, ch, r.color, 4) end
         if t > 0.6 then
             ui.zona(id, c.x - cw / 2, c.y - ch / 2, cw, ch)

@@ -11,6 +11,8 @@ local partida = require "src.partida"
 local mercado = require "src.mercado"
 local carta = require "src.carta"
 local sobre = require "src.sobre"
+local caja = require "src.caja"
+local encima = require "src.encima"
 local apertura = require "src.apertura"
 local directo = require "src.directo"
 local fx = require "src.fx"
@@ -26,6 +28,10 @@ local CAJA = { x = 4, y = 24, w = 108, h = 330 }
 local TAPETE = { x = 116, y = 24, w = 386, h = 330 }
 local DIRECTO = { x = 506, y = 24, w = 130, h = 330 }
 local FUNDAS = { x = CAJA.x + 8, y = CAJA.y + 228, w = CAJA.w - 16, h = 62 }
+-- donde se queda la caja abierta: abajo a la derecha del tapete (no tapa las cartas)
+local ESQUINA = { x = TAPETE.x + TAPETE.w - 36, y = TAPETE.y + 28, e = 1 }
+-- animacion de abrir una caja (src/caja.lua)
+local animCaja
 local CW, CH = carta.ANCHO, carta.ALTO
 -- tamaño de las cartas sueltas en la mesa (las del sobre y las sacadas del armario)
 local ESCALA_COPIA = 1.75
@@ -48,7 +54,7 @@ end
 local function tiposCaja()
     local lista = {}
     for _, tipo in ipairs(sobres.lista) do
-        if mercado.salido(tipo.set) or partida.sobres(tipo.id) > 0 then table.insert(lista, tipo) end
+        if mercado.salido(tipo.set) or partida.disponibles(tipo.id) > 0 then table.insert(lista, tipo) end
     end
     return lista
 end
@@ -107,10 +113,23 @@ local function brilloFunda(x, y)
     partida.guardar()
 end
 
+-- sobres que puedes abrir: los guardados y los de la caja abierta
+local function quedanSobres()
+    local n = partida.cajaAbierta and partida.cajaAbierta.quedan or 0
+    for _, t in ipairs(sobres.lista) do n = n + partida.disponibles(t.id) end
+    return n
+end
+
 -- empezar a abrir un sobre de este tipo, llegando desde (x, y)
-local function soltarSobre(tipoId, x, y, a, escala)
-    if apertura.bloqueada() then return false end
-    local tipo, primera = partida.sacarSobre(tipoId)
+-- deCaja: el sobre sale de la caja abierta, no de los guardados
+local function soltarSobre(tipoId, x, y, a, escala, deCaja)
+    if apertura.bloqueada() or animCaja then return false end
+    local tipo, primera
+    if deCaja then
+        tipo, primera = partida.sacarDeCaja()
+    else
+        tipo, primera = partida.sacarSobre(tipoId, true)
+    end
     if not tipo then return false end
     -- lo que habia en la mesa vuelve solo al armario
     apertura.recoger()
@@ -141,9 +160,9 @@ local function dibujarCaja()
     local bloqueada = apertura.bloqueada()
     for k, tipo in ipairs(tiposCaja()) do
         local x, y = hueco(k)
-        local n = partida.sobres(tipo.id)
-        local p1 = partida.sobres(tipo.id, true)
-        local cogido = mano and mano.cosa == "sobre" and mano.tipo == tipo.id and 1 or 0
+        local n = partida.disponibles(tipo.id)
+        local p1 = partida.apartado("s", tipo.id, true) and 0 or partida.sobres(tipo.id, true)
+        local cogido = mano and mano.cosa == "sobre" and mano.tipo == tipo.id and not mano.deCaja and 1 or 0
         local quedan = n - cogido
         -- fondo del hueco
         lg.setColor(0, 0, 0, 0.25)
@@ -165,6 +184,23 @@ local function dibujarCaja()
         end
         fuentes.texto(sets[tipo.set].codigo .. " X" .. quedan, x - 23, y + 26, 1, quedan > 0 and p.blanco or p.gris, "center", 46)
         if p1 > 0 then fuentes.texto(p1 .. " 1ª ED", x - 23, y + 33, 1, p.amarillo, "center", 46) end
+    end
+
+    -- cajas cerradas: se arrastran al tapete para abrirlas
+    -- hasta 4 sets de cajas, en 2 filas de 2
+    local hayCajas = 0
+    for _, tipo in ipairs(sobres.lista) do
+        local n = partida.cajasDisponibles(tipo.id)
+        if n > 0 and hayCajas < 4 then
+            hayCajas = hayCajas + 1
+            local col, fila = (hayCajas - 1) % 2, math.floor((hayCajas - 1) / 2)
+            local cx, cy = CAJA.x + 29 + col * 50, CAJA.y + 172 + fila * 29
+            local cogida = mano and mano.cosa == "cajabox" and mano.tipo == tipo.id
+            local quedan = n - (cogida and 1 or 0)
+            if quedan > 0 then caja.dibujar(tipo.id, cx, cy, 1, { mini = true }) end
+            fuentes.texto("X" .. quedan, cx + 12, cy + 7, 1, p.blanco)
+            if not bloqueada and not animCaja then ui.zona("cajabox_" .. tipo.id, cx - 16, cy - 14, 32, 27) end
+        end
     end
 
     -- fundas
@@ -216,11 +252,12 @@ local function dibujarTapete()
         lg.rectangle("fill", T.x + 1, T.y + 1, T.w - 2, T.h - 2)
     end
 
-    if not apertura.activa() and #partida.mesa > 0 then
+    -- mientras se abre una caja no hay pistas: la caja es la protagonista
+    if not animCaja and not apertura.activa() and #partida.mesa > 0 then
         -- con cartas en la mesa, la pista va abajo y pequeña
         local a = 0.45 + math.sin(love.timer.getTime() * 4) * 0.2
         local cad
-        if partida.sobresGuardados() == 0 then
+        if quedanSobres() == 0 then
             cad = "NO TE QUEDAN SOBRES: CÓMPRALOS EN LA TIENDA"
         elseif love.system.getOS() == "Android" then
             cad = "ARRASTRA OTRO SOBRE: LO DE LA MESA SE GUARDA SOLO"
@@ -228,9 +265,9 @@ local function dibujarTapete()
             cad = "ARRASTRA OTRO SOBRE O PULSA ESPACIO: LO DE LA MESA SE GUARDA SOLO"
         end
         fuentes.texto(cad, T.x, T.y + T.h - 12, 1, { 1, 1, 1, a }, "center", T.w)
-    elseif not apertura.activa() then
+    elseif not animCaja and not apertura.activa() then
         local cx, cy = T.x, T.y + T.h / 2 - 30
-        if partida.sobresGuardados() > 0 then
+        if quedanSobres() > 0 then
             fuentes.texto("ARRASTRA UN SOBRE AQUÍ", cx, cy, 2, p.lima, "center", T.w)
             if love.system.getOS() ~= "Android" then
                 fuentes.texto("O PULSA ESPACIO", cx, cy + 16, 1, p.verde, "center", T.w)
@@ -258,7 +295,7 @@ local function dibujarCopias()
             local c = partida.copia(s.id, s.u)
             local zid = "m" .. s.u
             if fondo then
-                carta.dibujar(def, s.x, s.y, e, e, s.r or 0, true, nil, c.f, { primera = c.p })
+                carta.dibujar(def, s.x, s.y, e, e, s.r or 0, true, nil, c.f, { primera = c.p, top = c.t })
                 lg.setColor(p.verdeosc[1], p.verdeosc[2], p.verdeosc[3], 0.6)
                 lg.rectangle("fill", s.x - w / 2, s.y - h / 2, w, h)
                 lg.setColor(1, 1, 1)
@@ -268,7 +305,7 @@ local function dibujarCopias()
                     lg.rectangle("line", s.x - w / 2 - 2.5, s.y - h / 2 - 2.5, w + 5, h + 5)
                 end
                 if s.brillo then fx.aura(s.x, s.y, p.cian, w, s.brillo * 0.6) end
-                carta.dibujar(def, s.x, s.y, e, e, s.r or 0, true, ui.hoverCarta(zid, s.x, s.y, w, h), c.f, { primera = c.p })
+                carta.dibujar(def, s.x, s.y, e, e, s.r or 0, true, ui.hoverCarta(zid, s.x, s.y, w, h), c.f, { primera = c.p, top = c.t })
                 ui.zona(zid, s.x - w / 2, s.y - h / 2, w, h)
                 if s.nueva then
                     fuentes.texto("¡NUEVA!", s.x - 30, s.y - h / 2 - 8, 1, p.amarillo, "center", 60)
@@ -304,11 +341,12 @@ local function botonesCopia()
     local e = escalaDe(s)
     local x = math.max(TAPETE.x + 2, math.min(TAPETE.x + TAPETE.w - w - 2, s.x - w / 2))
     local y = s.y + CH * e / 2 + 4
-    if y + 40 > TAPETE.y + TAPETE.h then y = s.y - CH * e / 2 - 44 end
+    if y + 54 > TAPETE.y + TAPETE.h then y = s.y - CH * e / 2 - 58 end
     ui.boton("mesa_funda", c.f and "QUITAR FUNDA" or "ENFUNDAR", x, y, w, 12, c.f and p.gris or p.verdeosc)
     ui.boton("mesa_vender", "VENDER +" .. ui.dinero(mercado.ventaRapida(s.id, c.p)), x, y + 14, w, 12,
         partida.copias(s.id) == 1 and p.rojo or p.naranja)
-    ui.boton("mesa_guardar", "AL ARMARIO", x, y + 28, w, 12, p.azul)
+    ui.boton("mesa_top", c.t and "QUITAR TOP" or "PONER TOP", x, y + 28, w, 12, c.t and p.gris or p.azul, c.t or partida.topsLibres > 0)
+    ui.boton("mesa_guardar", "AL ARMARIO", x, y + 42, w, 12, p.azul)
 end
 
 local function dibujarMano()
@@ -325,6 +363,8 @@ local function dibujarMano()
         lg.pop()
         lg.setColor(1, 1, 1)
         lg.draw(sobre.imagen(mano.tipo), mano.x, mano.y, mano.a, e, e, W / 2, 4)
+    elseif mano.cosa == "cajabox" then
+        caja.dibujar(mano.tipo, mano.x, mano.y, mano.escala, { rot = mano.a, colgada = true, sombra = { 6, 10 } })
     elseif mano.cosa == "funda" then
         local w, h = CW * 2, CH * 2
         lg.push()
@@ -346,7 +386,23 @@ local function dibujarMano()
         local def = partida.carta(mano.id)
         local c = partida.copia(mano.id, mano.u)
         if def and c then
-            carta.dibujar(def, mano.x, mano.y, ESCALA_COPIA * 1.1, ESCALA_COPIA * 1.1, mano.a, true, nil, c.f, { primera = c.p })
+            carta.dibujar(def, mano.x, mano.y, ESCALA_COPIA * 1.1, ESCALA_COPIA * 1.1, mano.a, true, nil, c.f, { primera = c.p, top = c.t })
+        end
+    end
+end
+
+-- la caja abierta en su esquina, con los sobres que le quedan
+local function dibujarCajaAbierta()
+    local c = partida.cajaAbierta
+    if not c or animCaja then return end
+    local cogido = mano and mano.cosa == "sobre" and mano.deCaja and 1 or 0
+    local quedan = c.quedan - cogido
+    caja.dibujar(c.tipo, ESQUINA.x, ESQUINA.y, ESQUINA.e, { abierta = true, quedan = quedan })
+    fuentes.texto("X" .. quedan, ESQUINA.x - 20, ESQUINA.y + 22, 1, p.amarillo, "center", 40)
+    if quedan > 0 and not apertura.bloqueada() then
+        ui.zona("caja_abierta", ESQUINA.x - 30, ESQUINA.y - 22, 60, 42)
+        if ui.encima == "caja_abierta" and not mano then
+            ui.tooltip("Caja abierta", p.amarillo, { { "Quedan " .. quedan .. " sobres" }, { "Arrastra uno al tapete", p.grisclaro } })
         end
     end
 end
@@ -371,11 +427,17 @@ function mesa.dibujar()
         apertura.dibujar()
         return
     end
+    dibujarCajaAbierta()
     dibujarCopias()
     apertura.dibujar()
+    if animCaja then
+        local cx, cy = apertura.centro()
+        caja.dibujarAnim(animCaja, cx, cy)
+    end
     botonesCopia()
-    dibujarVuelos()
-    dibujarMano()
+    -- lo que vuela y lo que llevas en la mano gira, asi que va encima
+    encima.anotar(dibujarVuelos)
+    if mano then encima.anotar(dibujarMano) end
 end
 
 -- logica
@@ -392,6 +454,28 @@ end
 
 function mesa.update(dt)
     apertura.update(dt, mesa.mantenido())
+
+    -- abriendo una caja: al saltar la tapa, fiesta
+    if animCaja then
+        local cx, cy = apertura.centro()
+        if caja.avanzar(animCaja, dt, cx, cy) then
+            local col = sobres[animCaja.tipo].colores
+            sonido.tocar("rasgar")
+            sonido.tocar("secreta")
+            fx.sacudir(7)
+            fx.destello({ 1, 1, 1 }, 0.7)
+            fx.explosion(cx, cy - 30, col.letras, 90, 240)
+            fx.explosion(cx, cy - 30, p.blanco, 40, 300)
+            fx.confeti(cx, cy - 40, 70, 200)
+            fx.tintar(col.rayas)
+            directo.caja()
+        end
+        if animCaja.t >= caja.DURACION then
+            animCaja = nil
+            sonido.tocar("giro")
+            partida.guardar()
+        end
+    end
 
     -- el resumen se queda un momento y las cartas pasan a estar sueltas en la mesa
     local listas = apertura.cartasListas()
@@ -410,6 +494,10 @@ function mesa.update(dt)
     end
     -- las que llegan con otro tamaño se ajustan, y el brillo de la funda se apaga
     for _, s in ipairs(partida.mesa) do
+        if s.ra then
+            s.r = fx.lerp(s.r or 0, s.ra, math.min(1, dt * 7))
+            if math.abs(s.r - s.ra) < 0.005 then s.r, s.ra = s.ra, nil end
+        end
         if s.e then
             s.e = fx.lerp(s.e, ESCALA_COPIA, math.min(1, dt * 8))
             if math.abs(s.e - ESCALA_COPIA) < 0.01 then s.e = nil end
@@ -420,20 +508,54 @@ function mesa.update(dt)
         end
     end
 
-    -- el sobre en la mano: sigue al dedo y se balancea como un pendulo
-    if mano and mano.cosa ~= "copia" then
+    -- lo que llevas en la mano sigue al dedo y se balancea como un pendulo:
+    -- cuelga del punto por donde lo coges y el centro se queda atras al moverlo
+    if mano then
         local mx, my = ui.mx, ui.my
-        local vx = (mx - mano.x) / math.max(dt, 1e-3)
-        mano.vx = fx.lerp(mano.vx or 0, vx, math.min(1, dt * 12))
-        mano.x, mano.y = mx, my
-        local objetivo = math.max(-0.9, math.min(0.9, -mano.vx * 0.0025))
+        local px, py = mano.px or mano.x, mano.py or mano.y
+        local k = math.min(1, dt * 12)
+        mano.vx = fx.lerp(mano.vx or 0, (mx - px) / math.max(dt, 1e-3), k)
+        mano.vy = fx.lerp(mano.vy or 0, (my - py) / math.max(dt, 1e-3), k)
+        mano.px, mano.py = mx, my
+        -- brazo: del dedo al centro de lo que llevas, sin girar
+        local bx, by
+        if mano.cosa == "copia" then
+            bx, by = -mano.ax, -mano.ay
+        elseif mano.cosa == "sobre" then
+            bx, by = 0, (sobre.ALTO / 2 - 4) * mano.escala
+        elseif mano.cosa == "cajabox" then
+            bx, by = 0, caja.COLGADO * mano.escala
+        else
+            bx, by = 0, 0
+        end
+        local a0 = mano.a0 or 0
+        local rel = mano.a - a0
+        local c, sn = math.cos(rel), math.sin(rel)
+        local rx, ry = bx * c - by * sn, bx * sn + by * c
+        -- el par que hace arrastrarlo; si lo coges casi por el centro, igual se mece
+        local largo = math.sqrt(rx * rx + ry * ry)
+        if largo < 8 then
+            rx, ry = -sn * 8, c * 8
+            largo = 8
+        end
+        local par = (ry * mano.vx - rx * mano.vy) / largo * 20
+        -- lo pesado se mece menos
+        local G, tope = 0.015, 0.9
+        if mano.cosa == "cajabox" then G, tope = 0.009, 0.5 end
+        if mano.cosa == "copia" then G, tope = 0.012, 0.45 end
         local K, C = 120, 7
-        mano.w = mano.w + (-K * (mano.a - objetivo) - C * mano.w) * dt
-        mano.a = mano.a + mano.w * dt
-        mano.escala = fx.lerp(mano.escala, mano.cosa == "sobre" and ESCALA_COGIDO or 1, math.min(1, dt * 14))
-    elseif mano and mano.cosa == "copia" then
-        mano.x, mano.y = ui.mx - mano.ax, ui.my - mano.ay
-        mano.a = fx.lerp(mano.a, 0, math.min(1, dt * 8))
+        mano.w = (mano.w or 0) + (G * par - K * rel - C * mano.w) * dt
+        mano.a = a0 + math.max(-tope, math.min(tope, rel + mano.w * dt))
+        if mano.cosa == "copia" then
+            -- el centro de la carta cuelga del dedo
+            rel = mano.a - a0
+            c, sn = math.cos(rel), math.sin(rel)
+            mano.x, mano.y = mx + bx * c - by * sn, my + bx * sn + by * c
+        else
+            mano.x, mano.y = mx, my
+            local objetivoE = (mano.cosa == "sobre" and ESCALA_COGIDO) or (mano.cosa == "cajabox" and 1.5) or 1
+            mano.escala = fx.lerp(mano.escala, objetivoE, math.min(1, dt * 14))
+        end
     end
 
     for i = #vuelos, 1, -1 do
@@ -449,6 +571,17 @@ function mesa.presionar(id, x, y)
     if id and directo.click(id) then return true end
     if apertura.enLote() then
         if id then apertura.boton(id) else apertura.pulsar() end
+        return true
+    end
+    if id and id:match("^cajabox_") then
+        mano = { cosa = "cajabox", tipo = id:sub(9), x = x, y = y, a = 0, w = 0, vx = 0, escala = 0.8 }
+        sonido.tocar("encima", 1.0)
+        return true
+    end
+    if id == "caja_abierta" and partida.cajaAbierta then
+        mano = { cosa = "sobre", tipo = partida.cajaAbierta.tipo, deCaja = true, x = x, y = y, a = 0, w = 0, vx = 0, escala = 1,
+                 hx = ESQUINA.x, hy = ESQUINA.y }
+        sonido.tocar("encima", 1.3)
         return true
     end
     if id and id:match("^caja_") then
@@ -468,6 +601,7 @@ function mesa.presionar(id, x, y)
             zMesa = zMesa + 1
             s.z = zMesa
             mano = { cosa = "copia", u = s.u, id = s.id, x = s.x, y = s.y, ax = x - s.x, ay = y - s.y, a = s.r or 0,
+                     a0 = s.r or 0, w = 0, px = x, py = y,
                      x0 = x, y0 = y, movida = false }
         end
         return true
@@ -514,12 +648,22 @@ function mesa.soltar(x, y)
     mano = nil
     if not m then return end
     if m.cosa == "sobre" then
-        if dentro(TAPETE, x, y) and soltarSobre(m.tipo, m.x, m.y + sobre.ALTO * m.escala / 2 - 4 * m.escala, m.a, m.escala) then
+        if dentro(TAPETE, x, y) and soltarSobre(m.tipo, m.x, m.y + sobre.ALTO * m.escala / 2 - 4 * m.escala, m.a, m.escala, m.deCaja) then
             return
         end
         -- fuera del tapete: vuelve a su sitio en la caja
         table.insert(vuelos, { tipo = m.tipo, x0 = m.x, y0 = m.y + sobre.ALTO * m.escala / 2, x1 = m.hx, y1 = m.hy,
                                e0 = m.escala, a = m.a, t = 0 })
+    elseif m.cosa == "cajabox" then
+        if dentro(TAPETE, x, y) and not apertura.bloqueada() and not animCaja and partida.abrirCaja(sobres[m.tipo]) then
+            apertura.recoger()
+            partida.recogerMesa()
+            mesaSel = nil
+            animCaja = { tipo = m.tipo, t = 0, x0 = m.x, y0 = m.y + caja.COLGADO * m.escala, x1 = ESQUINA.x, y1 = ESQUINA.y, e1 = ESQUINA.e,
+                         quedan = sobres.caja.sobres }
+            sonido.tocar("giro")
+            partida.guardar()
+        end
     elseif m.cosa == "funda" then
         local c = apertura.cartaEn(x, y)
         if c and c.copia then
@@ -554,7 +698,8 @@ function mesa.soltar(x, y)
         local w, h = CW * ESCALA_COPIA / 2, CH * ESCALA_COPIA / 2
         s.x = math.max(TAPETE.x + w, math.min(TAPETE.x + TAPETE.w - w, m.x))
         s.y = math.max(TAPETE.y + h, math.min(TAPETE.y + TAPETE.h - h, m.y))
-        s.r = (love.math.random() - 0.5) * 0.2
+        -- se queda como cayo y se asienta poco a poco
+        s.r, s.ra = m.a, (love.math.random() - 0.5) * 0.2
         sonido.tocar("giro")
         partida.guardar()
     end
@@ -578,6 +723,14 @@ function mesa.click(id)
         elseif enfundarCopia(c, ui.mx, ui.my) then
             s.brillo = 1
         end
+    elseif id == "mesa_top" then
+        if c.t then
+            partida.quitarTop(c)
+        elseif partida.ponerTop(c) then
+            s.brillo = 1
+            brilloFunda(ui.mx, ui.my)
+        end
+        partida.guardar()
     elseif id == "mesa_vender" then
         local def = partida.carta(s.id)
         local x, y = ui.mx, ui.my
@@ -598,12 +751,17 @@ function mesa.espacio()
         apertura.pulsar()
         return
     end
-    if mano then return end
+    if mano or animCaja then return end
+    -- primero de la caja abierta
+    if partida.cajaAbierta then
+        soltarSobre(nil, ESQUINA.x, ESQUINA.y, 0.5, 1, true)
+        return
+    end
     local tipoId = apertura.ultimoTipo()
-    if not tipoId or partida.sobres(tipoId) == 0 then
+    if not tipoId or partida.disponibles(tipoId) == 0 then
         tipoId = nil
         for _, tipo in ipairs(tiposCaja()) do
-            if partida.sobres(tipo.id) > 0 then
+            if partida.disponibles(tipo.id) > 0 then
                 tipoId = tipo.id
                 break
             end
@@ -619,7 +777,7 @@ end
 
 -- al empezar o cargar otra partida
 function mesa.reiniciar()
-    mano, mesaSel = nil, nil
+    mano, mesaSel, animCaja = nil, nil, nil
     vuelos = {}
     apertura.recoger()
 end
