@@ -11,6 +11,8 @@ local sonido = require "src.sonido"
 local fuentes = require "src.fuentes"
 local ui = require "src.ui"
 local nav = require "src.nav"
+local sobre = require "src.sobre"
+local caja = require "src.caja"
 
 local lg = love.graphics
 
@@ -27,9 +29,11 @@ local vista          -- copia que se enseña en grande (u)
 local barrido        -- arrastrando por la bandeja: { valor = true | false }
 local desplaza = 0   -- primera copia visible de la bandeja si no caben todas
 local rarezaAbierta
-local loteOp = { todo = false, primeras = false, fundas = false, set = false }
+local loteOp = { todo = false, primeras = false, proteccion = "sin", set = false }
 
 local POR_PAGINA = 9
+-- nivel de rareza (datos/rarezas.lua) en corto para los botones de proteccion
+local NIVEL_CORTO = { [0] = "NO", "COM+", "INF+", "RARA+", "HOLO+", "FULL+", "SECR" }
 local AREA_X = 134
 local CW, CH = carta.ANCHO, carta.ALTO
 local FUNDAS = { x = 6, y = 296, w = 118, h = 34 }
@@ -302,6 +306,38 @@ local function panelSobres()
     end
 end
 
+-- coleccion sellada: sobres y cajas cerrados de cada set; lo apartado no
+-- sale en la mesa (para no abrirlo sin querer)
+local function dibujarSellado()
+    local x0, y = AREA_X, 30
+    fuentes.texto("TU COLECCIÓN SELLADA  -  LO APARTADO NO SALE EN LA MESA", x0, y, 1, p.grisclaro)
+    y = y + 14
+    for _, tipo in ipairs(sobres.lista) do
+        local hay = partida.sobres(tipo.id) + partida.cajasDe(tipo.id)
+        if hay > 0 or mercado.salido(tipo.set) then
+            ui.caja(x0, y, 496, 70, p.grisosc)
+            sobre.dibujar(tipo.id, x0 + 22, y + 35, 1.2)
+            caja.dibujar(tipo.id, x0 + 70, y + 38, 1)
+            fuentes.texto(sets[tipo.set].nombre:upper(), x0 + 100, y + 6, 1, tipo.colores.letras)
+            local filas = {
+                { "s", true, "SOBRES 1ª ED", partida.sobres(tipo.id, true) },
+                { "s", false, "SOBRES REIMPR.", partida.sobres(tipo.id, false) },
+                { "c", true, "CAJAS 1ª ED", partida.cajasDe(tipo.id, true) },
+                { "c", false, "CAJAS REIMPR.", partida.cajasDe(tipo.id, false) },
+            }
+            for k, f in ipairs(filas) do
+                local fx0 = x0 + 100 + ((k - 1) % 2) * 196
+                local fy = y + 18 + math.floor((k - 1) / 2) * 24
+                local apartado = partida.apartado(f[1], tipo.id, f[2])
+                fuentes.texto(f[3] .. ": " .. f[4], fx0, fy + 3, 1, f[2] and p.amarillo or p.blanco)
+                ui.boton("apa_" .. f[1] .. "_" .. tipo.id .. "_" .. (f[2] and "1" or "n"), apartado and "APARTADO" or "APARTAR",
+                    fx0 + 118, fy, 70, 12, apartado and p.naranja or p.gris, f[4] > 0 or apartado)
+            end
+            y = y + 74
+        end
+    end
+end
+
 -- la copia que se ve en grande: la que tiene el raton, si no la elegida, si no la mejor
 local function copiaVista(id)
     if vista then
@@ -332,7 +368,7 @@ local function panelSeleccion()
     local def = partida.carta(id)
     local r = rarezas[def.rareza]
     local c = copiaVista(id)
-    carta.dibujar(def, 65, 144, 2, 2, 0, true, ui.hoverCarta("sel", 65, 144, CW * 2, CH * 2), c.f, { primera = c.p })
+    carta.dibujar(def, 65, 144, 2, 2, 0, true, ui.hoverCarta("sel", 65, 144, CW * 2, CH * 2), c.f, { primera = c.p, top = c.t })
     ui.zona("sel", 65 - CW, 144 - CH, CW * 2, CH * 2)
 
     fuentes.texto(def.nombre, 6, 198, 1, p.blanco, "center", 118)
@@ -368,8 +404,18 @@ local function panelFundas()
     end
     fuentes.texto("FUNDAS " .. partida.fundasLibres, FUNDAS.x + 30, FUNDAS.y + 4, 1, partida.fundasLibres > 0 and p.blanco or p.rojo)
     fuentes.texto(cogida and "SUÉLTALA AQUÍ" or "ARRASTRA AQUÍ", FUNDAS.x + 30, FUNDAS.y + 12, 1, cogida and p.lima or p.grisclaro)
-    local auto = partida.opciones.autoFundas
-    ui.boton("autoFundas", auto and "AUTO RARAS: SÍ" or "AUTO RARAS: NO", FUNDAS.x + 30, FUNDAS.y + 20, 82, 11, auto and p.verde or p.gris)
+    fuentes.texto("TOP " .. partida.topsLibres, FUNDAS.x + 80, FUNDAS.y + 4, 1, partida.topsLibres > 0 and p.celeste or p.gris)
+    -- desde que rareza se ponen solas
+    local o = partida.opciones
+    ui.boton("autoFundas", "F:" .. NIVEL_CORTO[o.fundaDesde or 0], FUNDAS.x + 30, FUNDAS.y + 20, 40, 11, (o.fundaDesde or 0) > 0 and p.verde or p.gris)
+    ui.boton("autoTops", "T:" .. NIVEL_CORTO[o.topDesde or 0], FUNDAS.x + 72, FUNDAS.y + 20, 40, 11, (o.topDesde or 0) > 0 and p.azul or p.gris)
+    if ui.encima == "autoFundas" or ui.encima == "autoTops" then
+        ui.tooltip("Protección automática", p.cian, {
+            { "F: funda a las cartas nuevas desde esa rareza" },
+            { "T: top loader desde esa rareza (con funda)" },
+            { "Pulsa para cambiarla. NO = nunca", p.grisclaro },
+        })
+    end
 end
 
 local function panelAlbum()
@@ -409,9 +455,11 @@ local function panelAlbum()
         if hecho then fuentes.texto("OK", 14, y, 1, p.amarillo, "right", 98) end
         y = y + 8
     end
-    local hecho = partida.premios[setActivo .. "_primera"]
-    fuentes.texto("TODO EN 1ª ED  +" .. premiosDatos.primera.sobres, 14, y, 1, hecho and p.amarillo or p.gris)
-    if hecho then fuentes.texto("OK", 14, y, 1, p.amarillo, "right", 98) end
+    if premiosDatos.primera then
+        local hecho = partida.premios[setActivo .. "_primera"]
+        fuentes.texto("TODO EN 1ª ED  +" .. premiosDatos.primera.sobres, 14, y, 1, hecho and p.amarillo or p.gris)
+        if hecho then fuentes.texto("OK", 14, y, 1, p.amarillo, "right", 98) end
+    end
 end
 
 -- bandeja: todas las copias de una carta, para elegir cuales
@@ -508,7 +556,7 @@ local function dibujarBandeja()
             lg.setColor(p.amarillo)
             lg.rectangle("fill", cx - CW / 2 - 1, y - CH / 2 - 1, CW + 2, CH + 2)
         end
-        carta.dibujar(def, cx, y, 1, 1, 0, true, h, c.f, { primera = c.p, quieta = h == nil })
+        carta.dibujar(def, cx, y, 1, 1, 0, true, h, c.f, { primera = c.p, top = c.t, quieta = h == nil })
         if c.a or c.m then
             lg.setColor(0, 0, 0, 0.5)
             lg.rectangle("fill", cx - CW / 2, y - CH / 2, CW, CH)
@@ -551,6 +599,7 @@ local function dibujarBandeja()
     for _, c in ipairs(sel) do valor = valor + mercado.ventaRapida(id, c.p) end
     local sinFunda = #elegidasQue(function(c) return not c.f end)
     local conFunda = #sel - sinFunda
+    local sinTop = #elegidasQue(function(c) return not c.t end)
     local aMesa = #elegidasQue(function(c) return not c.m end)
     fuentes.texto(#sel == 0 and "CLICK O ARRASTRA POR ENCIMA DE LAS COPIAS PARA ELEGIR" or (#sel .. (#sel == 1 and " ELEGIDA" or " ELEGIDAS")),
         B.x + 8, B.y + 94, 1, #sel == 0 and p.gris or p.amarillo)
@@ -559,10 +608,11 @@ local function dibujarBandeja()
         ui.boton(idB, texto, x, by, w, 13, color, activo)
         x = x + w + 4
     end
-    accion("sel_vender", "VENDER " .. #sel .. "  +" .. ui.dinero(valor), 118, #sel > 0 and #sel >= n and p.rojo or p.naranja, #sel > 0)
-    accion("sel_publicar", "PUBLICAR " .. #sel, 72, p.celeste, #sel > 0 and partida.huecosAnuncios() > 0)
-    accion("sel_enfundar", "ENFUNDAR " .. sinFunda, 76, p.verdeosc, sinFunda > 0)
-    accion("sel_desenfundar", "QUITAR FUNDA " .. conFunda, 92, p.gris, conFunda > 0)
+    accion("sel_vender", "VENDER " .. #sel .. " +" .. ui.dinero(valor), 104, #sel > 0 and #sel >= n and p.rojo or p.naranja, #sel > 0)
+    accion("sel_publicar", "PUBLICAR " .. #sel, 64, p.celeste, #sel > 0 and partida.huecosAnuncios() > 0)
+    accion("sel_enfundar", "ENFUNDAR " .. sinFunda, 70, p.verdeosc, sinFunda > 0)
+    accion("sel_desenfundar", "SIN FUNDA " .. conFunda, 70, p.gris, conFunda > 0)
+    accion("sel_top", "TOP " .. sinTop, 50, p.azul, sinTop > 0 and partida.topsLibres > 0)
     accion("sel_mesa", "A LA MESA " .. aMesa, B.x + B.w - 8 - x, p.verde, aMesa > 0 and not partida.mesaLlena())
 end
 
@@ -578,7 +628,8 @@ end
 function armario.dibujar()
     ui.boton("modo_copias", "COPIAS", 6, 26, 28, 14, modo == "copias" and p.azul or p.gris)
     ui.boton("modo_rareza", "RAREZA", 36, 26, 28, 14, modo == "rareza" and p.azul or p.gris)
-    ui.boton("modo_album", "ÁLBUM", 66, 26, 28, 14, modo == "album" and p.azul or p.gris)
+    ui.boton("modo_album", "ÁLBUM", 66, 26, 24, 14, modo == "album" and p.azul or p.gris)
+    ui.boton("modo_sellado", "SELLADO", 92, 26, 32, 14, modo == "sellado" and p.azul or p.gris)
 
     panelSobres()
     if modo == "album" then panelAlbum() else panelSeleccion() end
@@ -592,6 +643,8 @@ function armario.dibujar()
         dibujarCopias()
     elseif modo == "rareza" then
         dibujarRareza()
+    elseif modo == "sellado" then
+        dibujarSellado()
     else
         dibujarAlbum()
     end
@@ -677,6 +730,14 @@ local function publicarElegidas()
     hacer()
 end
 
+local function topElegidas()
+    local hecho = false
+    for _, c in ipairs(elegidasQue()) do
+        if not c.t then hecho = partida.ponerTop(c) or hecho end
+    end
+    if hecho then brilloFunda() end
+end
+
 local function enfundarElegidas(poner)
     local hecho = false
     for _, c in ipairs(elegidasQue()) do
@@ -726,12 +787,12 @@ local function dibujarLote(ancho, alto)
     ui.caja(x - 2, y - 2, w + 4, h + 4, p.naranja)
     ui.caja(x, y, w, h, p.negro)
     fuentes.texto("VENDER EN LOTE", x, y + 8, 2, p.amarillo, "center", w)
-    fuentes.texto("A LA TIENDA, AL MOMENTO Y A LA MITAD DE SU VALOR", x, y + 22, 1, p.grisclaro, "center", w)
+    fuentes.texto("A LA TIENDA, AL MOMENTO Y A SU VALOR DE MERCADO", x, y + 22, 1, p.grisclaro, "center", w)
 
     local filas = {
         { "QUÉ", "todo", { { false, "REPES (DEJA 1 DE CADA)" }, { true, "TODO" } } },
         { "1ª EDICIÓN", "primeras", { { false, "NO SE VENDEN" }, { true, "TAMBIÉN" } } },
-        { "ENFUNDADAS", "fundas", { { false, "NO SE VENDEN" }, { true, "TAMBIÉN" } } },
+        { "PROTECCIÓN", "proteccion", { { "sin", "SIN FUNDA" }, { "funda", "CON FUNDA" }, { "top", "CON TOP" }, { "todo", "TODAS" } } },
         { "SETS", "set", { { false, "TODOS" }, { true, "SOLO " .. sets[setActivo].codigo } } },
     }
     local fy = y + 36
@@ -739,12 +800,13 @@ local function dibujarLote(ancho, alto)
         fuentes.texto(f[1], x + 12, fy + 3, 1, p.blanco)
         for k, op in ipairs(f[3]) do
             local activo = (loteOp[f[2]] or false) == op[1]
-            ui.boton("lote_" .. f[2] .. "_" .. tostring(op[1]), op[2], x + 84 + (k - 1) * 114, fy, 110, 11, activo and p.azul or p.grisosc)
+            local bw = (228 - (#f[3] - 1) * 4) / #f[3]
+            ui.boton("lote_" .. f[2] .. "_" .. tostring(op[1]), op[2], x + 84 + (k - 1) * (bw + 4), fy, bw, 11, activo and p.azul or p.grisosc)
         end
         fy = fy + 15
     end
 
-    local o = { todo = loteOp.todo, primeras = loteOp.primeras, fundas = loteOp.fundas, set = loteOp.set and setActivo or nil }
+    local o = { todo = loteOp.todo, primeras = loteOp.primeras, proteccion = loteOp.proteccion, set = loteOp.set and setActivo or nil }
     local r = partida.lote(o)
     fy = fy + 4
     fuentes.texto(r.n .. (r.n == 1 and " CARTA POR " or " CARTAS POR ") .. ui.dinero(r.valor), x, fy, 2, r.n > 0 and p.amarillo or p.gris, "center", w)
@@ -764,17 +826,26 @@ local function clickLote(id)
         ui.overlay = nil
     elseif id == "lote_si" then
         ui.overlay = nil
-        cobrar(partida.venderLote({ todo = loteOp.todo, primeras = loteOp.primeras, fundas = loteOp.fundas,
+        cobrar(partida.venderLote({ todo = loteOp.todo, primeras = loteOp.primeras, proteccion = loteOp.proteccion,
             set = loteOp.set and setActivo or nil }))
     else
         local campo, valor = id:match("^lote_(%a+)_(%a+)$")
-        if campo then loteOp[campo] = valor == "true" end
+        if campo == "proteccion" then
+            loteOp.proteccion = valor
+        elseif campo then
+            loteOp[campo] = valor == "true"
+        end
     end
 end
 
 function armario.click(id)
     if id:match("^modo_") then
         modo = id:sub(6)
+    elseif id:match("^apa_") then
+        local clase, tipoId, ed = id:match("^apa_(%a)_(.+)_(%w)$")
+        partida.apartar(clase, tipoId, ed == "1")
+        sonido.tocar("giro")
+        partida.guardar()
     elseif id:match("^abrir_") then
         nav.abrir()
     elseif id:match("^set_") then
@@ -799,6 +870,8 @@ function armario.click(id)
         publicarElegidas()
     elseif id == "sel_enfundar" then
         enfundarElegidas(true)
+    elseif id == "sel_top" then
+        topElegidas()
     elseif id == "sel_desenfundar" then
         enfundarElegidas(false)
     elseif id == "sel_mesa" then
@@ -806,8 +879,10 @@ function armario.click(id)
     elseif id == "ficha" then
         local c = copiaVista(seleccion)
         nav.ficha(seleccion, c and c.p or false)
-    elseif id == "autoFundas" then
-        partida.opciones.autoFundas = not partida.opciones.autoFundas
+    elseif id == "autoFundas" or id == "autoTops" then
+        local clave = id == "autoFundas" and "fundaDesde" or "topDesde"
+        partida.opciones[clave] = ((partida.opciones[clave] or 0) + 1) % 7
+        if partida.opciones[clave] == 1 or partida.opciones[clave] == 2 then partida.opciones[clave] = 3 end
         partida.guardar()
     elseif id == "pagAnt" then
         cambiarPliego(-1)

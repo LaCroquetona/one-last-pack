@@ -261,6 +261,16 @@ function mercado.precioCaja(tipo)
     return math.floor(precio * C.sobres * (1 - C.descuento) / 10 + 0.5) * 10
 end
 
+-- lo que vale una caja cerrada: sus sobres cerrados a precio de mercado
+function mercado.valorCaja(tipo, primera)
+    local v = mercado.sellado(tipo, primera) or mercado.sellado(tipo, not primera) or tipo.precio
+    v = v * sobres.caja.sobres * sobres.caja.valor
+    -- mientras la tienda las vende, venderla nunca da mas de lo que cuesta nueva
+    local nueva = mercado.precioCaja(tipo)
+    if nueva then v = math.min(v, nueva * 0.9) end
+    return math.floor(v / 10 + 0.5) * 10
+end
+
 function mercado.gastarStock(tipo, n)
     local s = mercado.estado.stock
     s[tipo.id] = math.max(0, (s[tipo.id] or 0) - n)
@@ -734,6 +744,8 @@ function mercado.cargar(estado)
     for _, s in ipairs(sets.lista) do
         estado.sets[s.id] = estado.sets[s.id] or nuevoSet()
     end
+    -- cartas nuevas de un set que ya habia salido (el set 1 paso de 40 a 80)
+    abrirSets(estado.dia)
     -- partidas de antes de las cajas: hoy llegan las de siempre
     if not estado.cajas then
         estado.cajas = {}

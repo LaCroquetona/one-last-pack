@@ -12,6 +12,7 @@ local sonido = require "src.sonido"
 local fuentes = require "src.fuentes"
 local ui = require "src.ui"
 local nav = require "src.nav"
+local caja = require "src.caja"
 
 local tienda = {}
 
@@ -19,6 +20,8 @@ local tipo = sobres.lista[1]
 
 local PANEL_X, PANEL_Y, PANEL_W = 300, 30, 318
 local PRECIO_FUNDAS = 100
+local PRECIO_TOPS = 150      -- 10 top loaders
+local seccion = "sobres"     -- "sobres" o "cajas"
 
 local function porcentaje(peso, total)
     local v = math.floor(peso / total * 1000 + 0.5) / 10
@@ -70,7 +73,7 @@ local function sinSalida()
     local barato = masBarato()
     if not barato then return false end
     if partida.dinero >= barato.precio or partida.sobresGuardados() > 0 then return false end
-    local todo = partida.lote({ todo = true, primeras = true, fundas = true })
+    local todo = partida.lote({ todo = true, primeras = true, proteccion = "todo" })
     return partida.dinero + todo.valor < barato.precio
 end
 
@@ -82,7 +85,7 @@ local function selector()
         local activo = s == tipo
         local salido = mercado.salido(s.set)
         local texto = sets[s.set].codigo .. "  " .. (salido and ui.dinero(s.precio) or ("DÍA " .. calendario.plan[s.set][1].desde))
-        ui.boton("tipo_" .. s.id, texto, x0 + (i - 1) * (w + 4), 30, w, 16, activo and s.colores.rayas or p.grisosc)
+        ui.boton("tipo_" .. s.id, texto, x0 + (i - 1) * (w + 4), 50, w, 16, activo and s.colores.rayas or p.grisosc)
     end
 end
 
@@ -113,11 +116,72 @@ local function panelFundas()
     ui.caja(x, y, w, 40)
     fuentes.texto("FUNDAS", x + 6, y + 5, 1, p.blanco)
     fuentes.texto("TIENES " .. partida.fundasLibres .. " SIN USAR", x + 6, y + 5, 1, p.grisclaro, "right", w - 12)
-    ui.boton("fundas", "COMPRAR 20 FUNDAS  " .. ui.dinero(PRECIO_FUNDAS), x + 6, y + 18, w - 12, 15,
+    fuentes.texto("TOP " .. partida.topsLibres, x + 6, y + 5, 1, p.celeste, "center", w - 12)
+    ui.boton("fundas", "20 FUNDAS  " .. ui.dinero(PRECIO_FUNDAS), x + 6, y + 18, (w - 16) / 2, 15,
         p.verdeosc, partida.dinero >= PRECIO_FUNDAS)
+    ui.boton("tops", "10 TOP LOADERS  " .. ui.dinero(PRECIO_TOPS), x + 10 + (w - 16) / 2, y + 18, (w - 16) / 2, 15,
+        p.azul, partida.dinero >= PRECIO_TOPS)
+    if ui.encima == "tops" then
+        ui.tooltip("Top loaders", p.celeste, { { "Plástico rígido encima de la funda" }, { "Elige en el armario desde qué rareza se ponen solos", p.grisclaro } })
+    end
+end
+
+-- seccion de cajas: cada set con su caja sellada
+local function dibujarCajas()
+    local hora = love.timer.getTime()
+    local salido = mercado.salido(tipo.set)
+    fx.aura(160, 160, tipo.colores.rayas, 120, salido and 0.25 or 0.08)
+    caja.dibujar(tipo.id, 160, 160 + math.floor(math.sin(hora * 2) * 3 + 0.5), 3)
+    local tengo, t1 = partida.cajasDe(tipo.id), partida.cajasDe(tipo.id, true)
+    fuentes.texto("TIENES " .. tengo .. (tengo == 1 and " CAJA" or " CAJAS") .. (t1 > 0 and (" (" .. t1 .. " DE 1ª ED)") or ""),
+        40, 256, 1, p.grisclaro, "center", 240)
+    fuentes.texto("SE ABREN EN LA MESA Y SE VENDEN EN EL MÓVIL", 40, 266, 1, p.gris, "center", 240)
+
+    local C = sobres.caja
+    ui.caja(PANEL_X, PANEL_Y, PANEL_W, 236)
+    fuentes.texto("CAJA " .. sets[tipo.set].nombre:upper(), PANEL_X + 10, PANEL_Y + 10, 2, p.blanco)
+    local precio = mercado.precioCaja(tipo)
+    if precio then fuentes.texto(ui.dinero(precio), PANEL_X, PANEL_Y + 10, 2, p.amarillo, "right", PANEL_W - 10) end
+    local texto, color = estado()
+    chip(texto, PANEL_X + 10, PANEL_Y + 28, color)
+    local y = PANEL_Y + 46
+    local lineas = {
+        { C.sobres .. " SOBRES CERRADOS DEL " .. sets[tipo.set].nombre:upper(), p.blanco },
+        { "SALE UN " .. math.floor(C.descuento * 100 + 0.5) .. "% MÁS BARATA QUE SUS SOBRES SUELTOS", p.lima },
+        { "LLEGAN " .. C.porDia .. " CAJAS AL DÍA MIENTRAS EL SET ESTÁ EN LA TIENDA", p.grisclaro },
+        { "CERRADA SUBE O BAJA COMO SUS SOBRES CERRADOS", p.grisclaro },
+        { "LAS DE 1ª EDICIÓN GUARDADAS SUELEN SUBIR CON EL TIEMPO", p.amarillo },
+    }
+    for _, l in ipairs(lineas) do
+        fuentes.texto(l[1], PANEL_X + 10, y, 1, l[2])
+        y = y + 11
+    end
+    if salido then
+        local v1 = mercado.valorCaja(tipo, true)
+        fuentes.texto("VALE CERRADA (1ª ED): " .. ui.dinero(v1), PANEL_X + 10, y + 6, 1, p.amarillo)
+    end
+    local by = PANEL_Y + 246
+    if precio then
+        local quedan = mercado.stockCajas(tipo)
+        ui.boton("caja", "COMPRAR CAJA " .. ui.dinero(precio), PANEL_X, by, 208, 16, p.morado, quedan > 0 and partida.dinero >= precio)
+        fuentes.texto(quedan > 0 and ("QUEDAN " .. quedan .. " HOY") or "MAÑANA MÁS", PANEL_X + 216, by + 5, 1,
+            quedan > 0 and p.grisclaro or p.naranja)
+    elseif salido then
+        fuentes.texto("YA NO SE VENDEN EN LA TIENDA", PANEL_X, by + 5, 1, p.grisclaro)
+    end
+    ui.boton("abrir", "A LA MESA", PANEL_X, by + 22, 100, 16, p.azul, tengo > 0)
 end
 
 function tienda.dibujar()
+    ui.boton("sec_sobres", "SOBRES", 14, 28, 60, 14, seccion == "sobres" and p.verde or p.grisosc)
+    ui.boton("sec_cajas", "CAJAS", 78, 28, 60, 14, seccion == "cajas" and p.verde or p.grisosc)
+    if seccion == "cajas" then
+        if not calendario.conocido(tipo.set, mercado.dia()) then tipo = sobres.lista[1] end
+        selector()
+        dibujarCajas()
+        panelFundas()
+        return
+    end
     if not calendario.conocido(tipo.set, mercado.dia()) then tipo = sobres.lista[1] end
     selector()
     local hora = love.timer.getTime()
@@ -197,26 +261,7 @@ function tienda.dibujar()
     -- la tienda es para comprar: se abren en la mesa
     ui.boton("abrir", "A LA MESA (" .. guardados .. ")", PANEL_X + 216, by, PANEL_W - 216, 16, p.azul, guardados > 0)
 
-    -- cajas: muchos sobres de golpe, mas baratos
     local fila = by + 22
-    local precioCaja = mercado.precioCaja(tipo)
-    if precioCaja then
-        local quedan = mercado.stockCajas(tipo)
-        local C = sobres.caja
-        ui.boton("caja", "CAJA DE " .. C.sobres .. " SOBRES  " .. ui.dinero(precioCaja), PANEL_X, fila, 208, 16, p.morado,
-            quedan > 0 and partida.dinero >= precioCaja)
-        fuentes.texto("-" .. math.floor(C.descuento * 100 + 0.5) .. "%", PANEL_X + 216, fila + 1, 1, p.lima)
-        fuentes.texto(quedan > 0 and ("QUEDAN " .. quedan .. (quedan == 1 and " CAJA" or " CAJAS") .. " HOY") or "MAÑANA MÁS CAJAS",
-            PANEL_X + 216, fila + 9, 1, quedan > 0 and p.grisclaro or p.naranja)
-        if ui.encima == "caja" then
-            ui.tooltip("Caja de sobres", p.morado, {
-                { C.sobres .. " sobres por " .. ui.dinero(precioCaja) .. " (sueltos " .. ui.dinero(precio * C.sobres) .. ")" },
-                { "No gasta los sobres sueltos de hoy" },
-                { "Se abren en la mesa como siempre", p.grisclaro },
-            })
-        end
-        fila = fila + 22
-    end
 
     local aviso
     if sinSalida() then
@@ -264,13 +309,14 @@ function tienda.click(id)
         local pagado = partida.comprarCaja(tipo)
         if pagado then
             sonido.tocar("moneda")
-            sonido.tocar("nueva")
-            fx.texto(PANEL_X + 104, PANEL_Y + 258, "-" .. ui.dinero(pagado) .. "  +" .. sobres.caja.sobres .. " SOBRES", p.amarillo)
-            fx.explosion(160, 160, p.amarillo, 80, 160)
-            fx.confeti(160, 120, 40, 140)
-            fx.sacudir(4)
+            fx.texto(PANEL_X + 104, PANEL_Y + 258, "-" .. ui.dinero(pagado) .. "  +1 CAJA", p.amarillo)
+            fx.sacudir(3)
             partida.guardar()
         end
+    elseif id == "sec_sobres" or id == "sec_cajas" then
+        seccion = id:sub(5)
+    elseif id == "tops" then
+        if partida.comprarTops(10, PRECIO_TOPS) then pagar(PRECIO_TOPS, "+10 TOP LOADERS", p.celeste) end
     elseif id:match("^tipo_") then
         tipo = sobres[id:sub(6)]
     elseif id == "fundas" then

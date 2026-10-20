@@ -5,6 +5,9 @@ local datosMercado = require "datos.mercado"
 local premios = require "datos.premios"
 local sets = require "datos.sets"
 local mercado = require "src.mercado"
+local generador = require "src.generador"
+local datosMejoras = require "datos.mejoras"
+local datosEncargos = require "datos.encargos"
 
 local partida = {}
 
@@ -51,18 +54,29 @@ function partida.nueva()
     partida.orden = {}
     partida.mesa = {}
     partida.seguidas = {}
-    partida.opciones = { autoFundas = true }
+    -- fundaDesde / topDesde: nivel de rareza desde el que se protegen solas (0 = nunca)
+    partida.opciones = { fundaDesde = 4, topDesde = 5 }
     partida.fundasLibres = 20
+    partida.topsLibres = 0
+    -- sobres y cajas apartados: no salen en la mesa ("s:set1:1" = sobres de 1ª ed del set 1)
+    partida.apartados = {}
     partida.premios = {}
     partida.premiosNuevos = {}
+    partida.encargosHechos = {}
+    partida.encargosCaducados = {}
     -- canal de directos: nombre, idioma del chat ("es" o "en") y lo que se ha conseguido
     partida.canal = { nombre = "MI_CANAL", idioma = "es", seguidores = 0, directos = 0, propinas = 0, record = 0 }
+    partida.mejoras = {}
+    partida.cajas, partida.cajas1 = {}, {}
+    partida.encargos = {}        -- aceptados: { nombre, tipo, n, hechos, pago, dias, primera }
+    partida.ofertasEncargo = {}  -- sin aceptar: lo mismo + espera
     for tipo, n in pairs(sobres.inicio.sobres) do
         partida.guardados[tipo] = n
         partida.guardados1[tipo] = n
     end
     mercado.nuevo()
     partida.cartera = { h0 = 1, h = { 0 } }
+    partida.aplicarSuerte()
     enOrden = {}
     tocar()
 end
@@ -199,7 +213,7 @@ function partida.revisarPremios(set, avisar)
                 (math.floor(h.parte * 100) .. "% DEL " .. sets[set].nombre:upper()))
         end
     end
-    if primeras >= total then
+    if premios.primera and primeras >= total then
         dar(set .. "_primera", premios.primera, "¡" .. sets[set].nombre:upper() .. " COMPLETO EN 1ª EDICIÓN!")
     end
 end
@@ -214,11 +228,16 @@ function partida.anadir(id, primera)
     end
     partida.uid = partida.uid + 1
     local c = { u = partida.uid, p = primera or nil }
-    -- solo se enfunda la copia que te quedas: las repes no gastan funda
-    if partida.opciones.autoFundas and rarezas[porId[id].rareza].nivel >= 3 and partida.fundasLibres > 0
-        and partida.enfundadas(id) == 0 then
+    -- funda y top loader solos segun la rareza (opciones.fundaDesde / topDesde)
+    local nivel = rarezas[porId[id].rareza].nivel
+    local o = partida.opciones
+    if (o.fundaDesde or 0) > 0 and nivel >= o.fundaDesde and partida.fundasLibres > 0 then
         partida.fundasLibres = partida.fundasLibres - 1
         c.f = true
+    end
+    if c.f and (o.topDesde or 0) > 0 and nivel >= o.topDesde and partida.topsLibres > 0 then
+        partida.topsLibres = partida.topsLibres - 1
+        c.t = true
     end
     local primeraP = primera and partida.deEdicion(id, true) == 0
     table.insert(l, c)
@@ -269,8 +288,41 @@ end
 
 function partida.desenfundarCopia(c)
     if not c.f then return false end
+    partida.quitarTop(c)
     partida.fundasLibres = partida.fundasLibres + 1
     c.f = nil
+    tocar()
+    return true
+end
+
+-- top loader: va encima de la funda (si no tiene, se le pone una)
+function partida.ponerTop(c)
+    if c.t or partida.topsLibres <= 0 then return false end
+    if not c.f and not partida.enfundarCopia(c) then return false end
+    partida.topsLibres = partida.topsLibres - 1
+    c.t = true
+    tocar()
+    return true
+end
+
+function partida.quitarTop(c)
+    if not c.t then return false end
+    partida.topsLibres = partida.topsLibres + 1
+    c.t = nil
+    tocar()
+    return true
+end
+
+-- al vender o enviar una copia vuelven su funda y su top loader
+local function devolverProteccion(c)
+    if c.f then partida.fundasLibres = partida.fundasLibres + 1 end
+    if c.t then partida.topsLibres = partida.topsLibres + 1 end
+end
+
+function partida.comprarTops(cantidad, precio)
+    if partida.dinero < precio then return false end
+    partida.dinero = partida.dinero - precio
+    partida.topsLibres = partida.topsLibres + cantidad
     tocar()
     return true
 end
@@ -294,7 +346,7 @@ function partida.venderCopias(id, uids)
         if c and not c.a then
             ganado = ganado + mercado.ventaRapida(id, c.p)
             mercado.vendida(id, 1)
-            if c.f then partida.fundasLibres = partida.fundasLibres + 1 end
+            devolverProteccion(c)
             quitarCopia(id, u)
         end
     end
@@ -324,7 +376,11 @@ local function plan(o)
             -- se venden antes las normales
             for k = #ordenadas, 1, -1 do
                 local c = ordenadas[k]
-                if c ~= guardar and not c.a and not c.m and (o.primeras or not c.p) and (o.fundas or not c.f) then
+                -- proteccion: "sin" solo sin funda, "funda" solo con funda (sin top),
+                -- "top" solo con top loader, "todo" todas
+                local pr = o.proteccion or "sin"
+                local tipoP = c.t and "top" or (c.f and "funda" or "sin")
+                if c ~= guardar and not c.a and not c.m and (o.primeras or not c.p) and (pr == "todo" or pr == tipoP) then
                     table.insert(vender, c.u)
                 end
             end
@@ -347,7 +403,7 @@ local function cobroRapido(id, uids)
 end
 
 local function claveLote(o)
-    return "lote" .. (o.todo and 1 or 0) .. (o.primeras and 1 or 0) .. (o.fundas and 1 or 0) .. (o.set or "")
+    return "lote" .. (o.todo and 1 or 0) .. (o.primeras and 1 or 0) .. (o.proteccion or "sin") .. (o.set or "")
 end
 
 -- cuantas, por cuanto y cuantas son la ultima copia de su carta
@@ -399,17 +455,68 @@ function partida.comprarReventa(tipo, primera)
     return precio
 end
 
--- una caja de sobres: muchos sobres mas baratos (no gasta los sobres sueltos)
+-- cajas selladas: se guardan cerradas, se venden o se abren (dan sus sobres)
+function partida.cajasDe(tipoId, primera)
+    local n = (partida.cajas[tipoId] or 0)
+    if primera == nil then return n end
+    local p1 = partida.cajas1[tipoId] or 0
+    return primera and p1 or n - p1
+end
+
 function partida.comprarCaja(tipo)
     local precio = mercado.precioCaja(tipo)
     if not precio or mercado.stockCajas(tipo) <= 0 or partida.dinero < precio then return false end
     local _, primera = mercado.enTienda(tipo)
-    local n = sobres.caja.sobres
     partida.dinero = partida.dinero - precio
     mercado.estado.cajas[tipo.id] = mercado.stockCajas(tipo) - 1
-    if primera then mercado.comprados(tipo.set, n) end
-    partida.meterSobres(tipo.id, n, primera)
+    if primera then mercado.comprados(tipo.set, sobres.caja.sobres) end
+    partida.cajas[tipo.id] = partida.cajasDe(tipo.id) + 1
+    if primera then partida.cajas1[tipo.id] = partida.cajasDe(tipo.id, true) + 1 end
+    tocar()
     return precio
+end
+
+-- saca una caja (antes las de reimpresion, como los sobres); devuelve si era de 1ª ed
+local function sacarCaja(tipo, respetar)
+    if (respetar and partida.cajasDisponibles(tipo.id) or partida.cajasDe(tipo.id)) <= 0 then return nil end
+    local primera = partida.cajasDe(tipo.id, false) == 0 or (respetar and partida.apartado("c", tipo.id, false))
+    partida.cajas[tipo.id] = partida.cajasDe(tipo.id) - 1
+    if primera then partida.cajas1[tipo.id] = partida.cajasDe(tipo.id, true) - 1 end
+    tocar()
+    return primera
+end
+
+-- se abre en la mesa: se queda en su esquina y los sobres se sacan de ella.
+-- Si ya habia una abierta, sus sobres pasan a los guardados
+function partida.abrirCaja(tipo)
+    local primera = sacarCaja(tipo, true)
+    if primera == nil then return false end
+    local vieja = partida.cajaAbierta
+    if vieja and vieja.quedan > 0 then partida.meterSobres(vieja.tipo, vieja.quedan, vieja.primera) end
+    partida.cajaAbierta = { tipo = tipo.id, quedan = sobres.caja.sobres, primera = primera or nil }
+    return true
+end
+
+-- saca un sobre de la caja abierta
+function partida.sacarDeCaja()
+    local c = partida.cajaAbierta
+    if not c or c.quedan <= 0 then return nil end
+    c.quedan = c.quedan - 1
+    partida.abiertos = partida.abiertos + 1
+    if c.quedan <= 0 then partida.cajaAbierta = nil end
+    tocar()
+    return sobres[c.tipo], c.primera or false
+end
+
+-- se vende por el movil, a lo que vale cerrada menos la comision
+function partida.venderCaja(tipo, primera)
+    if partida.cajasDe(tipo.id, primera) <= 0 then return false end
+    local valor = mercado.trasComision(mercado.valorCaja(tipo, primera))
+    partida.cajas[tipo.id] = partida.cajasDe(tipo.id) - 1
+    if primera then partida.cajas1[tipo.id] = partida.cajasDe(tipo.id, true) - 1 end
+    partida.dinero = partida.dinero + valor
+    tocar()
+    return valor
 end
 
 function partida.meterSobres(tipoId, n, primera)
@@ -464,10 +571,39 @@ end
 
 -- tipoId: el sobre que se quiere abrir; sin el, el primero que quede.
 -- Se abren antes los de reimpresion: los de 1ª edicion cerrados valen mas
-function partida.sacarSobre(tipoId)
+-- apartados: no salen en la mesa (clase "s" sobres, "c" cajas)
+function partida.apartado(clase, tipoId, primera)
+    return partida.apartados[clase .. ":" .. tipoId .. ":" .. (primera and 1 or "n")] or false
+end
+
+function partida.apartar(clase, tipoId, primera)
+    local k = clase .. ":" .. tipoId .. ":" .. (primera and 1 or "n")
+    partida.apartados[k] = not partida.apartados[k] or nil
+    tocar()
+end
+
+-- sobres que se pueden abrir en la mesa (sin los apartados)
+function partida.disponibles(tipoId)
+    local n = 0
+    if not partida.apartado("s", tipoId, false) then n = n + partida.sobres(tipoId, false) end
+    if not partida.apartado("s", tipoId, true) then n = n + partida.sobres(tipoId, true) end
+    return n
+end
+
+function partida.cajasDisponibles(tipoId)
+    local n = 0
+    if not partida.apartado("c", tipoId, false) then n = n + partida.cajasDe(tipoId, false) end
+    if not partida.apartado("c", tipoId, true) then n = n + partida.cajasDe(tipoId, true) end
+    return n
+end
+
+-- respetar: no saca los apartados (la mesa)
+function partida.sacarSobre(tipoId, respetar)
     for _, s in ipairs(sobres.lista) do
-        if (not tipoId or s.id == tipoId) and partida.sobres(s.id) > 0 then
-            local primera = partida.sobres(s.id, false) == 0
+        local hay = respetar and partida.disponibles(s.id) or partida.sobres(s.id)
+        if (not tipoId or s.id == tipoId) and hay > 0 then
+            local normales = partida.sobres(s.id, false) > 0 and not (respetar and partida.apartado("s", s.id, false))
+            local primera = not normales
             sacar(s.id, primera)
             partida.abiertos = partida.abiertos + 1
             return s, primera
@@ -526,6 +662,122 @@ function partida.guardarDeMesa(u)
     return false
 end
 
+-- mejoras de suerte (datos/mejoras.lua)
+
+function partida.nivelMejora(id)
+    return partida.mejoras[id] or 0
+end
+
+function partida.costeMejora(m)
+    local n = partida.nivelMejora(m.id)
+    if n >= #m.valores then return nil end
+    return math.floor(m.coste * m.multiplica ^ n / 10 + 0.5) * 10
+end
+
+function partida.aplicarSuerte()
+    local s = { segunda = 0, extra = 0, godpack = 1 }
+    for _, m in ipairs(datosMejoras) do
+        local n = partida.nivelMejora(m.id)
+        if n > 0 then s[m.id] = m.valores[n] end
+    end
+    generador.suerte = s
+end
+
+function partida.comprarMejora(m)
+    local coste = partida.costeMejora(m)
+    if not coste or partida.dinero < coste then return false end
+    partida.dinero = partida.dinero - coste
+    partida.mejoras[m.id] = partida.nivelMejora(m.id) + 1
+    partida.aplicarSuerte()
+    tocar()
+    return coste
+end
+
+-- encargos del movil (datos/encargos.lua)
+
+local function entre(r)
+    return r[1] + love.math.random() * (r[2] - r[1])
+end
+
+local function nuevoEncargo()
+    local E = datosEncargos.movil
+    local tipos = {}
+    for _, t in ipairs(sobres.lista) do
+        if mercado.salido(t.set) then table.insert(tipos, t) end
+    end
+    if #tipos == 0 then return end
+    local t = tipos[love.math.random(#tipos)]
+    local n = love.math.random(E.sobres[1], E.sobres[2])
+    local primera = love.math.random() < E.primera
+    local pago = t.precio * n * entre(E.pago) * (primera and 1.5 or 1)
+    local nombres = datosMercado.compradores
+    table.insert(partida.ofertasEncargo, {
+        nombre = nombres[love.math.random(#nombres)], tipo = t.id, n = n, hechos = 0, primera = primera or nil,
+        pago = math.floor(pago / 10 + 0.5) * 10, dias = love.math.random(E.dias[1], E.dias[2]), espera = E.diasOferta,
+    })
+end
+
+function partida.diaEncargos()
+    local E = datosEncargos.movil
+    for i = #partida.ofertasEncargo, 1, -1 do
+        local o = partida.ofertasEncargo[i]
+        o.espera = o.espera - 1
+        if o.espera <= 0 then table.remove(partida.ofertasEncargo, i) end
+    end
+    partida.encargosCaducados = {}
+    for i = #partida.encargos, 1, -1 do
+        local e = partida.encargos[i]
+        e.dias = e.dias - 1
+        if e.dias <= 0 then
+            table.remove(partida.encargos, i)
+            table.insert(partida.encargosCaducados, e)
+        end
+    end
+    local prob = math.min(E.probMax, E.prob + partida.canal.seguidores * E.probPorSeguidor)
+    if #partida.ofertasEncargo < E.ofertasMax and love.math.random() < prob then nuevoEncargo() end
+    tocar()
+end
+
+function partida.generarEncargo()
+    nuevoEncargo()
+    tocar()
+end
+
+function partida.aceptarEncargo(i)
+    local o = partida.ofertasEncargo[i]
+    if not o or #partida.encargos >= datosEncargos.movil.activosMax then return false end
+    table.remove(partida.ofertasEncargo, i)
+    o.espera = nil
+    table.insert(partida.encargos, o)
+    tocar()
+    return true
+end
+
+function partida.rechazarEncargo(i)
+    table.remove(partida.ofertasEncargo, i)
+    tocar()
+end
+
+-- al abrir un sobre: avanza los encargos de ese tipo; devuelve los terminados
+function partida.encargoSobre(tipoId, primera)
+    local hechos = {}
+    for i = #partida.encargos, 1, -1 do
+        local e = partida.encargos[i]
+        if e.tipo == tipoId and (primera or not e.primera) then
+            e.hechos = e.hechos + 1
+            if e.hechos >= e.n then
+                table.remove(partida.encargos, i)
+                partida.dinero = partida.dinero + e.pago
+                table.insert(hechos, e)
+                table.insert(partida.encargosHechos, e)
+            end
+            break
+        end
+    end
+    if #hechos > 0 then tocar() end
+    return hechos
+end
+
 -- anuncios del movil
 
 function partida.huecosAnuncios()
@@ -575,7 +827,8 @@ local function nuevaOferta(a)
     if #libres == 0 then return end
     local nombre = libres[love.math.random(#libres)]
     a.vistos[nombre] = true
-    local f = d.rango[1] + love.math.random() * (d.rango[2] - d.rango[1])
+    -- casi todas cerca del valor; las muy altas salen poco (curva)
+    local f = d.rango[1] + love.math.random() ^ (d.curva or 1) * (d.rango[2] - d.rango[1])
     table.insert(a.ofertas, {
         nombre = nombre,
         precio = math.max(1, math.floor(valorAnuncio(a) * f + 0.5)),
@@ -641,6 +894,7 @@ end
 -- las noticias que salen ese dia, para avisar en el movil
 function partida.pasarDia()
     partida.apuntarCartera()
+    partida.diaEncargos()
     for _, a in ipairs(partida.anuncios) do
         for j = #a.ofertas, 1, -1 do
             local o = a.ofertas[j]
@@ -664,7 +918,7 @@ function partida.aceptar(i, j)
     local o = a.ofertas[j]
     table.remove(partida.anuncios, i)
     local c = quitarCopia(a.id, a.u)
-    if c and c.f then partida.fundasLibres = partida.fundasLibres + 1 end
+    if c then devolverProteccion(c) end
     mercado.vendida(a.id, 0.5)
     local cobrado = mercado.trasComision(o.precio)
     partida.dinero = partida.dinero + cobrado
@@ -761,7 +1015,7 @@ function partida.guardar()
 end
 
 local CAMPOS = { "dinero", "abiertos", "inv", "uid", "guardados", "guardados1", "anuncios",
-    "orden", "mesa", "seguidas", "opciones", "fundasLibres", "cartera", "premios", "canal" }
+    "orden", "mesa", "seguidas", "opciones", "fundasLibres", "cartera", "premios", "canal", "mejoras", "encargos", "ofertasEncargo", "cajas", "cajas1", "cajaAbierta", "topsLibres", "apartados" }
 
 function partida.guardarYa()
     pendiente = false
@@ -888,7 +1142,15 @@ function partida.cargar()
     if datos.premios == nil then
         for _, s in ipairs(sets.lista) do partida.revisarPremios(s.id, false) end
     end
+    partida.encargosHechos, partida.encargosCaducados = {}, {}
+    -- partidas de antes de elegir rarezas: holo o mejor con funda, full art o mejor con top
+    if partida.opciones.fundaDesde == nil then
+        partida.opciones.fundaDesde = partida.opciones.autoFundas == false and 0 or 4
+        partida.opciones.topDesde = 5
+        partida.opciones.autoFundas = nil
+    end
     partida.premiosNuevos = {}
+    partida.aplicarSuerte()
     tocar()
     return true
 end

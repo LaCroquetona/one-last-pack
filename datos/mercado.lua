@@ -108,6 +108,7 @@ return {
         probSegunda = 0.3,
         ofertasMax = 3,        -- por anuncio a la vez
         rango = { 1.0, 1.4 },   -- lo que ofrecen respecto al valor (antes de la comision)
+        curva = 3,             -- cuanto mayor, mas raras las ofertas altas (1 = todas igual de probables)
         dias = 2,              -- lo que dura una oferta
         subida = 0.15,         -- "pedir mas"
     },
