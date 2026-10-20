@@ -490,6 +490,45 @@ function mercado.noticia(clave)
     return anadirNoticia(n)
 end
 
+-- torneo nacional: aviso unos dias antes y luego el mazo campeon
+
+-- ya: (herramientas de desarrollador) lo anuncia o lo resuelve ahora
+function mercado.torneo(ya)
+    local e = mercado.estado
+    local T = datos.torneo
+    local t = e.torneo
+    if t then
+        if e.dia < t.dia and not ya then return end
+        e.torneo = nil
+        local lista = {}
+        for _, def in ipairs(delSet[t.set] or {}) do
+            if e.cartas[def.id] then table.insert(lista, def) end
+        end
+        if #lista == 0 then return end
+        local mazo = {}
+        for _ = 1, math.min(T.cartas, #lista) do
+            local def = table.remove(lista, love.math.random(#lista))
+            local plantilla = { efecto = azar(T.efecto[1], T.efecto[2]) }
+            golpear(plantilla, def.id)
+            anadirEvento("carta", def.id, plantilla.efecto, T.dias)
+            table.insert(mazo, def)
+        end
+        local nombres = {}
+        for _, def in ipairs(mazo) do table.insert(nombres, def.nombre) end
+        local texto = #nombres > 1 and (table.concat(nombres, ", ", 1, #nombres - 1) .. " y " .. nombres[#nombres]) or nombres[1]
+        return anadirNoticia({ clave = "torneoNacional", tono = "sube", carta = mazo[1].id, set = t.set,
+                               texto = "Torneo nacional: el mazo campeón lleva " .. texto })
+    end
+    if not ya and (e.dia < T.desde or love.math.random() >= T.prob) then return end
+    local salidos = mercado.setsSalidos()
+    if #salidos == 0 then return end
+    local s = salidos[love.math.random(#salidos)]
+    local dias = ya and 1 or love.math.random(T.aviso[1], T.aviso[2])
+    e.torneo = { dia = e.dia + dias, set = s.id }
+    return anadirNoticia({ clave = "torneoAviso", tono = "info", set = s.id,
+                           texto = "Torneo nacional en " .. dias .. (dias == 1 and " día" or " días") .. ": se espera mucho del " .. s.nombre })
+end
+
 -- burbujas
 
 function mercado.burbujaAhora(def)
@@ -782,6 +821,7 @@ function mercado.pasarDia()
     avisosCalendario(dia)
     avanzarBurbujas()
     if love.math.random() < datos.probNoticia then mercado.noticia() end
+    mercado.torneo()
     avanzarRachas()
 
     for id, c in pairs(e.cartas) do

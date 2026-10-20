@@ -135,8 +135,15 @@ return {
           soloReimpreso = true, soloNormal = true, desde = 60 },
     },
 
+    -- torneo nacional: se anuncia unos dias antes con el set del que se espera
+    -- mucho; ese dia gana un mazo con unas cartas de ese set y se disparan
+    -- (efecto: golpe al precio de cada una; dias: los que se vende mas)
+    torneo = { prob = 0.025, desde = 20, aviso = { 2, 3 }, cartas = 3, efecto = { 1.7, 2.4 }, dias = 6 },
+
     -- lo que se explica la primera vez que sale cada noticia
     explicaciones = {
+        torneoAviso = "Se acerca un torneo nacional. El mazo que gane lleva cartas de ese set y esas cartas se disparan. ¿Compras antes?",
+        torneoNacional = "Las cartas del mazo campeón suben mucho unos días. Luego la subida se va deshaciendo poco a poco.",
         lanzamiento = "Los sobres de un set nuevo se compran en la tienda a su precio. Sus cartas son de 1ª edición y al principio todo el mundo las quiere.",
         anuncio = "Un set anunciado saldrá en la tienda en unos días. Míralo en la app Calendario.",
         ultimos = "Cuando un set deja de imprimirse ya no hay sobres en la tienda: solo de reventa. Sus cartas suelen subir.",
