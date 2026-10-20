@@ -3,6 +3,7 @@ local sets = require "datos.sets"
 local rarezas = require "datos.rarezas"
 local datosMercado = require "datos.mercado"
 local datosCalendario = require "datos.calendario"
+local datosMejoras = require "datos.mejoras"
 local p = require "datos.paleta"
 local partida = require "src.partida"
 local mercado = require "src.mercado"
@@ -49,10 +50,12 @@ local APPS = {
     { id = "ventas",     nombre = "VENTAS",     color = p.naranja },
     { id = "noticias",   nombre = "NOTICIAS",   color = p.rojo },
     { id = "calendario", nombre = "CALENDARIO", color = p.morado },
+    { id = "encargos",   nombre = "ENCARGOS",   color = p.verdeosc },
+    { id = "suerte",     nombre = "SUERTE",     color = p.violeta },
 }
 
 local TITULOS = { cartera = "CARTERA", mercado = "MERCADO", ventas = "VENTAS", noticias = "NOTICIAS",
-    calendario = "CALENDARIO", set = "MERCADO", ficha = "CARTA" }
+    calendario = "CALENDARIO", set = "MERCADO", ficha = "CARTA", encargos = "ENCARGOS", suerte = "MEJORAS DE SUERTE" }
 
 -- dibujos de los iconos, 9x9
 local ICONOS = {
@@ -60,6 +63,8 @@ local ICONOS = {
     mercado = { "#########", "#.#.#.#.#", "#########", ".#.....#.", ".#.###.#.", ".#.#.#.#.", ".#.#.#.#.", ".#######.", "........." },
     ventas  = { "....####.", "...#...#.", "..#..#.#.", ".#.....#.", "#......#.", ".#....#..", "..#..#...", "...##....", "........." },
     noticias = { "########.", "#......##", "#.####.##", "#......##", "#.##.#.##", "#......##", "#.####.##", "#########", "........." },
+    suerte = { ".##...##.", "####.####", "####.####", ".#######.", "...###...", ".#######.", "####.####", "####.####", ".##...##." },
+    encargos = { "...###...", "..#...#..", "#########", "#.......#", "#...#...#", "#..###..#", "#...#...#", "#########", "........." },
     calendario = { ".#....#..", "#########", "#.......#", "#.#.#.#.#", "#.......#", "#.#.#.#.#", "#.......#", "#########", "........." },
 }
 
@@ -319,7 +324,7 @@ end
 local function posIcono(i)
     local col = (i - 1) % 3
     local fila = math.floor((i - 1) / 3)
-    local enFila = fila == 0 and 3 or (#APPS - 3)
+    local enFila = math.min(3, #APPS - fila * 3)
     local paso = 66
     local x0 = PANT.x + PANT.w / 2 - (enFila - 1) * paso / 2
     return x0 + col * paso, PANT.y + 92 + fila * 50
@@ -345,7 +350,8 @@ local function icono(a, cx, cy)
         end
     end
     fuentes.texto(a.nombre, cx - 30, cy + 17, 1, p.blanco, "center", 60)
-    local badge = (a.id == "noticias" and sinLeer) or (a.id == "ventas" and ofertasTotales()) or 0
+    local badge = (a.id == "noticias" and sinLeer) or (a.id == "ventas" and ofertasTotales())
+        or (a.id == "encargos" and #partida.ofertasEncargo) or 0
     if badge > 0 then
         local t = tostring(badge)
         local w = math.max(9, fuentes.ancho(t) + 5)
@@ -556,6 +562,18 @@ local function appSet()
             y = y + 16
         end
     end
+    -- cajas cerradas: se venden aqui
+    for _, primera in ipairs({ true, false }) do
+        local tengo = partida.cajasDe(tipo.id, primera)
+        if tengo > 0 then
+            local valor = mercado.trasComision(mercado.valorCaja(tipo, primera))
+            fuentes.texto("CAJA " .. (primera and "1ª ED" or "REIMPR.") .. "  " .. ui.dinero(valor), x, y + 3, 1, primera and p.amarillo or p.blanco)
+            fuentes.texto("TIENES " .. tengo, x, y + 3, 1, p.grisclaro, "right", w)
+            y = y + 12
+            ui.boton("m_vcaja" .. (primera and "1" or "r"), "VENDER UNA CAJA", x, y, w, 12, p.morado)
+            y = y + 16
+        end
+    end
     fuentes.texto("AL VENDER, LA APP SE QUEDA UN " .. math.floor(datosMercado.comision * 100 + 0.5) .. "%", x, y, 1, p.gris)
     y = y + 10
     fuentes.texto(ui.tirada(mercado.tirada(s.id)), x, y, 1, p.grisclaro)
@@ -703,6 +721,95 @@ local function appVentas()
     end
     fuentes.texto("PULSA UN ANUNCIO PARA VER SUS OFERTAS", x, y + 2, 1, p.gris, "center", w)
     acabarLista(y + 14)
+end
+
+-- mejoras de suerte (datos/mejoras.lua)
+
+local function efectoMejora(m, v)
+    if m.formato == "veces" then return "X" .. (math.floor(v * 10 + 0.5) / 10) end
+    return math.floor(v * 100 + 0.5) .. "%"
+end
+
+local function appSuerte()
+    local x, w = CONT.x + 4, CONT.w - 8
+    local y = empezarLista() + 4
+    fuentes.texto("PARA TODOS LOS SOBRES QUE ABRAS DESDE YA", x, y, 1, p.grisclaro, "center", w)
+    y = y + 12
+    for _, m in ipairs(datosMejoras) do
+        local n = partida.nivelMejora(m.id)
+        local _, lineas = fuentes.pixel:getWrap(m.texto, w - 12)
+        local alto = 40 + #lineas * 8
+        lg.setColor(p.grisosc)
+        lg.rectangle("fill", x, y, w, alto - 2)
+        fuentes.texto(m.nombre, x + 5, y + 4, 1, p.blanco)
+        fuentes.texto(m.texto, x + 5, y + 13, 1, p.grisclaro, "left", w - 12)
+        local py = y + 15 + #lineas * 8
+        for k = 1, #m.valores do
+            lg.setColor(k <= n and p.lima or p.negro)
+            lg.rectangle("fill", x + 5 + (k - 1) * 10, py, 8, 5)
+        end
+        local ahora = m.valores[n] or (m.formato == "veces" and 1 or 0)
+        local cad = "AHORA " .. efectoMejora(m, ahora)
+        if m.valores[n + 1] then cad = cad .. " > " .. efectoMejora(m, m.valores[n + 1]) end
+        fuentes.texto(cad, x + 5, py + 9, 1, p.cian)
+        local coste = partida.costeMejora(m)
+        if coste then
+            ui.boton("m_mej_" .. m.id, ui.dinero(coste), x + w - 70, py + 2, 66, 14, p.verde, partida.dinero >= coste)
+        else
+            fuentes.texto("AL MÁXIMO", x + w - 70, py + 6, 1, p.amarillo, "center", 66)
+        end
+        y = y + alto + 2
+    end
+    acabarLista(y + 4)
+end
+
+-- encargos: gente que te paga por abrir sobres concretos
+
+local function filaEncargo(e, x, y, w, oferta, i)
+    local tipo = sobres[e.tipo]
+    local alto = oferta and 44 or 34
+    lg.setColor(oferta and p.azulosc or p.grisosc)
+    lg.rectangle("fill", x, y, w, alto - 2)
+    lg.setColor(tipo.colores.base)
+    lg.rectangle("fill", x + 4, y + 4, 8, 11)
+    lg.setColor(tipo.colores.rayas)
+    lg.rectangle("fill", x + 4, y + 8, 8, 3)
+    fuentes.texto(e.nombre:upper(), x + 16, y + 4, 1, p.blanco)
+    fuentes.texto("+" .. ui.dinero(e.pago), x, y + 3, 2, p.lima, "right", w - 4)
+    local que = "ABRE " .. e.n .. (e.n == 1 and " SOBRE " or " SOBRES ") .. sets[tipo.set].codigo .. (e.primera and " DE 1ª ED" or "")
+    fuentes.texto(que, x + 16, y + 13, 1, e.primera and p.amarillo or p.grisclaro)
+    if oferta then
+        fuentes.texto("PLAZO " .. e.dias .. " DÍAS", x + 16, y + 22, 1, p.gris)
+        ui.boton("m_enc_si" .. i, "ACEPTAR", x + w - 96, y + 26, 46, 12, p.verde, #partida.encargos < 3)
+        ui.boton("m_enc_no" .. i, "NO", x + w - 46, y + 26, 42, 12, p.gris)
+    else
+        fuentes.texto("HECHOS " .. e.hechos .. "/" .. e.n .. "   QUEDAN " .. e.dias .. (e.dias == 1 and " DÍA" or " DÍAS"),
+            x + 16, y + 22, 1, e.dias <= 1 and p.naranja or p.lima)
+    end
+    return y + alto
+end
+
+local function appEncargos()
+    local x, w = CONT.x + 4, CONT.w - 8
+    local y = empezarLista() + 4
+    fuentes.texto("EN MARCHA " .. #partida.encargos .. "/3", x + 2, y, 1, p.grisclaro)
+    y = y + 10
+    if #partida.encargos == 0 then
+        fuentes.texto("NINGUNO: ACEPTA UNO DE ABAJO", x, y + 4, 1, p.gris, "center", w)
+        y = y + 16
+    end
+    for i, e in ipairs(partida.encargos) do y = filaEncargo(e, x, y, w, false, i) end
+    y = y + 6
+    fuentes.texto("TE OFRECEN", x + 2, y, 1, p.grisclaro)
+    y = y + 10
+    if #partida.ofertasEncargo == 0 then
+        fuentes.texto("NADIE POR AHORA", x, y + 10, 1, p.gris, "center", w)
+        fuentes.texto("CADA DÍA PUEDE LLEGAR UNO NUEVO", x, y + 20, 1, p.gris, "center", w)
+        y = y + 34
+    end
+    for i, e in ipairs(partida.ofertasEncargo) do y = filaEncargo(e, x, y, w, true, i) end
+    fuentes.texto("TE PAGAN POR ABRIRLOS Y TE QUEDAS LAS CARTAS", x, y + 4, 1, p.gris, "center", w)
+    acabarLista(y + 16)
 end
 
 -- noticias
@@ -1116,7 +1223,7 @@ end
 
 local DIBUJAR = {
     cartera = appCartera, mercado = appMercado, set = appSet, ficha = appFicha,
-    ventas = appVentas, noticias = appNoticias, calendario = appCalendario,
+    ventas = appVentas, noticias = appNoticias, calendario = appCalendario, encargos = appEncargos, suerte = appSuerte,
 }
 
 function movil.dibujar()
@@ -1212,6 +1319,27 @@ function movil.click(id)
                 ir(destino, { x = cx - 13, y = cy - 13, w = 26, h = 26 })
             end
         end
+    elseif id:match("^m_mej_") then
+        for _, m in ipairs(datosMejoras) do
+            if id == "m_mej_" .. m.id then
+                local coste = partida.comprarMejora(m)
+                if coste then
+                    sonido.tocar("moneda")
+                    sonido.tocar("nueva")
+                    fx.texto(ui.mx, ui.my - 12, "-" .. ui.dinero(coste), p.rojo)
+                    fx.confeti(ui.mx, ui.my, 30, 120)
+                    partida.guardar()
+                end
+            end
+        end
+    elseif id:match("^m_enc_si") then
+        if partida.aceptarEncargo(tonumber(id:sub(9))) then
+            sonido.tocar("moneda")
+            partida.guardar()
+        end
+    elseif id:match("^m_enc_no") then
+        partida.rechazarEncargo(tonumber(id:sub(9)))
+        partida.guardar()
     elseif id:match("^m_rango") then
         rango = tonumber(id:sub(8))
     elseif id:match("^m_tab_") then
@@ -1247,6 +1375,9 @@ function movil.click(id)
             notificar("SOBRE COMPRADO: -" .. ui.dinero(pagado), p.amarillo)
             partida.guardar()
         end
+    elseif id:match("^m_vcaja") then
+        local tipo = sobres[setVista]
+        cobro(partida.venderCaja(tipo, id:sub(-1) == "1") or 0, "CAJA VENDIDA")
     elseif id:match("^m_vender") then
         local tipo = sobres[setVista]
         local primera = id:sub(-1) == "1"
