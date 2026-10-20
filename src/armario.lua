@@ -1,6 +1,7 @@
 local sets = require "datos.sets"
 local sobres = require "datos.sobres"
 local rarezas = require "datos.rarezas"
+local premiosDatos = require "datos.premios"
 local p = require "datos.paleta"
 local partida = require "src.partida"
 local mercado = require "src.mercado"
@@ -26,15 +27,11 @@ local vista          -- copia que se enseña en grande (u)
 local barrido        -- arrastrando por la bandeja: { valor = true | false }
 local desplaza = 0   -- primera copia visible de la bandeja si no caben todas
 local rarezaAbierta
-local agarre = { x = 0, y = 0 }   -- donde se cogio la carta, para la mesa
-local zMesa = 0
-local mesaSel        -- copia de la mesa elegida (u)
 local loteOp = { todo = false, primeras = false, fundas = false, set = false }
 
 local POR_PAGINA = 9
 local AREA_X = 134
 local CW, CH = carta.ANCHO, carta.ALTO
-local MESA = { x = 132, y = 26, w = 502, h = 328 }
 local FUNDAS = { x = 6, y = 296, w = 118, h = 34 }
 local B = { x = 132, y = 234, w = 502, h = 120 }   -- bandeja de copias
 local COLUMNAS = 11
@@ -281,62 +278,6 @@ local function dibujarAlbum()
     lg.setColor(1, 1, 1)
 end
 
--- mesa: solo las copias que has sacado
-
-local function sitioMesa(s, k)
-    if s.x then return s end
-    local col, fila = (k - 1) % 5, math.floor((k - 1) / 5)
-    s.x = MESA.x + 70 + col * 90 + love.math.random(-6, 6)
-    s.y = MESA.y + 90 + fila * 130 + love.math.random(-6, 6)
-    s.r = (love.math.random() - 0.5) * 0.15
-    s.z = 0
-    return s
-end
-
-local function entradaMesa(u)
-    for _, s in ipairs(partida.mesa) do
-        if s.u == u then return s end
-    end
-end
-
-local function dibujarMesa()
-    lg.setColor(p.verdeosc)
-    lg.rectangle("fill", MESA.x, MESA.y, MESA.w, MESA.h)
-    lg.setColor(p.verde[1], p.verde[2], p.verde[3], 0.25)
-    for y = MESA.y + 2, MESA.y + MESA.h - 2, 6 do
-        for x = MESA.x + 2 + (y % 12 == 2 and 3 or 0), MESA.x + MESA.w - 2, 6 do
-            lg.rectangle("fill", x, y, 1, 1)
-        end
-    end
-    lg.setColor(p.negro)
-    lg.rectangle("line", MESA.x + 0.5, MESA.y + 0.5, MESA.w - 1, MESA.h - 1)
-
-    if #partida.mesa == 0 then
-        fuentes.texto("LA MESA ESTÁ VACÍA", MESA.x, MESA.y + MESA.h / 2 - 10, 2, p.lima, "center", MESA.w)
-        fuentes.texto("ELIGE COPIAS EN COPIAS O RAREZA Y PULSA \"A LA MESA\"", MESA.x, MESA.y + MESA.h / 2 + 8, 1, p.verde, "center", MESA.w)
-        return
-    end
-    local lista = {}
-    for k, s in ipairs(partida.mesa) do table.insert(lista, sitioMesa(s, k)) end
-    table.sort(lista, function(a, b) return (a.z or 0) < (b.z or 0) end)
-
-    local cogida = ui.arrastrando()
-    for _, s in ipairs(lista) do
-        local zid = "m" .. s.u
-        if cogida ~= zid then
-            local def = partida.carta(s.id)
-            local c = partida.copia(s.id, s.u)
-            if mesaSel == s.u then
-                lg.setColor(p.amarillo)
-                lg.rectangle("line", s.x - CW - 3.5, s.y - CH - 3.5, CW * 2 + 7, CH * 2 + 7)
-            end
-            carta.dibujar(def, s.x, s.y, 2, 2, s.r or 0, true, ui.hoverCarta(zid, s.x, s.y, CW * 2, CH * 2), c.f, { primera = c.p })
-            ui.zona(zid, s.x - CW, s.y - CH, CW * 2, CH * 2)
-        end
-    end
-    fuentes.texto(#partida.mesa .. " DE " .. partida.MAX_MESA .. "  -  ARRÁSTRALAS COMO QUIERAS", MESA.x, MESA.y + MESA.h - 10, 1, p.verde, "center", MESA.w)
-end
-
 local function panelSobres()
     ui.caja(6, 44, 118, 50)
     local fila = 0
@@ -353,7 +294,10 @@ local function panelSobres()
             fuentes.texto(sets[tipo.set].codigo, 20, y + 3, 1, p.blanco)
             fuentes.texto("X" .. n, 34, y + 3, 1, n > 0 and p.amarillo or p.gris)
             if p1 > 0 and p1 < n then fuentes.texto("(" .. p1 .. " 1ª)", 50, y + 3, 1, p.amarillo) end
-            ui.boton("abrir_" .. tipo.id, "ABRIR", 82, y, 38, 10, p.azul, n > 0)
+            ui.boton("abrir_" .. tipo.id, "A LA MESA", 82, y, 38, 10, p.azul, n > 0)
+            if ui.encima == "abrir_" .. tipo.id then
+                ui.tooltip("Los sobres se abren en la mesa", p.azul, { { "Arrastra el sobre de la caja al tapete" } })
+            end
         end
     end
 end
@@ -379,19 +323,15 @@ end
 local function panelSeleccion()
     ui.caja(6, 98, 118, 194)
     local id = seleccion
-    if modo == "mesa" then
-        local s = mesaSel and entradaMesa(mesaSel)
-        id = s and s.id
-    end
     if not id or partida.copias(id) == 0 then
-        seleccion, mesaSel = nil, nil
-        fuentes.texto(modo == "mesa" and "PULSA UNA CARTA" or "PULSA UN MONTÓN", 6, 180, 1, p.grisclaro, "center", 118)
-        fuentes.texto(modo == "mesa" and "DE LA MESA" or "PARA VER SUS COPIAS", 6, 188, 1, p.grisclaro, "center", 118)
+        seleccion = nil
+        fuentes.texto("PULSA UN MONTÓN", 6, 180, 1, p.grisclaro, "center", 118)
+        fuentes.texto("PARA VER SUS COPIAS", 6, 188, 1, p.grisclaro, "center", 118)
         return
     end
     local def = partida.carta(id)
     local r = rarezas[def.rareza]
-    local c = modo == "mesa" and partida.copia(id, mesaSel) or copiaVista(id)
+    local c = copiaVista(id)
     carta.dibujar(def, 65, 144, 2, 2, 0, true, ui.hoverCarta("sel", 65, 144, CW * 2, CH * 2), c.f, { primera = c.p })
     ui.zona("sel", 65 - CW, 144 - CH, CW * 2, CH * 2)
 
@@ -407,12 +347,6 @@ local function panelSeleccion()
     end
     lineaValor(def, true, y)
 
-    if modo == "mesa" then
-        ui.boton("mesa_funda", c.f and "QUITAR FUNDA" or "ENFUNDAR", 12, 248, 106, 12, c.f and p.gris or p.verdeosc)
-        ui.boton("mesa_vender", "VENDER +" .. ui.dinero(mercado.ventaRapida(id, c.p)), 12, 262, 106, 12, n == 1 and p.rojo or p.naranja)
-        ui.boton("mesa_guardar", "GUARDAR EN ARMARIO", 12, 276, 106, 12, p.azul)
-        return
-    end
     if not bandejaAbierta() then
         ui.boton("verCopias", "VER COPIAS", 12, 262, 106, 13, p.azul)
     end
@@ -463,6 +397,21 @@ local function panelAlbum()
     y = y + 6
     fuentes.texto("TOTAL", 14, y, 1, p.blanco)
     fuentes.texto(partida.distintas(setActivo) .. "/" .. #delSet(), 14, y, 1, p.blanco, "right", 98)
+
+    -- premios del set: los conseguidos en amarillo
+    y = y + 14
+    fuentes.texto("PREMIOS", 14, y, 1, p.naranja)
+    y = y + 9
+    for _, h in ipairs(premiosDatos.hitos) do
+        local hecho = partida.premios[setActivo .. "_" .. h.parte]
+        local texto = (h.parte >= 1 and "TODO" or (math.floor(h.parte * 100) .. "%")) .. "  +" .. h.sobres .. " SOBRES"
+        fuentes.texto(texto, 14, y, 1, hecho and p.amarillo or p.gris)
+        if hecho then fuentes.texto("OK", 14, y, 1, p.amarillo, "right", 98) end
+        y = y + 8
+    end
+    local hecho = partida.premios[setActivo .. "_primera"]
+    fuentes.texto("TODO EN 1ª ED  +" .. premiosDatos.primera.sobres, 14, y, 1, hecho and p.amarillo or p.gris)
+    if hecho then fuentes.texto("OK", 14, y, 1, p.amarillo, "right", 98) end
 end
 
 -- bandeja: todas las copias de una carta, para elegir cuales
@@ -614,34 +563,22 @@ local function dibujarBandeja()
     accion("sel_publicar", "PUBLICAR " .. #sel, 72, p.celeste, #sel > 0 and partida.huecosAnuncios() > 0)
     accion("sel_enfundar", "ENFUNDAR " .. sinFunda, 76, p.verdeosc, sinFunda > 0)
     accion("sel_desenfundar", "QUITAR FUNDA " .. conFunda, 92, p.gris, conFunda > 0)
-    accion("sel_mesa", "A LA MESA " .. aMesa, B.x + B.w - 8 - x, p.verde, aMesa > 0 and #partida.mesa < partida.MAX_MESA)
+    accion("sel_mesa", "A LA MESA " .. aMesa, B.x + B.w - 8 - x, p.verde, aMesa > 0 and not partida.mesaLlena())
 end
 
 local function dibujarCogida()
     local cogida = ui.arrastrando()
     if not cogida then return end
-    local x, y = ui.mx, ui.my
-    local def, c
-    if cogida:sub(1, 1) == "m" then
-        local s = entradaMesa(tonumber(cogida:sub(2)))
-        if not s then return end
-        def, c = partida.carta(s.id), partida.copia(s.id, s.u)
-        x, y = x - agarre.x, y - agarre.y
-    else
-        def = partida.carta(tonumber(cogida:sub(2)))
-        if not def then return end
-    end
-    local escala = c and 2 or 1
+    local def = partida.carta(tonumber(cogida:sub(2)))
+    if not def then return end
     local balanceo = math.sin(love.timer.getTime() * 6) * 0.04
-    carta.dibujar(def, x, y, escala * 1.08, escala * 1.08, balanceo, true, { kx = 0, ky = 0, brillo = 1, lx = 0, ly = 0 },
-        c and c.f or enFunda(def.id), { primera = c and c.p })
+    carta.dibujar(def, ui.mx, ui.my, 1.08, 1.08, balanceo, true, { kx = 0, ky = 0, brillo = 1, lx = 0, ly = 0 }, enFunda(def.id))
 end
 
 function armario.dibujar()
     ui.boton("modo_copias", "COPIAS", 6, 26, 28, 14, modo == "copias" and p.azul or p.gris)
     ui.boton("modo_rareza", "RAREZA", 36, 26, 28, 14, modo == "rareza" and p.azul or p.gris)
     ui.boton("modo_album", "ÁLBUM", 66, 26, 28, 14, modo == "album" and p.azul or p.gris)
-    ui.boton("modo_mesa", "MESA", 96, 26, 28, 14, modo == "mesa" and p.azul or p.gris)
 
     panelSobres()
     if modo == "album" then panelAlbum() else panelSeleccion() end
@@ -655,10 +592,8 @@ function armario.dibujar()
         dibujarCopias()
     elseif modo == "rareza" then
         dibujarRareza()
-    elseif modo == "album" then
-        dibujarAlbum()
     else
-        dibujarMesa()
+        dibujarAlbum()
     end
     if bandejaAbierta() then dibujarBandeja() end
     dibujarCogida()
@@ -770,7 +705,7 @@ local function mesaElegidas()
         fx.texto(ui.mx, ui.my - 10, n == 1 and "A LA MESA" or (n .. " A LA MESA"), p.lima)
         partida.guardar()
     end
-    if #partida.mesa >= partida.MAX_MESA then fx.texto(ui.mx, ui.my - 20, "LA MESA ESTÁ LLENA", p.naranja) end
+    if partida.mesaLlena() then fx.texto(ui.mx, ui.my - 20, "LA MESA ESTÁ LLENA", p.naranja) end
 end
 
 local function abrirBandeja(id)
@@ -841,7 +776,7 @@ function armario.click(id)
     if id:match("^modo_") then
         modo = id:sub(6)
     elseif id:match("^abrir_") then
-        nav.abrir(id:sub(7))
+        nav.abrir()
     elseif id:match("^set_") then
         setActivo = id:sub(5)
         rarezaAbierta = nil
@@ -868,38 +803,6 @@ function armario.click(id)
         enfundarElegidas(false)
     elseif id == "sel_mesa" then
         mesaElegidas()
-    elseif id == "mesa_guardar" then
-        if partida.guardarDeMesa(mesaSel) then
-            mesaSel = nil
-            sonido.tocar("giro")
-            partida.guardar()
-        end
-    elseif id == "mesa_funda" then
-        local s = entradaMesa(mesaSel)
-        local c = s and partida.copia(s.id, s.u)
-        if c then
-            if c.f then
-                partida.desenfundarCopia(c)
-                partida.guardar()
-            elseif partida.fundasLibres <= 0 then
-                sinFundas()
-            elseif partida.enfundarCopia(c) then
-                brilloFunda()
-            end
-        end
-    elseif id == "mesa_vender" then
-        local s = entradaMesa(mesaSel)
-        if s then
-            local def = partida.carta(s.id)
-            local function hacer() cobrar(partida.venderCopias(s.id, { s.u })) end
-            if partida.copias(s.id) == 1 then
-                ui.confirmar("¿VENDER LA ÚLTIMA?", { "ES TU ÚNICA COPIA DE " .. def.nombre:upper(), "DESAPARECERÁ DEL ÁLBUM" },
-                    "SÍ, VENDERLA", hacer)
-            else
-                hacer()
-            end
-            mesaSel = nil
-        end
     elseif id == "ficha" then
         local c = copiaVista(seleccion)
         nav.ficha(seleccion, c and c.p or false)
@@ -914,14 +817,12 @@ function armario.click(id)
         armario.seleccionar(tonumber(id:sub(2)))
         if modo == "album" then modo = "copias" end
         abrirBandeja(seleccion)
-    elseif id:match("^m%d") then
-        mesaSel = tonumber(id:sub(2))
     elseif id:match("^r_") then
         rarezaAbierta = id:sub(3)
     end
 end
 
--- se pueden arrastrar los montones de las rejillas y las cartas de la mesa;
+-- se pueden arrastrar los montones de las rejillas;
 -- en la bandeja, pulsar y arrastrar elige copias
 function armario.coger(id, x, y)
     if not id then return false end
@@ -936,14 +837,7 @@ function armario.coger(id, x, y)
         end
         return true
     end
-    if not id:match("^[cm]%d") then return false end
-    if id:sub(1, 1) == "m" then
-        local s = entradaMesa(tonumber(id:sub(2)))
-        if not s then return false end
-        agarre.x, agarre.y = x - s.x, y - s.y
-        zMesa = zMesa + 1
-        s.z = zMesa
-    end
+    if not id:match("^c%d") then return false end
     ui.cogerSi(id, x, y)
     return true
 end
@@ -970,21 +864,6 @@ end
 function armario.soltar(c, x, y)
     if not c.moviendo then
         armario.click(c.id)
-        return
-    end
-    if c.id:sub(1, 1) == "m" then
-        local s = entradaMesa(tonumber(c.id:sub(2)))
-        if not s then return end
-        if ui.zonaEn(x, y, "drop_funda") then
-            mesaSel = s.u
-            armario.click("mesa_funda")
-            return
-        end
-        s.x = math.max(MESA.x + CW, math.min(MESA.x + MESA.w - CW, x - agarre.x))
-        s.y = math.max(MESA.y + CH, math.min(MESA.y + MESA.h - CH, y - agarre.y))
-        s.r = (love.math.random() - 0.5) * 0.2
-        sonido.tocar("giro")
-        partida.guardar()
         return
     end
     local cid = tonumber(c.id:sub(2))
@@ -1035,12 +914,20 @@ function armario.pestanas()
     end
 end
 
+-- al empezar o cargar una partida no se queda nada elegido de la anterior
+function armario.reiniciar()
+    seleccion, bandeja, vista, barrido = nil, nil, nil, nil
+    elegidas = {}
+    desplaza = 0
+    paginas = {}
+end
+
 -- desde fuera (movil, apertura): enseña esa carta con sus copias
 function armario.seleccionar(id)
     seleccion = id
     local def = partida.carta(id)
     if def then setActivo = def.set end
-    if modo == "mesa" or modo == "album" then modo = "copias" end
+    if modo == "album" then modo = "copias" end
     if partida.copias(id) > 0 then abrirBandeja(id) end
 end
 

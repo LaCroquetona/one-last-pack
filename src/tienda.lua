@@ -194,11 +194,33 @@ function tienda.dibujar()
             ui.boton("reventa1", "1ª ED " .. ui.dinero(reventa), PANEL_X + 108, by, 100, 16, p.amarillo, partida.dinero >= reventa)
         end
     end
-    ui.boton("abrir", "ABRIR (" .. guardados .. ")", PANEL_X + 216, by, PANEL_W - 216, 16, p.azul, guardados > 0)
+    -- la tienda es para comprar: se abren en la mesa
+    ui.boton("abrir", "A LA MESA (" .. guardados .. ")", PANEL_X + 216, by, PANEL_W - 216, 16, p.azul, guardados > 0)
+
+    -- cajas: muchos sobres de golpe, mas baratos
+    local fila = by + 22
+    local precioCaja = mercado.precioCaja(tipo)
+    if precioCaja then
+        local quedan = mercado.stockCajas(tipo)
+        local C = sobres.caja
+        ui.boton("caja", "CAJA DE " .. C.sobres .. " SOBRES  " .. ui.dinero(precioCaja), PANEL_X, fila, 208, 16, p.morado,
+            quedan > 0 and partida.dinero >= precioCaja)
+        fuentes.texto("-" .. math.floor(C.descuento * 100 + 0.5) .. "%", PANEL_X + 216, fila + 1, 1, p.lima)
+        fuentes.texto(quedan > 0 and ("QUEDAN " .. quedan .. (quedan == 1 and " CAJA" or " CAJAS") .. " HOY") or "MAÑANA MÁS CAJAS",
+            PANEL_X + 216, fila + 9, 1, quedan > 0 and p.grisclaro or p.naranja)
+        if ui.encima == "caja" then
+            ui.tooltip("Caja de sobres", p.morado, {
+                { C.sobres .. " sobres por " .. ui.dinero(precioCaja) .. " (sueltos " .. ui.dinero(precio * C.sobres) .. ")" },
+                { "No gasta los sobres sueltos de hoy" },
+                { "Se abren en la mesa como siempre", p.grisclaro },
+            })
+        end
+        fila = fila + 22
+    end
 
     local aviso
     if sinSalida() then
-        ui.boton("rescate", "SOBRE DE RESCATE GRATIS", PANEL_X, by + 22, 208, 16, p.naranja)
+        ui.boton("rescate", "SOBRE DE RESCATE GRATIS", PANEL_X, fila, 208, 16, p.naranja)
     elseif precio and mercado.stock(tipo) == 0 then
         aviso = { "HOY NO QUEDAN MÁS: MAÑANA LLEGAN MÁS SOBRES", p.naranja }
     elseif not precio and salido then
@@ -206,7 +228,7 @@ function tienda.dibujar()
     elseif precio and partida.dinero < precio and guardados == 0 then
         aviso = { "SIN DINERO: VENDE CARTAS EN EL ARMARIO O EN EL MÓVIL", p.naranja }
     end
-    if aviso then fuentes.texto(aviso[1], PANEL_X, by + 26, 1, aviso[2]) end
+    if aviso then fuentes.texto(aviso[1], PANEL_X, fila + 4, 1, aviso[2]) end
 
     panelFundas()
 end
@@ -237,7 +259,18 @@ function tienda.click(id)
     elseif id == "reventa1" or id == "reventar" then
         pagar(partida.comprarReventa(tipo, id == "reventa1"))
     elseif id == "abrir" then
-        nav.abrir(tipo.id)
+        nav.abrir()
+    elseif id == "caja" then
+        local pagado = partida.comprarCaja(tipo)
+        if pagado then
+            sonido.tocar("moneda")
+            sonido.tocar("nueva")
+            fx.texto(PANEL_X + 104, PANEL_Y + 258, "-" .. ui.dinero(pagado) .. "  +" .. sobres.caja.sobres .. " SOBRES", p.amarillo)
+            fx.explosion(160, 160, p.amarillo, 80, 160)
+            fx.confeti(160, 120, 40, 140)
+            fx.sacudir(4)
+            partida.guardar()
+        end
     elseif id:match("^tipo_") then
         tipo = sobres[id:sub(6)]
     elseif id == "fundas" then

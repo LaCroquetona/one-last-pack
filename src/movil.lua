@@ -69,6 +69,9 @@ local function notificar(texto, color)
     sonido.tocar("nueva")
 end
 
+-- avisos desde fuera del movil (premios...)
+movil.avisar = function(texto, color) notificar(texto, color) end
+
 local function colorTono(n)
     if n.tono == "sube" then return p.lima end
     if n.tono == "baja" then return p.rojo end
