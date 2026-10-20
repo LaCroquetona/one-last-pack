@@ -72,7 +72,11 @@ local lista = {
 
 local sobres = {
     lista = lista,
-    inicio = { dinero = 2000, sobres = {} },
+    -- cajas de sobres: muchos sobres de golpe mas baratos. Solo mientras el set
+    -- esta en la tienda (1ª edicion o reimpresion); llegan "porDia" cajas al dia
+    caja = { sobres = 18, descuento = 0.1, porDia = 2 },
+    -- con lo que se empieza: dinero y sobres (de 1ª edicion) para abrir ya
+    inicio = { dinero = 2000, sobres = { set1 = 3 } },
 }
 for _, s in ipairs(lista) do
     sobres[s.id] = s
