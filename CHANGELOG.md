@@ -5,6 +5,99 @@ parte de una fase); el del medio solo cuando termino una fase entera y la doy
 por buena. Los arreglos de una versión que todavía estoy probando van en esa
 misma versión. El juego se queda por debajo de 1.0 hasta que esté completo.
 
+## v0.7.2 - 2026-10-20 - La mesa y los directos
+
+- **Los sobres se abren en la mesa.** Nueva pestaña MESA (TIENDA · MESA ·
+  ARMARIO · MÓVIL). A la izquierda hay una caja de cartón con tus sobres
+  guardados y las fundas. Coges un sobre, lo arrastras al tapete (se
+  balancea colgando del dedo, con su peso) y cae rebotando. Lo mantienes
+  pulsado para rasgarlo y se abre como siempre. Si lo sueltas fuera del
+  tapete, vuelve a la caja. La tienda ya es solo para comprar.
+- **Las cartas se quedan sueltas en la mesa.** Al acabar el sobre se ve el
+  resumen un momento y las cartas pasan a ser cosas de la mesa: se
+  arrastran, se tocan para enfundar, vender o guardar, y llevan su cartel
+  de NUEVA si lo eran. Al poner otro sobre en la mesa, todo lo que hay
+  encima vuelve solo al armario. En el PC, ESPACIO hace lo mismo y abre el
+  siguiente. Ya no hay botones de "siguiente sobre" en pantalla.
+- **Fundas a mano.** Cuando el sobre ya está abierto, sacas una funda de la
+  caja y la sueltas encima de una carta (brilla al enfundarse). Mientras se abre un sobre no se
+  pueden coger ni fundas ni sobres.
+- **Las copias que sacas a la mesa** (máximo 10) se ven ahora en el tapete,
+  igual que las del sobre: todas del mismo tamaño y todas se pueden
+  arrastrar. Se enfundan, se venden o se devuelven al armario (con sus
+  botones o soltándolas en la caja). Se quita la vista MESA del armario.
+- **Cajas de sobres** en la tienda: 18 sobres un 10% más baratos que
+  sueltos (S1: 32,40 €; S4: 194,40 €). Llegan 2 cajas al día de cada set
+  mientras se vende en la tienda y no gastan los sobres sueltos. Se cambia
+  en `datos/sobres.lua`.
+- **Directos.** A la derecha de la mesa está el móvil en un trípode. Le
+  pones nombre al canal, eliges el idioma del chat (español o inglés) y el
+  tipo de directo (de momento solo APERTURA; evaluación y colección salen
+  como "próximamente"), y pulsas EMPEZAR DIRECTO. Lo paras cuando
+  quieras y sale un resumen con la duración, los sobres abiertos, el pico de
+  espectadores, los seguidores nuevos y las propinas.
+  - Al principio casi nadie te ve: 0 o 1 espectadores y como mucho un
+    mensaje al acabar el sobre. Con más seguidores hay más gente y el chat
+    reacciona a cada carta ("???" en el suspense, "F" y "next" con las
+    comunes...). Con una chase o una secreta explota y caen propinas.
+  - El chat pregunta lo típico (qué set es, cuánto vale, si sorteas algo),
+    se impacienta si no abres ("abre ya", "se ha dormido") y habla con
+    slang ("6-7", "aura +1000", "W pull", "no cap", "cooked"...). Solo
+    texto, sin emojis por ahora. Con el chat en español sale algún mensaje
+    en inglés y al revés. Hay unas 800 frases (`datos/chat.lua`): no se
+    repite ninguna de las últimas 60 y a veces cambian un poco ("xd",
+    "!!", letras alargadas). Muchos más nombres en el chat.
+  - Las propinas llegan a tu dinero con su mensaje en amarillo. Los
+    seguidores se guardan en la partida: son el progreso del canal. Cuantos
+    más tienes, más cuesta conseguir nuevos.
+  - En la tienda y el armario el directo sigue (arriba sale "EN DIRECTO N"),
+    pero la gente se va yendo si tardas. Ir al MÓVIL o pasar el día lo
+    corta: el móvil es el que graba.
+  - Los números están en `datos/directo.lua` y las frases en `datos/chat.lua`.
+- **Economía nueva.** La venta rápida paga el 100% del valor de mercado
+  (antes, el 50%). Las ofertas del móvil son del 100% al 140% del valor,
+  menos la comisión del 8%. Los valores de las cartas suben para que un
+  sobre de 1ª edición a mitad de tirada dé de media un 90% de lo que
+  cuesta (el resto sale del móvil, los directos y la suerte). Los
+  seguidores llegan un 20% más despacio que en la primera prueba. El hype de salida es más suave (+35% las normales, +70% las chase)
+  y la 1ª edición baja menos durante la tirada (un 10% como mucho).
+  Con los bots, abrir y vender gana claramente más que esperar, y abrir en
+  directo más aún, sin dinero infinito.
+- **Android solo en horizontal.** El juego ya no gira a vertical al girar
+  el móvil: siempre horizontal (en el PC la ventana se puede seguir
+  cambiando de tamaño).
+- Herramientas: el guion de pruebas empieza una partida nueva y prueba la
+  mesa y el directo (el de convertir partidas v5 sigue como
+  `guion_conversion.lua`). Hay un bot que abre en directo y `SOLO=nombre`
+  para pasar solo una estrategia.
+
+## v0.7.1 - 2026-10-20 - Premios y un mercado que se puede jugar
+
+(La APK salió numerada como v0.8.0 por error; es una versión dentro de la 0.7.)
+
+- **Premios por completar.** Cada set da sobres al llegar al 25%, 50% y
+  75% de sus cartas, y al completarlo sobres y dinero. Completarlo entero
+  en 1ª edición da otro premio gordo. Salen con un aviso y confeti, y se
+  ven en el álbum (en amarillo los conseguidos). Se cambian en
+  `datos/premios.lua`. En las partidas de antes, lo que ya tenías
+  completado cuenta como cobrado.
+- **El día de salida compensa.** Las cartas de un set recién salido valen
+  bastante más los primeros días (todo el mundo las quiere) y se va
+  pasando en una semana. Abrir el día de salida y vender las repes suele
+  salir rentable; abrir a mitad de tirada, no. Los sobres cerrados casi no
+  suben al salir, para que no se pueda comprar y revender sin abrir.
+- **El móvil paga mejor.** Los compradores ofrecen entre un 85% y un 135%
+  del valor (antes 75%-120%): vender por el móvil en vez de a la tienda se
+  nota.
+- **Se empieza con 3 sobres** del Set 1 de 1ª edición para abrir nada más
+  empezar.
+- **Picos más largos.** Las burbujas suben durante 1-2 semanas y se
+  desinflan en 4 días; los golpes de las noticias tardan unas dos semanas
+  en irse (antes 4-5 días). En la gráfica de 600 días ya no parecen agujas
+  de un día.
+- **Arreglado**: al empezar una partida nueva se quedaba abierta la bandeja
+  de una carta de la partida anterior.
+
 ## v0.7.0 - 2026-10-20 - Mercado con memoria
 
 - **Rachas que duran.** Cada carta y cada set van una temporada subiendo,

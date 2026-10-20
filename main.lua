@@ -16,13 +16,15 @@ local movil = require "src.movil"
 local menu = require "src.menu"
 local intro = require "src.firma"
 local escritorio = require "src.escritorio"
+local mesa = require "src.mesa"
+local directo = require "src.directo"
 
 local lg = love.graphics
 
 local ANCHO, ALTO = 640, 360
 local pantalla
 local escena = "intro"
-local escenas = { tienda = tienda, armario = armario, movil = movil, menu = menu }
+local escenas = { tienda = tienda, mesa = mesa, armario = armario, movil = movil, menu = menu }
 local dineroVisto = 0
 
 -- escala para llenar la ventana sin deformar: puede no ser entera (pantallas
@@ -56,11 +58,14 @@ function nav.alternarPantalla()
 end
 
 local function bloqueado()
-    return (escena == "apertura" and apertura.bloqueada()) or (escena == "movil" and movil.ocupado())
+    return (escena == "mesa" and apertura.bloqueada()) or (escena == "movil" and movil.ocupado())
 end
 
 function nav.ir(nombre)
     sonido.carga(0)
+    -- el movil del directo es el mismo: si lo coges, se acaba el directo
+    if nombre == "movil" then directo.terminar() end
+    if nombre == "menu" then directo.terminar(true) end
     if escena == "movil" and nombre ~= "movil" then
         -- primero se guarda el movil y luego se cambia de pantalla
         movil.guardar(function() escena = nombre end)
@@ -73,23 +78,24 @@ end
 function nav.empezar()
     dineroVisto = partida.dinero
     movil.reiniciar()
-    nav.ir("armario")
+    armario.reiniciar()
+    directo.reiniciar()
+    mesa.reiniciar()
+    nav.ir("mesa")
 end
 
-function nav.abrir(tipoId)
-    local tipo, primera = partida.sacarSobre(tipoId)
-    if not tipo then tipo, primera = partida.sacarSobre() end
-    if not tipo then return end
-    partida.guardar()
-    apertura.empezar(tipo, primera)
-    escena = "apertura"
+-- los sobres ya solo se abren en la mesa
+function nav.abrir()
+    nav.ir("mesa")
 end
 
 function nav.lote(n)
-    if apertura.lote(n) then escena = "apertura" end
+    if apertura.lote(n) then escena = "mesa" end
 end
 
+-- pasar el dia corta el directo
 function nav.pasarDia()
+    directo.terminar()
     movil.pasarDia()
 end
 
@@ -116,6 +122,7 @@ function love.load()
     sonido.preparar()
     escritorio.preparar()
     movil.preparar()
+    mesa.preparar()
     partida.cargar()
     menu.preparar()
     dineroVisto = partida.dinero
@@ -127,13 +134,23 @@ function love.update(dt)
     fx.update(dt)
     dineroVisto = fx.lerp(dineroVisto, partida.dinero, math.min(1, dt * 8))
     partida.update(dt)
+    -- premios por completar sets: aviso, confeti y monedas
+    local premio = table.remove(partida.premiosNuevos, 1)
+    if premio then
+        local texto = "PREMIO: " .. premio.texto .. " +" .. premio.sobres .. " SOBRES"
+        if premio.dinero then texto = texto .. " Y " .. ui.dinero(premio.dinero) end
+        movil.avisar(texto, p.amarillo)
+        fx.confeti(320, 40, 60, 160)
+        sonido.tocar("moneda")
+        partida.guardar()
+    end
     local dtJuego = dt * fx.escalaTiempo()
     if escena == "intro" then
         intro.update(dt)
-    elseif escena == "apertura" then
-        local mantenido = love.mouse.isDown(1) or love.keyboard.isDown("space")
-        apertura.update(dtJuego, mantenido)
+    elseif escena == "mesa" then
+        mesa.update(dtJuego)
     end
+    directo.update(dt, escena == "mesa")
     movil.update(dt)
 end
 
@@ -157,12 +174,12 @@ function love.mousepressed(x, y, boton)
         dev.click(id)
     elseif id == "ir_dev" then
         dev.abierto = not dev.abierto
-    elseif id == "ir_tienda" or id == "ir_armario" or id == "ir_movil" then
+    elseif id == "ir_tienda" or id == "ir_mesa" or id == "ir_armario" or id == "ir_movil" then
         nav.ir(id:sub(4))
     elseif id and id:match("^set_") then
         armario.click(id)
-    elseif escena == "apertura" then
-        if id then apertura.boton(id) else apertura.pulsar() end
+    elseif escena == "mesa" then
+        mesa.presionar(id, mx, my)
     elseif escena == "armario" then
         if not armario.coger(id, mx, my) and id then armario.click(id) end
     elseif id and escenas[escena] then
@@ -174,6 +191,7 @@ function love.mousereleased(x, y, boton)
     if boton ~= 1 then return end
     movil.soltar()
     armario.acabarBarrido()
+    if escena == "mesa" then mesa.soltar(aJuego(x, y)) end
     if not ui.cogida then return end
     local mx, my = aJuego(x, y)
     armario.soltar(ui.soltar(), mx, my)
@@ -183,6 +201,7 @@ function love.mousemoved(x, y)
     local mx, my = aJuego(x, y)
     ui.moverRaton(mx, my)
     if escena == "armario" then armario.mover(mx, my) end
+    if escena == "mesa" then mesa.mover(mx, my) end
     if escena == "movil" then movil.arrastrar(mx, my) end
 end
 
@@ -190,9 +209,15 @@ function love.wheelmoved(_, y)
     if escena == "movil" then movil.rueda(y) end
 end
 
-local ORDEN = { "tienda", "armario", "movil" }
+function love.textinput(t)
+    directo.texto(t)
+end
+
+local ORDEN = { "tienda", "mesa", "armario", "movil" }
 
 function love.keypressed(tecla)
+    -- escribiendo el nombre del canal las teclas son letras
+    if directo.tecla(tecla) then return end
     local alt = love.keyboard.isDown("lalt") or love.keyboard.isDown("ralt")
     if tecla == "f11" or (tecla == "return" and alt) then
         nav.alternarPantalla()
@@ -219,10 +244,10 @@ function love.keypressed(tecla)
         end
     elseif escena == "menu" then
         return
-    elseif tecla == "d" and escena ~= "apertura" and not bloqueado() then
-        movil.pasarDia()
+    elseif tecla == "d" and not bloqueado() then
+        nav.pasarDia()
     elseif tecla == "space" then
-        if escena == "apertura" then apertura.pulsar() else nav.abrir() end
+        if escena == "mesa" then mesa.espacio() end
     elseif tecla == "tab" and not bloqueado() then
         for i, n in ipairs(ORDEN) do
             if n == escena then
@@ -239,6 +264,7 @@ function love.keypressed(tecla)
 end
 
 function love.quit()
+    directo.terminar(true)
     if escena ~= "intro" and escena ~= "menu" then partida.guardarYa() end
 end
 
@@ -249,19 +275,29 @@ local function dibujarBarra()
     lg.rectangle("fill", 0, 20, ANCHO, 1)
 
     if not bloqueado() then
-        ui.boton("ir_tienda", "TIENDA", 6, 3, 52, 14, escena == "tienda" and p.verde or p.gris)
-        ui.boton("ir_armario", "ARMARIO", 62, 3, 52, 14, escena == "armario" and p.verde or p.gris)
+        ui.boton("ir_tienda", "TIENDA", 6, 3, 38, 14, escena == "tienda" and p.verde or p.gris)
+        ui.boton("ir_mesa", "MESA", 47, 3, 34, 14, escena == "mesa" and p.verde or (directo.activo() and p.rojo or p.gris))
+        ui.boton("ir_armario", "ARMARIO", 84, 3, 42, 14, escena == "armario" and p.verde or p.gris)
         local ofertas = partida.ofertasTotales()
-        ui.boton("ir_movil", ofertas > 0 and ("MÓVIL (" .. ofertas .. ")") or "MÓVIL", 118, 3, 52, 14, escena == "movil" and p.verde or (ofertas > 0 and p.naranja or p.gris))
+        ui.boton("ir_movil", ofertas > 0 and ("MÓVIL (" .. ofertas .. ")") or "MÓVIL", 129, 3, 50, 14, escena == "movil" and p.verde or (ofertas > 0 and p.naranja or p.gris))
+        if ui.encima == "ir_movil" and directo.activo() then
+            ui.tooltip("Se acaba el directo", p.rojo, { { "El móvil es el que graba" } })
+        end
     end
-    ui.boton("ir_dev", "DEV", 176, 3, 26, 14, dev.abierto and p.naranja or p.grisosc)
+    ui.boton("ir_dev", "DEV", 182, 3, 24, 14, dev.abierto and p.naranja or p.grisosc)
     if escena == "armario" then armario.pestanas() end
 
     local dinero = ui.dinero(dineroVisto)
     local x = ANCHO - 8 - fuentes.ancho(dinero, 2)
     fuentes.texto(dinero, x, 4, 2, p.amarillo)
     local info = "DÍA " .. mercado.dia() .. "   SOBRES " .. partida.sobresGuardados()
-    fuentes.texto(info, x - 12 - fuentes.ancho(info), 8, 1, p.grisclaro)
+    local ix = x - 12 - fuentes.ancho(info)
+    fuentes.texto(info, ix, 8, 1, p.grisclaro)
+    -- fuera de la mesa se ve que sigues en directo
+    if escena ~= "mesa" and directo.activo() then
+        local cad = "EN DIRECTO " .. directo.espectadores()
+        directo.indicador(ix - 14 - fuentes.ancho(cad) - 7, 8)
+    end
 end
 
 -- primero se amplia con pixeles duros al entero de arriba y luego se reduce
@@ -316,11 +352,7 @@ function love.draw()
     local dx, dy = fx.desplazamiento()
     lg.push()
     lg.translate(dx, dy)
-    if escena == "apertura" then
-        apertura.dibujar()
-    else
-        escenas[escena].dibujar()
-    end
+    escenas[escena].dibujar()
     fx.dibujarParticulas()
     lg.pop()
 
