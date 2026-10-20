@@ -3,6 +3,8 @@ local mercado = require "src.mercado"
 local fuentes = require "src.fuentes"
 local carta = require "src.carta"
 local sobre = require "src.sobre"
+local caja = require "src.caja"
+local encima = require "src.encima"
 local sonido = require "src.sonido"
 local fx = require "src.fx"
 local ui = require "src.ui"
@@ -119,6 +121,7 @@ function love.load()
     fuentes.preparar()
     carta.preparar()
     sobre.preparar()
+    caja.preparar()
     sonido.preparar()
     escritorio.preparar()
     movil.preparar()
@@ -144,6 +147,16 @@ function love.update(dt)
         sonido.tocar("moneda")
         partida.guardar()
     end
+    -- encargos del movil terminados o caducados
+    local hecho = table.remove(partida.encargosHechos, 1)
+    if hecho then
+        movil.avisar("ENCARGO DE " .. hecho.nombre:upper() .. " HECHO: +" .. ui.dinero(hecho.pago), p.lima)
+        fx.monedas(320, 40, 30, 160, 200)
+        sonido.tocar("moneda")
+        partida.guardar()
+    end
+    local caducado = table.remove(partida.encargosCaducados, 1)
+    if caducado then movil.avisar("SE ACABÓ EL PLAZO DEL ENCARGO DE " .. caducado.nombre:upper(), p.naranja) end
     local dtJuego = dt * fx.escalaTiempo()
     if escena == "intro" then
         intro.update(dt)
@@ -336,6 +349,8 @@ local function presentar(conMesa, conBarra)
     lg.setBlendMode("alpha", "premultiplied")
     lg.draw(grande, ox, oy, 0, e / k, e / k)
     lg.setBlendMode("alpha")
+    -- lo que gira (la mano, la caja volando) va encima a la resolucion real
+    encima.dibujar(e, ox, oy)
 end
 
 function love.draw()

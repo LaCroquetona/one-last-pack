@@ -5,6 +5,114 @@ parte de una fase); el del medio solo cuando termino una fase entera y la doy
 por buena. Los arreglos de una versión que todavía estoy probando van en esa
 misma versión. El juego se queda por debajo de 1.0 hasta que esté completo.
 
+## v0.7.3 - 2026-10-20 - Peticiones, encargos y suerte
+
+Arreglos tras probarla:
+
+- **Caja nueva (booster box)**: dibujo de pixel en vista 3/4 con tapa,
+  frente y lateral, rombo del set, banda BOOSTER BOX, borde de la tapa y
+  reflejos del plástico. Abierta se ven los 18 sobres de pie en dos filas.
+  En la caja lateral sale una versión pequeña.
+- **Lo que llevas en la mano gira limpio**: sobres, cajas, fundas y cartas
+  se pintan encima a la resolución de la pantalla, sin escalones al girar.
+  La caja al abrirse y la tapa volando, igual.
+- **Péndulo también en las cartas de la mesa**: cuelgan del punto por donde
+  las coges y el centro se queda atrás al moverlas; al soltarlas se
+  asientan poco a poco. La caja pesa más y se mece menos.
+
+- **Fundas y top loaders por rareza.** En el armario (abajo a la izquierda)
+  eliges desde qué rareza se ponen solas la funda (F) y el top loader (T)
+  a las cartas nuevas: NO, RARA+, HOLO+, FULL+ o SECR. Ahora se protegen
+  todas las copias de esa rareza, no solo la primera (por eso parecía que
+  unas sí y otras no). Por defecto: funda desde holo y top desde full art.
+- **Top loaders**: se compran en la tienda (10 por 1,50 €), van encima de
+  la funda y se ven en la carta. Se ponen a mano desde la bandeja (TOP) o
+  en la mesa (PONER/QUITAR TOP). Al vender o quitar la funda vuelven.
+- **Vender en lote por protección**: solo sin funda, solo con funda, solo
+  con top loader o todas.
+- **God packs**: todas las cartas son holo o mejor (sin raras). La chase
+  puede salir con su probabilidad normal.
+- **Set 2 con mejor pull rate**: holo o mejor en el 25% de los sobres
+  (antes ~19%); sus cartas valen algo menos para que el sobre siga dando
+  de media un 85%. Los 4 sets quedan con un 85% de media.
+- **Más días entre sets**: sale uno cada 18 días (antes 16).
+- **Directos más rentables**: más gente da propina y las propinas son algo
+  más grandes (con 5 espectadores, hasta 1,50 €).
+- Sin espectadores ya no escribe nadie en el chat.
+- **Tienda separada en SOBRES y CAJAS**: cada set tiene su caja aparte,
+  con su dibujo y su precio. Las cajas se venden en el móvil (MERCADO >
+  el set), con la comisión, no en la tienda.
+- **Colección sellada** (armario > SELLADO): tus sobres y cajas cerrados
+  de cada set, de 1ª edición y de reimpresión. Lo APARTADO no sale en la
+  mesa ni lo abre el ESPACIO, para no abrirlo sin querer.
+- En la caja lateral de la mesa caben cajas de los 4 sets (antes solo se
+  veían 2). La caja abierta va arriba a la derecha y el resumen del sobre
+  baja un poco para no taparla.
+
+- **Cajas selladas** de verdad. Se compran cerradas en la tienda (un 10%
+  más baratas que sus 18 sobres, 2 al día por set) y se quedan cerradas:
+  en la tienda puedes venderlas al momento por lo que valen sus sobres
+  cerrados (un 85%; mientras la tienda las vende, nunca más del 90% de lo
+  que cuesta nueva), así que una caja de 1ª edición guardada sube con el
+  tiempo.
+  - **Abrir una caja** es en la mesa: salen en la caja de cartón de la
+    izquierda; la arrastras al tapete, cae rebotando, tiembla con su aura,
+    salta la tapa dando vueltas con destello, confeti y rayos, asoman los
+    sobres y la caja abierta se va a la esquina de abajo a la derecha.
+    En directo el chat lo celebra ("BOX BREAK!").
+  - De la caja abierta se arrastran los sobres al tapete (o con ESPACIO,
+    que saca primero de la caja abierta y luego de tus sobres guardados).
+    Si abres otra caja, los sobres que quedaban en la anterior pasan a tus
+    sobres guardados.
+  - La caja se ve desde arriba y un poco inclinada: tapa, frente con
+    "BOOSTER BOX", laterales y los sobres de pie dentro.
+- **Peticiones del chat.** En directo, alguien del chat te pide que abras
+  un sobre concreto ("¡ABRE UN S2!") y te paga si lo haces en 2 minutos.
+  La petición sale fija arriba del chat con lo que paga y el tiempo que
+  queda (parpadea al final). Si la cumples, cobras, el chat lo celebra y
+  ganas un par de seguidores; si no, se va con un "L". Salen más cuanta
+  más gente te ve (hacen falta 2 espectadores) y a veces piden sobres que
+  no tienes: la tienda no corta el directo.
+- **Encargos.** App nueva en el móvil, ENCARGOS: gente que te paga por
+  abrir sobres concretos en unos días ("abre 3 sobres S2", a veces de 1ª
+  edición, que pagan más). Te quedas las cartas: te pagan por abrirlos.
+  Aceptas o rechazas; puedes tener 3 en marcha. Cada día puede llegar uno
+  nuevo (más con más seguidores) y avisa al cumplirlo o si se acaba el
+  plazo. Se cambian en `datos/encargos.lua`.
+- **Mejoras de suerte** en una app nueva del móvil, SUERTE, cada una con
+  5 niveles y cada nivel más caro:
+  - Segunda oportunidad: el hueco de rara o mejor se tira dos veces y te
+    quedas la mejor (del 8% al 40% de los sobres).
+  - Carta extra: el sobre trae una carta más (del 6% al 30%).
+  - Imán de god packs: multiplica la probabilidad (de x1,5 a x3,5).
+  Con todo al máximo un sobre trae de media un 93-98% de lo que cuesta:
+  ayudan, pero no regalan dinero. Se cambian en `datos/mejoras.lua`.
+- **Ganar dinero cuesta más.**
+  - Las cartas valen un 15% menos: un sobre trae de media un 72-77% de lo
+    que cuesta sin mejoras (el resto sale del móvil, los directos, los
+    encargos y la suerte).
+  - Los premios por completar ya no dan dinero, solo sobres: 2, 3 y 4 al
+    25%, 50% y 75% y 8 al completarlo. Fuera el premio por tenerlo entero
+    en 1ª edición (al empezar siempre abres de 1ª).
+  - En el móvil las ofertas muy altas salen mucho menos: casi todas rondan
+    el valor de la carta y las del +30-40% son raras (`curva` en
+    `datos/mercado.lua`).
+  - Propinas mucho más pequeñas: casi siempre de 0,10 a 0,30 €; de 0,40 a
+    1 € hacen falta 5 espectadores, de 1 a 3 € unos 25, y de 3 a 8 € unos
+    80.
+  - Los encargos pagan entre un 15% y un 35% de lo que cuestan los sobres
+    que piden, y las peticiones del chat entre un 15% y un 40% del sobre.
+- **Set 1 con 80 cartas** (antes 40): 40 cartas nuevas de todas las
+  rarezas (16 comunes, 10 infrecuentes, 7 raras, 4 holo, 2 full art y una
+  secreta más). Completarlo cuesta bastante más. Las cartas se renumeran
+  por rareza; en las partidas de antes no se pierde nada.
+- **Arreglado**: en un directo con casi nadie mirando podía caer una
+  propina de casi 100 €.
+- DEV: encargo nuevo y petición del chat al momento.
+- **Arreglado**: el álbum del armario daba error al quitar el premio de 1ª
+  edición. El guion de pruebas ahora recorre todas las vistas del armario
+  y todas las apps del móvil.
+
 ## v0.7.2 - 2026-10-20 - La mesa y los directos
 
 - **Los sobres se abren en la mesa.** Nueva pestaña MESA (TIENDA · MESA ·

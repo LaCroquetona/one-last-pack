@@ -38,6 +38,7 @@ local function botones()
         { "dev_burbuja", "BURBUJA EN UNA CHASE" },
         { "dev_moda", "UN SET SE PONE DE MODA" }, { "dev_caida", "UN SET PIERDE INTERÉS" },
         { "dev_crash", "CRASH: ALMACÉN DE 1ª EDICIÓN" },
+        { "dev_encargo", "ENCARGO NUEVO" }, { "dev_peticion", "PETICIÓN DEL CHAT" },
         { "COLECCIÓN" },
         { "dev_completar", "+1 DE CADA CARTA" },
     }
@@ -149,6 +150,10 @@ function dev.click(id)
         mercado.forzarRacha(id == "dev_moda")
     elseif id == "dev_crash" then
         if not mercado.noticia("almacen1") then mercado.noticia("almacen") end
+    elseif id == "dev_encargo" then
+        partida.generarEncargo()
+    elseif id == "dev_peticion" then
+        require("src.directo").forzarPeticion()
     elseif id == "dev_completar" then
         for _, c in ipairs(cartas) do
             if mercado.disponible(c.id) then partida.anadir(c.id, not mercado.hayNormales(c.set)) end
