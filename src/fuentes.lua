@@ -116,19 +116,58 @@ function fuentes.preparar()
     fuentes.pixel = lg.newImageFont(datos, table.concat(lista), 1)
 end
 
+-- en el movil el texto se pinta mas grande (factor 4/3) en el lienzo de la
+-- pantalla; lo que se pinta dentro de las cartas y los sobres no cambia
+fuentes.factor = 1
+
+local function factor()
+    if fuentes.factor ~= 1 and fuentes.lienzo and lg.getCanvas() == fuentes.lienzo then
+        return fuentes.factor
+    end
+    return 1
+end
+
 function fuentes.ancho(cad, escala)
-    return fuentes.pixel:getWidth(cad) * (escala or 1)
+    return fuentes.pixel:getWidth(cad) * (escala or 1) * factor()
+end
+
+-- alto de una linea de texto
+function fuentes.alto(escala)
+    return 5 * (escala or 1) * factor()
+end
+
+-- paso entre lineas de un texto largo (8 de siempre; 9 con el texto grande)
+function fuentes.linea()
+    return factor() > 1 and 9 or 8
+end
+
+-- lineas que ocupa un texto en ese ancho
+function fuentes.envolver(cad, ancho)
+    return fuentes.pixel:getWrap(cad, ancho / factor())
 end
 
 -- alinear: nil, "left", "center" o "right" (con ancho)
 function fuentes.texto(cad, x, y, escala, color, alinear, ancho)
     escala = escala or 1
+    local f = factor()
+    -- si no cabe en su hueco, a su tamaño de siempre
+    if f ~= 1 and alinear and ancho then
+        local w = fuentes.pixel:getWidth(cad) * escala
+        if w <= ancho and w * f > ancho then f = 1 end
+    end
+    if f ~= 1 then
+        -- crece desde el centro de la linea, asi lo centrado sigue centrado
+        y = y - 5 * escala * (f - 1) / 2
+        escala = escala * f
+    end
     lg.setFont(fuentes.pixel)
+    -- con el texto grande, las lineas de un texto largo van cada 9
+    fuentes.pixel:setLineHeight(f > 1 and 9 / 8 or 1)
     lg.setColor(color or {1, 1, 1})
     if alinear then
-        lg.printf(cad, math.floor(x), math.floor(y), ancho / escala, alinear, 0, escala, escala)
+        lg.printf(cad, math.floor(x), math.floor(y * 3) / 3, ancho / escala, alinear, 0, escala, escala)
     else
-        lg.print(cad, math.floor(x), math.floor(y), 0, escala, escala)
+        lg.print(cad, math.floor(x), math.floor(y * 3) / 3, 0, escala, escala)
     end
     lg.setColor(1, 1, 1)
 end
