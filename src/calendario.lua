@@ -12,10 +12,13 @@ end
 -- plan[setId] = lista de tiradas { tipo = "impresion" | "reimpresion", desde, hasta, rumor }
 function calendario.generar(semilla)
     local rng = love.math.newRandomGenerator(semilla)
+    -- los sets nuevos de la v0.8.0 (del 5 en adelante) sortean con otro
+    -- generador: asi las partidas de antes conservan sus fechas
+    local rngNuevos = love.math.newRandomGenerator(semilla + 7)
     local plan = {}
     for i, s in ipairs(sets.lista) do
         local desde = 1 + (i - 1) * datos.cada
-        plan[s.id] = { { tipo = "impresion", desde = desde, hasta = desde + entre(rng, datos.impresion) - 1 } }
+        plan[s.id] = { { tipo = "impresion", desde = desde, hasta = desde + entre(i <= 4 and rng or rngNuevos, datos.impresion) - 1 } }
     end
 
     -- reimpresiones en rueda, empezando por el primer set
