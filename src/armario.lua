@@ -282,11 +282,21 @@ local function dibujarAlbum()
     lg.setColor(1, 1, 1)
 end
 
+local paginaSellado = 1
+
 local function panelSobres()
     ui.caja(6, 44, 118, 50)
-    local fila = 0
+    -- primero los sets de los que tienes sobres; caben 4
+    local lista = {}
     for _, tipo in ipairs(sobres.lista) do
-        if mercado.salido(tipo.set) and fila < 4 then
+        if mercado.salido(tipo.set) and partida.sobres(tipo.id) > 0 then table.insert(lista, tipo) end
+    end
+    for _, tipo in ipairs(sobres.lista) do
+        if mercado.salido(tipo.set) and partida.sobres(tipo.id) == 0 then table.insert(lista, tipo) end
+    end
+    local fila = 0
+    for _, tipo in ipairs(lista) do
+        if fila < 4 then
             local y = 47 + fila * 11
             fila = fila + 1
             local n = partida.sobres(tipo.id)
@@ -312,9 +322,21 @@ local function dibujarSellado()
     local x0, y = AREA_X, 30
     fuentes.texto("TU COLECCIÓN SELLADA  -  LO APARTADO NO SALE EN LA MESA", x0, y, 1, p.grisclaro)
     y = y + 14
+    -- de 4 en 4 sets, con flechas si hay mas
+    local lista = {}
     for _, tipo in ipairs(sobres.lista) do
-        local hay = partida.sobres(tipo.id) + partida.cajasDe(tipo.id)
-        if hay > 0 or mercado.salido(tipo.set) then
+        if partida.sobres(tipo.id) + partida.cajasDe(tipo.id) > 0 or mercado.salido(tipo.set) then table.insert(lista, tipo) end
+    end
+    local numPag = math.max(1, math.ceil(#lista / 4))
+    paginaSellado = math.max(1, math.min(paginaSellado, numPag))
+    if numPag > 1 then
+        local txt = paginaSellado .. "/" .. numPag
+        fuentes.texto(txt, x0 + 496 - 40, y - 14, 1, p.grisclaro, "center", 20)
+        ui.boton("sel_ant", "<", x0 + 496 - 58, y - 17, 16, 12, p.gris, paginaSellado > 1)
+        ui.boton("sel_sig", ">", x0 + 496 - 16, y - 17, 16, 12, p.gris, paginaSellado < numPag)
+    end
+    for i, tipo in ipairs(lista) do
+        if math.ceil(i / 4) == paginaSellado then
             ui.caja(x0, y, 496, 70, p.grisosc)
             sobre.dibujar(tipo.id, x0 + 22, y + 35, 1.2)
             caja.dibujar(tipo.id, x0 + 70, y + 38, 1)
@@ -781,7 +803,7 @@ end
 
 local function dibujarLote(ancho, alto)
     lg.setColor(0, 0, 0, 0.7)
-    lg.rectangle("fill", 0, 0, ancho, alto)
+    lg.rectangle("fill", ui.izq, 0, ui.der - ui.izq, alto)
     local w, h = 320, 190
     local x, y = math.floor((ancho - w) / 2), math.floor((alto - h) / 2)
     ui.caja(x - 2, y - 2, w + 4, h + 4, p.naranja)
@@ -841,6 +863,8 @@ end
 function armario.click(id)
     if id:match("^modo_") then
         modo = id:sub(6)
+    elseif id == "sel_ant" or id == "sel_sig" then
+        paginaSellado = paginaSellado + (id == "sel_sig" and 1 or -1)
     elseif id:match("^apa_") then
         local clase, tipoId, ed = id:match("^apa_(%a)_(.+)_(%w)$")
         partida.apartar(clase, tipoId, ed == "1")
@@ -981,11 +1005,34 @@ function armario.tecla(tecla)
 end
 
 -- pestañas de los sets que ya han salido, en la barra de arriba
-function armario.pestanas()
+-- pestañas de los sets en la barra de arriba, desde x hasta limite; si no
+-- caben todas, salen flechas para pasar
+function armario.pestanas(x, limite)
     if not mercado.salido(setActivo) then setActivo = sets.lista[1].id end
-    for i, set in ipairs(mercado.setsSalidos()) do
+    local lista = mercado.setsSalidos()
+    local w = 53
+    local caben = math.max(1, math.floor((limite - x - 40) / (w + 3)))
+    if #lista <= math.floor((limite - x) / (w + 3)) then caben = #lista end
+    local pos = 1
+    for i, set in ipairs(lista) do
+        if set.id == setActivo then pos = i end
+    end
+    local desde = math.max(1, math.min(pos - math.floor(caben / 2), #lista - caben + 1))
+    local hasta = math.min(#lista, desde + caben - 1)
+    if caben < #lista then
+        local ant = lista[math.max(1, pos - 1)]
+        ui.boton("set_" .. ant.id, "<", x, 3, 16, 14, p.gris, pos > 1)
+        x = x + 19
+    end
+    for i = desde, hasta do
+        local set = lista[i]
         local texto = set.codigo .. " " .. partida.distintas(set.id) .. "/" .. #partida.cartasDe(set.id)
-        ui.boton("set_" .. set.id, texto, 210 + (i - 1) * 56, 3, 53, 14, set.id == setActivo and p.azul or p.grisosc)
+        ui.boton("set_" .. set.id, texto, x, 3, w, 14, set.id == setActivo and p.azul or p.grisosc)
+        x = x + w + 3
+    end
+    if caben < #lista then
+        local sig = lista[math.min(#lista, pos + 1)]
+        ui.boton("set_" .. sig.id, ">", x, 3, 16, 14, p.gris, pos < #lista)
     end
 end
 
