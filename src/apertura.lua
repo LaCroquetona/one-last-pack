@@ -11,19 +11,24 @@ local sonido = require "src.sonido"
 local fuentes = require "src.fuentes"
 local ui = require "src.ui"
 local nav = require "src.nav"
+local directo = require "src.directo"
 
 local lg = love.graphics
 
 local apertura = {}
 
+-- zona de la pantalla donde se abre (la mesa deja sitio a la caja y al directo)
+local ZX, ZW = 0, 640
 local CX, CY = 320, 160
 local GRANDE = 3
 local MINI = 1
 local ESCALA_SOBRE = 4
 local RANURA_Y = 318
 local GIRO = 0.2
+local DURACION_ENTRADA = 0.45
 
 local estado, t
+local entrada
 local mano, godpack, mejor
 local tipoActual, primeraActual
 local lote
@@ -32,24 +37,55 @@ local carga = 0
 local latido = 0
 local pulsado = false
 
-local function ranuraX(i)
-    return CX + (i - (#mano + 1) / 2) * 42
+function apertura.zona(x, w)
+    ZX, ZW = x, w
+    CX = x + w / 2
 end
 
--- con sobres de mas de 7 cartas el resumen se encoge para que quepan
+local function ranuraX(i)
+    local paso = math.min(42, (ZW - 40) / math.max(1, #mano - 1))
+    return CX + (i - (#mano + 1) / 2) * paso
+end
+
+-- el resumen va en una fila si cabe grande; si no, en dos
+local function filasResumen()
+    local una = (ZW - 16) / #mano - 10
+    return una / carta.ANCHO >= 1.5 and 1 or 2
+end
+
+local function porFila()
+    return math.ceil(#mano / filasResumen())
+end
+
 local function escalaResumen()
-    return #mano > 7 and 1.5 or 2
+    local n = porFila()
+    local e = ((ZW - 16) / n - 10) / carta.ANCHO
+    local tope = filasResumen() == 2 and 1.75 or 2
+    return math.max(0.75, math.min(tope, math.floor(e * 4) / 4))
 end
 
 local function resumenX(i)
+    local n = porFila()
+    local fila = math.floor((i - 1) / n)
+    local enFila = fila == 0 and math.min(n, #mano) or (#mano - n)
+    local k = (i - 1) % n + 1
     local paso = carta.ANCHO * escalaResumen() + 10
-    return CX + (i - (#mano + 1) / 2) * paso
+    return CX + (k - (enFila + 1) / 2) * paso
+end
+
+local function resumenY(i)
+    if filasResumen() == 1 then return 150 end
+    local alto = carta.ALTO * escalaResumen()
+    local fila = math.floor((i - 1) / porFila())
+    return 150 + (fila == 0 and -1 or 1) * (alto / 2 + 12)
 end
 
 -- tipo: entrada de datos/sobres.lua (ya descontada de los guardados)
 -- primera: si el sobre es de 1ª edicion
-function apertura.empezar(tipo, primera)
+-- desde: { x, y, a, escala } si llega arrastrado (si no, sube desde abajo)
+function apertura.empezar(tipo, primera, desde)
     tipoActual, primeraActual = tipo, primera
+    entrada = desde
     local defs
     defs, godpack = generador.sobre(tipo)
     mano = {}
@@ -62,13 +98,16 @@ function apertura.empezar(tipo, primera)
     if dev.saltar then
         for i, c in ipairs(mano) do
             c.boca = true
-            c.nueva = partida.anadir(c.def.id, primera)
+            c.nueva, c.copia = partida.anadir(c.def.id, primera)
             c.x, c.y, c.escala = ranuraX(i), RANURA_Y, MINI
         end
         sonido.tocar(mejor.id)
         if mejor.nivel >= 4 then fx.destello(mejor.color, 0.3) end
         partida.guardar()
         estado = "resumen"
+        directo.rasgar(godpack)
+        for _, c in ipairs(mano) do directo.carta(c.def, c.nueva) end
+        directo.finSobre(defs, godpack)
     end
 end
 
@@ -116,19 +155,16 @@ function apertura.pulsar()
     pulsado = true
 end
 
--- primero otro del mismo tipo; si no quedan, el que haya
-local function siguiente()
-    local tipo, primera = partida.sacarSobre(tipoActual and tipoActual.id)
-    if not tipo then tipo, primera = partida.sacarSobre() end
-    if tipo then apertura.empezar(tipo, primera) else nav.ir("armario") end
+-- tipo del ultimo sobre abierto (para sacar otro igual)
+function apertura.ultimoTipo()
+    return tipoActual and tipoActual.id
 end
 
 function apertura.boton(id)
-    if id == "otro" then
-        siguiente()
-    elseif id == "otroLote" then
+    if id == "otroLote" then
         apertura.lote(5)
     elseif id == "armario" or id == "tienda" then
+        estado = nil
         nav.ir(id)
     end
 end
@@ -139,6 +175,7 @@ local function rasgar()
     fx.sacudir(6)
     fx.destello({1, 1, 1}, 0.8)
     fx.explosion(CX, CY - 70, {1, 1, 1}, 40, 160)
+    directo.rasgar(godpack)
     if godpack then
         fx.destello(rarezas.secreta.color, 1)
         fx.explosion(CX, CY, rarezas.secreta.color, 120, 260)
@@ -158,13 +195,14 @@ end
 local CUENTA = { [0] = 0, 0.35, 0.8, 1.5 }
 
 local function impacto(c, r)
-    c.nueva = partida.anadir(c.def.id, primeraActual)
+    c.nueva, c.copia = partida.anadir(c.def.id, primeraActual)
     c.precio = mercado.valor(c.def.id, primeraActual)
     c.nivelPrecio = nivelPrecio(c.precio)
     c.tPrecio, c.tic, c.contado = 0, 0, false
     c.tVista = 0
     c.coleccion = partida.distintas(c.def.set) .. "/" .. #partida.cartasDe(c.def.set)
     sonido.tocar(r.id)
+    directo.carta(c.def, c.nueva)
     if r.nivel >= 4 then fx.golpear(r.nombre:upper(), r.color, 40) end
     if r.nivel >= 6 then
         fx.explosion(CX, CY, p.amarillo, 120, 240)
@@ -230,6 +268,7 @@ local function actualizarCarta(dt, mantenido)
         if pulsado or (mantenido and tf > 0.12) then
             fase, tf = r.suspense > 0 and "suspense" or "girando", 0
             latido = 0
+            if r.suspense > 0 then directo.suspense() end
         end
     elseif fase == "suspense" then
         latido = latido - dt
@@ -265,6 +304,9 @@ local function actualizarCarta(dt, mantenido)
             if idx > #mano then
                 estado, t = "resumen", 0
                 partida.guardar()
+                local defs = {}
+                for i, m in ipairs(mano) do defs[i] = m.def end
+                directo.finSobre(defs, godpack)
             else
                 fase, tf = "esperando", 0
             end
@@ -273,11 +315,15 @@ local function actualizarCarta(dt, mantenido)
 end
 
 function apertura.update(dt, mantenido)
+    if not estado then
+        pulsado = false
+        return
+    end
     dt = dt * dev.velocidad
     t = t + dt
 
     if estado == "entrando" then
-        if t > 0.35 then estado, t = "sobre", 0 end
+        if t > DURACION_ENTRADA then estado, t = "sobre", 0 end
     elseif estado == "sobre" then
         if mantenido then
             carga = math.min(1, carga + dt / 0.8)
@@ -297,13 +343,12 @@ function apertura.update(dt, mantenido)
         for i, c in ipairs(mano) do
             local q = fx.salidaRebote(math.min(1, math.max(0, (t - i * 0.05) / 0.35)))
             c.x = fx.lerp(ranuraX(i), resumenX(i), q)
-            c.y = fx.lerp(RANURA_Y, 150, q)
+            c.y = fx.lerp(RANURA_Y, resumenY(i), q)
             c.escala = fx.lerp(MINI, escalaResumen(), q)
         end
-        if pulsado and t > 0.5 then siguiente() end
     elseif estado == "lote" then
         if pulsado and t > 0.5 then
-            if not apertura.lote(5) then nav.ir("armario") end
+            if not apertura.lote(5) then estado = nil end
         end
     end
 
@@ -311,7 +356,11 @@ function apertura.update(dt, mantenido)
 end
 
 local function texto(cad, y, escala, color)
-    fuentes.texto(cad, 0, y, escala, color, "center", 640)
+    if estado == "lote" then
+        fuentes.texto(cad, 0, y, escala, color, "center", 640)
+    else
+        fuentes.texto(cad, ZX, y, escala, color, "center", ZW)
+    end
 end
 
 local function parpadeo()
@@ -319,9 +368,19 @@ local function parpadeo()
 end
 
 local function dibujarSobre()
-    local y = CY
+    local x, y, giro, escala = CX, CY, 0, ESCALA_SOBRE
     if estado == "entrando" then
-        y = fx.lerp(420, CY, fx.salidaRebote(math.min(1, t / 0.35)))
+        local q = math.min(1, t / DURACION_ENTRADA)
+        if entrada then
+            -- llega desde donde se solto: rebota y se endereza bailando
+            local e = fx.salidaRebote(q)
+            x = fx.lerp(entrada.x, CX, e)
+            y = fx.lerp(entrada.y, CY, e)
+            escala = fx.lerp(entrada.escala, ESCALA_SOBRE, fx.salidaSuave(q))
+            giro = entrada.a * math.cos(q * 9) * (1 - q)
+        else
+            y = fx.lerp(420, CY, fx.salidaRebote(q))
+        end
     end
     local bote = math.sin(love.timer.getTime() * 2) * 2 * (1 - carga)
     local dx = (love.math.random() * 2 - 1) * carga * 3
@@ -332,7 +391,7 @@ local function dibujarSobre()
         local color = mejor.nivel >= 4 and mejor.color or {1, 1, 1}
         fx.aura(CX, y, color, 90 + carga * 40, (carga - 0.4) * 1.2)
     end
-    sobre.dibujar(tipoActual.id, CX + dx, y + bote + dy, ESCALA_SOBRE + carga * 0.4, (love.math.random() - 0.5) * carga * 0.06)
+    sobre.dibujar(tipoActual.id, x + dx, y + bote + dy, escala + carga * 0.4, giro + (love.math.random() - 0.5) * carga * 0.06)
 
     if estado == "sobre" then
         local b = parpadeo()
@@ -524,51 +583,65 @@ local function dibujarRevelando()
     dibujarActual(mano[idx])
 end
 
+local ANDROID = love.system.getOS() == "Android"
+
 local function dibujarResumen()
     if godpack then texto("¡¡GOD PACK!!", 36, 3, rarezas.secreta.color) end
+    local er = escalaResumen()
+    local cw, ch = carta.ANCHO * er, carta.ALTO * er
+    -- con dos filas los textos van mas pegados
+    local dos = filasResumen() == 2
 
     for i, c in ipairs(mano) do
         local r = rarezas[c.def.rareza]
         local id = "res" .. i
-        local er = escalaResumen()
-        local h = t > 0.6 and ui.hoverCarta(id, c.x, c.y, carta.ANCHO * er, carta.ALTO * er) or nil
-        carta.dibujar(c.def, c.x, c.y, c.escala, c.escala, 0, true, h, false, extra())
-        if r.nivel >= 5 then fx.chispas(c.x, c.y, 60, 80, r.color, 4) end
+        local h = t > 0.6 and ui.hoverCarta(id, c.x, c.y, cw, ch) or nil
+        local funda = c.copia and c.copia.f
+        if c.brillo then
+            c.brillo = c.brillo - love.timer.getDelta() * 2
+            if c.brillo <= 0 then c.brillo = nil end
+        end
+        if funda and c.brillo then fx.aura(c.x, c.y, p.cian, cw, c.brillo * 0.6) end
+        carta.dibujar(c.def, c.x, c.y, c.escala, c.escala, 0, true, h, funda, extra())
+        if r.nivel >= 5 then fx.chispas(c.x, c.y, cw, ch, r.color, 4) end
         if t > 0.6 then
-            ui.zona(id, c.x - carta.ANCHO * er / 2, c.y - carta.ALTO * er / 2, carta.ANCHO * er, carta.ALTO * er)
-            fuentes.texto(r.nombre, c.x - 40, 205, 1, r.color, "center", 80)
+            ui.zona(id, c.x - cw / 2, c.y - ch / 2, cw, ch)
+            local ty = c.y + ch / 2 + 4
+            if not dos then
+                fuentes.texto(r.nombre, c.x - 40, ty, 1, r.color, "center", 80)
+                ty = ty + 9
+            end
             if c.precio then
                 local n = c.nivelPrecio
-                fuentes.texto(ui.dinero(c.precio), c.x - 40, 214, 1, n == 0 and p.gris or (n >= 2 and p.amarillo or p.grisclaro), "center", 80)
+                local color = n == 0 and p.gris or (n >= 2 and p.amarillo or p.grisclaro)
+                fuentes.texto(ui.dinero(c.precio), c.x - 40, ty, 1, dos and r.color or color, "center", 80)
             end
             if c.nueva then
                 local pulso = 0.6 + math.sin(love.timer.getTime() * 6) * 0.4
-                local mw, mh = carta.ANCHO * er + 6, carta.ALTO * er + 6
+                local mw, mh = cw + 6, ch + 6
                 lg.setColor(p.amarillo[1], p.amarillo[2], p.amarillo[3], pulso)
                 lg.rectangle("line", math.floor(c.x - mw / 2) + 0.5, math.floor(c.y - mh / 2) + 0.5, mw, mh)
-                fuentes.texto("¡NUEVA!", c.x - 40, 84, 1, p.amarillo, "center", 80)
+                fuentes.texto("¡NUEVA!", c.x - 40, c.y - ch / 2 - 10, 1, p.amarillo, "center", 80)
             end
             if ui.encima == id then
                 ui.tooltip(c.def.nombre, r.color, {
                     { r.nombre, r.color },
                     { "Copias: " .. partida.copias(c.def.id) },
                     { "Valor " .. ui.dinero(mercado.valor(c.def.id, primeraActual)), p.amarillo },
+                    { funda and "Enfundada" or "Arrastra una funda encima", funda and p.cian or p.gris },
                 })
             end
         end
     end
-    if primeraActual and t > 0.6 then texto("SOBRE DE 1ª EDICIÓN", 22, 1, p.amarillo) end
+    if primeraActual and t > 0.6 then texto("SOBRE DE 1ª EDICIÓN", 29, 1, p.amarillo) end
 
+    -- sin botones: otro sobre se arrastra desde la caja (o espacio en el PC)
     if t > 0.5 then
-        local quedan = partida.sobresGuardados()
-        if quedan > 0 then
-            ui.boton("otro", "SIGUIENTE SOBRE (" .. quedan .. ")", 214, 236, 110, 16, p.verde)
+        local a = parpadeo() * 0.7
+        if partida.sobresGuardados() > 0 then
+            texto(ANDROID and "ARRASTRA OTRO SOBRE DE LA CAJA" or "ARRASTRA OTRO SOBRE  -  ESPACIO: SIGUIENTE", 296, 1, {1, 1, 1, a})
         else
-            ui.boton("tienda", "COMPRAR MÁS", 214, 236, 110, 16, p.verde)
-        end
-        ui.boton("armario", "ARMARIO", 332, 236, 94, 16, p.azul)
-        if quedan > 0 then
-            texto("ESPACIO: SIGUIENTE SOBRE", 262, 1, {1, 1, 1, parpadeo() * 0.7})
+            texto("NO TE QUEDAN SOBRES: CÓMPRALOS EN LA TIENDA", 296, 1, {1, 1, 1, a})
         end
     end
 end
@@ -589,7 +662,50 @@ end
 
 -- mientras se abre no se puede salir de la pantalla
 function apertura.bloqueada()
-    return estado ~= "resumen" and estado ~= "lote"
+    return estado ~= nil and estado ~= "resumen" and estado ~= "lote"
+end
+
+-- hay algo en la mesa (un sobre, cartas o el resumen)
+function apertura.activa()
+    return estado ~= nil
+end
+
+function apertura.enResumen()
+    return estado == "resumen"
+end
+
+function apertura.enLote()
+    return estado == "lote"
+end
+
+-- el resumen se ve un momento y luego las cartas pasan a ser cosas de la mesa:
+-- devuelve las cartas cuando ya toca (la mesa las coge y llama a recoger)
+local ESPERA_MESA = 1.4
+
+function apertura.cartasListas()
+    if estado ~= "resumen" or t < ESPERA_MESA then return nil end
+    return mano
+end
+
+-- se recoge la mesa: las cartas ya estan en el armario
+function apertura.recoger()
+    estado, mano = nil, nil
+end
+
+-- la carta del resumen que hay en (x, y), para soltarle una funda
+function apertura.cartaEn(x, y)
+    if estado ~= "resumen" or t < 0.6 then return nil end
+    local er = escalaResumen()
+    local cw, ch = carta.ANCHO * er, carta.ALTO * er
+    for i = #mano, 1, -1 do
+        local c = mano[i]
+        if math.abs(x - c.x) <= cw / 2 and math.abs(y - c.y) <= ch / 2 then return c end
+    end
+end
+
+-- centro de la zona de apertura
+function apertura.centro()
+    return CX, CY
 end
 
 return apertura
