@@ -1,0 +1,81 @@
+-- Directos: cuanta gente te ve, cuando te siguen, cuando dan propinas y lo
+-- que dice el chat. El dinero va en centimos.
+-- Las frases del chat estan en datos/chat.lua.
+return {
+    -- espectadores segun tus seguidores: base + raiz(seguidores) * raiz + seguidores * lineal
+    -- (0 seguidores: 0-1; 30: unos 5; 400: unos 26; 2.000: unos 80)
+    espectadores = { base = 0.5, raiz = 0.9, lineal = 0.02, ruido = 0.25 },
+    -- lo que tarda la gente en llegar al empezar y en moverse (por segundo)
+    llegada = 0.08,
+    -- una carta buena trae mirones: el directo sube esto (x) y se va pasando
+    subidon = { holo = 0.15, fullart = 0.4, secreta = 0.8, chase = 0.5, godpack = 1.0, baja = 0.012 },
+    -- si no abres sobres la gente se aburre: a partir de "desde" segundos
+    -- se va esta parte cada segundo (con un minimo de gente que se queda)
+    aburrimiento = { desde = 40, ritmo = 0.012, queda = 0.35 },
+    -- fuera de la mesa (tienda, armario) se va mas rapido
+    fuera = { ritmo = 0.02, queda = 0.2 },
+
+    -- seguidores nuevos por cada sobre abierto en directo
+    seguir = {
+        porSobre = 0.12,          -- aunque no te vea nadie, alguien te encuentra
+        porEspectador = 0.008,
+        -- cuantos mas tienes, mas cuesta conseguir nuevos: todo se divide
+        -- entre 1 + seguidores / esto
+        cansancio = 1500,
+        -- extra segun la mejor carta del sobre (se multiplica por 1 + espectadores * 0.02)
+        mejor = { holo = 0.8, fullart = 2.4, secreta = 6.5 },
+        chase = 4, godpack = 16,
+        -- con gente mirando tambien se sigue sin abrir (por espectador y minuto)
+        porMinuto = 0.0032,
+    },
+
+    -- propinas: cada espectador puede dar una al acabar un sobre (prob), y
+    -- al salir una carta buena (prob x lo de su rareza)
+    propinas = {
+        prob = 0.002,
+        rareza = { holo = 3, fullart = 8, secreta = 20 },
+        chase = 12, godpack = 40,
+        -- cuanto dan: {minimo, maximo, peso}
+        cantidades = { { 50, 150, 70 }, { 200, 500, 24 }, { 1000, 2000, 5 }, { 5000, 10000, 1 } },
+    },
+
+    chat = {
+        -- mensajes sueltos por espectador y segundo (con un maximo)
+        ritmo = 0.015, maxRitmo = 2.5,
+        -- parte de los mensajes que salen en el otro idioma
+        otroIdioma = 0.12,
+        -- mensajes por espectador al salir cada rareza (con muy poca gente
+        -- solo se reacciona a lo bueno)
+        reaccion = { comun = 0.05, infrecuente = 0.05, rara = 0.08, holo = 0.25, fullart = 0.5, secreta = 0.8 },
+        maxReaccion = 14,
+        -- con 3 o menos espectadores: probabilidad de un mensaje al acabar el sobre
+        finSobre = 0.35,
+        max = 40,
+    },
+
+    -- tipos de directo (de momento solo se puede hacer el de apertura)
+    tipos = {
+        { id = "apertura", nombre = "APERTURA" },
+        { id = "evaluacion", nombre = "EVALUACIÓN", proximamente = true },
+        { id = "coleccion", nombre = "COLECCIÓN", proximamente = true },
+    },
+
+    -- nombres del chat: trozo + trozo (+ numero a veces)
+    nombres = {
+        a = { "xX", "el", "la", "mr", "don", "lil", "big", "pro", "sir", "mini", "super", "the", "real", "not", "tito", "abuelo",
+              "doña", "mega", "ultra", "baby", "tia", "profe", "capi", "dr", "miss", "uncle", "its", "just", "yo_soy" },
+        b = { "Sobrero", "Pakito", "Holo", "Rizz", "Skibidi", "Sigma", "Aura", "Bicho", "Pack", "Carta", "Foil", "Chase",
+              "Bulk", "Gamer", "Kevin", "Lucia", "Mateo", "Nerea", "Iker", "Vega", "Pollito", "Mango", "Cheto", "Ripper",
+              "Toploader", "Funda", "Brainrot", "Goat", "Ipad", "Nugget", "Patata", "Croqueta", "Fideo", "Tigre", "Ninja",
+              "Pepe", "Manolo", "Jaime", "Sara", "Hugo", "Leo", "Alba", "Dani", "Pablo", "Marta", "Ruben", "Ainhoa", "Unai",
+              "Gato", "Pato", "Churro", "Tortilla", "Gamba", "Boqueron", "Tostada", "Pixel", "Turbo", "Cohete", "Rayo",
+              "Bruma", "Plasma", "Brasa", "Sobrecito", "Mazo", "Binder", "Slab", "Gema", "Dragon", "Lobo", "Zorro",
+              "Panda", "Koala", "Waffle", "Taco", "Noodle", "Cookie", "Lemon", "Shadow", "Storm", "Blaze", "Frost" },
+        c = { "TCG", "Hunter", "Lover", "Fan", "King", "Queen", "Master", "Kid", "Boss", "Main", "Rips", "Cards", "Lord", "",
+              "Pro", "YT", "Live", "Plays", "OG", "Prime", "Lol", "XD", "Max", "Jr", "Uwu", "Vibes", "Squad", "" },
+    },
+    colores = { "rojo", "naranja", "amarillo", "lima", "verde", "celeste", "cian", "violeta", "blanco", "grisclaro" },
+
+    -- las frases del chat estan en datos/chat.lua
+    textos = require "datos.chat",
+}
