@@ -292,7 +292,7 @@ function fx.dibujarDestello(ancho, alto)
     if destello.a < 0.01 then return end
     local c = destello.color
     love.graphics.setColor(c[1], c[2], c[3], destello.a)
-    love.graphics.rectangle("fill", 0, 0, ancho, alto)
+    love.graphics.rectangle("fill", -800, 0, ancho + 1600, alto)
     love.graphics.setColor(1, 1, 1)
 end
 

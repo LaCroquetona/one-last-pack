@@ -9,6 +9,8 @@ local lg = love.graphics
 local ui = { mx = 0, my = 0 }
 
 local zonas = {}
+-- lo que se ve de pantalla a lo ancho (mas que 0-640 en moviles alargados)
+ui.izq, ui.der = 0, 640
 local anims = {}
 local anterior
 local tip
@@ -176,7 +178,7 @@ function ui.dibujarModal(ancho, alto)
     if not m then return end
     m.t = m.t + love.timer.getDelta()
     lg.setColor(0, 0, 0, 0.7)
-    lg.rectangle("fill", 0, 0, ancho, alto)
+    lg.rectangle("fill", ui.izq, 0, ui.der - ui.izq, alto)
 
     local w, h = 360, 150
     local x, y = math.floor((ancho - w) / 2), math.floor((alto - h) / 2)
