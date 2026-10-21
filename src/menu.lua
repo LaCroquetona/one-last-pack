@@ -8,10 +8,11 @@ local fx = require "src.fx"
 local fuentes = require "src.fuentes"
 local ui = require "src.ui"
 local nav = require "src.nav"
+local tutorial = require "src.tutorial"
 
 local menu = {}
 
-local VERSION = "v0.8.0"
+local VERSION = "v0.8.1"
 local abanico = {}
 
 function menu.preparar()
@@ -48,6 +49,7 @@ function menu.dibujar()
     local y = 236
     if hay then
         ui.boton("continuar", "CONTINUAR", 250, y, 140, 20, p.verde)
+        ui.boton("tutorial", "VER TUTORIAL", 396, y, 80, 20, p.morado)
         y = y + 26
     end
     ui.boton("nueva", "PARTIDA NUEVA", 250, y, 140, 20, hay and p.azul or p.verde)
@@ -63,6 +65,10 @@ end
 function menu.click(id)
     if id == "continuar" then
         partida.cargar()
+        nav.empezar()
+    elseif id == "tutorial" then
+        partida.cargar()
+        tutorial.repetir()
         nav.empezar()
     elseif id == "nueva" then
         if partida.existe() then

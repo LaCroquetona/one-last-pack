@@ -60,6 +60,14 @@ function ui.zonaEn(x, y, prefijo)
     end
 end
 
+-- la ultima zona pintada cuyo id empieza por prefijo (para señalarla)
+function ui.rect(prefijo)
+    for i = #zonas, 1, -1 do
+        local z = zonas[i]
+        if z.id:sub(1, #prefijo) == prefijo then return z end
+    end
+end
+
 -- valor que va suave hacia el objetivo, uno por id
 function ui.anim(id, objetivo, velocidad)
     local v = anims[id] or 0

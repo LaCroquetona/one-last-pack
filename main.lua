@@ -12,6 +12,7 @@ local ui = require "src.ui"
 local nav = require "src.nav"
 local partida = require "src.partida"
 local dev = require "src.dev"
+local tutorial = require "src.tutorial"
 local apertura = require "src.apertura"
 local tienda = require "src.tienda"
 local armario = require "src.armario"
@@ -248,7 +249,9 @@ function love.mousepressed(x, y, boton)
     if escena == "movil" and movil.presionar(id, mx, my) then return end
     if id then sonido.tocar("click") end
 
-    if id and id:match("^dev_") then
+    if id and id:match("^tut_") then
+        tutorial.click(id)
+    elseif id and id:match("^dev_") then
         dev.click(id)
     elseif id == "ir_dev" then
         dev.abierto = not dev.abierto
@@ -461,6 +464,7 @@ function love.draw()
     if escena ~= "menu" then
         dibujarBarra()
         if escena ~= "movil" then movil.dibujarToast() end
+        tutorial.dibujar(escena)
         dev.dibujar()
     end
     fx.dibujarDestello(ANCHO, ALTO)

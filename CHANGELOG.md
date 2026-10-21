@@ -5,6 +5,34 @@ parte de una fase); el del medio solo cuando termino una fase entera y la doy
 por buena. Los arreglos de una versión que todavía estoy probando van en esa
 misma versión. El juego se queda por debajo de 1.0 hasta que esté completo.
 
+## v0.8.1 - 2026-10-21 - Móvil nuevo, tutorial, mejoras y directo
+
+- **Móvil rediseñado**: ahora parece un móvil y no una tablet (más estrecho y
+  alto, esquinas redondeadas, cámara en la pantalla, batería). Las apps van
+  en 3 columnas sin que nada las tape y solo queda un botón de PASAR DÍA, el
+  del panel de la izquierda.
+- **MERCADO por secciones**: al entrar en un set eliges SOBRES 1ª ED, CAJAS
+  1ª ED, SOBRES REIMPR., CAJAS REIMPR. o CARTAS DEL SET, y salen ya sus
+  precios y vendedores. Las de reimpresión solo aparecen cuando ese set ya
+  ha tenido una.
+- **App MEJORAS** (sustituye a SUERTE), con tres pestañas:
+  - SUERTE: las de siempre.
+  - VENTA: CUENTA PRO (comisión del 8% hasta el 3%), ESCAPARATE (hasta 6
+    anuncios más) y BUENA REPUTACIÓN (más ofertas de +20%).
+  - DIRECTO: CÁMARA HD (hasta x1,5 seguidores), MICRO DE ESTUDIO (hasta
+    x1,75 propinas) y ARO DE LUZ (peticiones del chat hasta x1,5).
+- **Tutorial** guiado en la partida nueva (14 pasos, con flecha a lo que hay
+  que tocar). Se puede saltar y repetir desde el menú (VER TUTORIAL). Las
+  partidas de antes no lo enseñan.
+- **Directo más llamativo**: el móvil del trípode parpadea en rojo y se puede
+  tocar para emitir, el botón late y brilla con un bocadillo, y si abres un
+  sobre sin directo te avisa (en tus 3 primeros directos). En la mesa vacía
+  sale el consejo de empezar un directo antes.
+- Arreglo: con 5 sets o más, la flecha > de la tienda quedaba tapada por el panel. Las pestañas se estrechan un poco cuando hay flechas.
+- Arreglo: al empezar una partida nueva con una caja de sobres a medias, la caja se quedaba en la mesa. Ahora se va con lo demás.
+- **Emojis nuevos**, todos propios: rana, cara de flipar, llorando de risa,
+  payaso, diamante, cohete, gráfica que sube y los textos L, OMG, POG y 100.
+
 ## v0.8.0 - 2026-10-21 - Pantalla de móvil, sets nuevos y dorso
 
 Fase 3 terminada: empieza la fase 4.
