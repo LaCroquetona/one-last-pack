@@ -68,6 +68,7 @@ function partida.nueva()
     partida.canal = { nombre = "MI_CANAL", idioma = "es", seguidores = 0, directos = 0, propinas = 0, record = 0 }
     partida.mejoras = {}
     partida.cajas, partida.cajas1 = {}, {}
+    partida.cajaAbierta = nil    -- caja empezada en la mesa (tipo, quedan, primera)
     partida.vendidos = nil      -- lo comprado hoy a los vendedores del movil
     partida.logros = {}         -- id del logro = dia en que se consiguio
     partida.encargos = {}        -- aceptados: { nombre, tipo, n, hechos, pago, dias, primera }
