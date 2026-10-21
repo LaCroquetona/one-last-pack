@@ -187,8 +187,14 @@ function mercado.ventaRapida(id, primera)
 end
 
 -- lo que te llega de una venta del movil despues de la comision
+-- la mejora CUENTA PRO la rebaja (la pone partida.aplicarSuerte)
+mercado.rebajaComision = 0
+function mercado.comision()
+    return datos.comision - mercado.rebajaComision
+end
+
 function mercado.trasComision(precio)
-    return math.max(1, math.floor(precio * (1 - datos.comision) + 0.5))
+    return math.max(1, math.floor(precio * (1 - mercado.comision()) + 0.5))
 end
 
 -- historial de precios de una edicion (nil: la normal si ya hay, si no la 1ª):

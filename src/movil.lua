@@ -23,9 +23,10 @@ local lg = love.graphics
 
 local movil = {}
 
-local TEL = { x = 196, y = 24, w = 248, h = 334 }
-local PANT = { x = 204, y = 33, w = 232, h = 316 }
-local BARRA = 10      -- barra de estado
+-- proporcion de movil (no de tablet): pantalla de 196x326
+local TEL = { x = 217, y = 22, w = 206, h = 336 }
+local PANT = { x = 222, y = 27, w = 196, h = 326 }
+local BARRA = 11      -- barra de estado
 local CABECERA = 14   -- titulo de cada app
 local INICIO = 10     -- barra de abajo para volver al inicio
 local CONT = { x = PANT.x, y = PANT.y + BARRA + CABECERA, w = PANT.w, h = PANT.h - BARRA - CABECERA - INICIO }
@@ -36,6 +37,8 @@ local fichaId, fichaPrimera
 local setVista
 local rango = 30
 local pestanaCartera = "top"
+local pestanaMejoras = "suerte"
+local seccionSet = "s1"
 local scroll, altoContenido = {}, {}
 local abriendo            -- animacion al abrir una app
 local avisos = {}         -- notificaciones que bajan por arriba
@@ -53,12 +56,12 @@ local APPS = {
     { id = "noticias",   nombre = "NOTICIAS",   color = p.rojo },
     { id = "calendario", nombre = "CALENDARIO", color = p.morado },
     { id = "encargos",   nombre = "ENCARGOS",   color = p.verdeosc },
-    { id = "suerte",     nombre = "SUERTE",     color = p.violeta },
+    { id = "mejoras",    nombre = "MEJORAS",    color = p.violeta },
     { id = "logros",     nombre = "LOGROS",     color = p.amarillo },
 }
 
 local TITULOS = { cartera = "CARTERA", mercado = "MERCADO", ventas = "VENTAS", noticias = "NOTICIAS",
-    calendario = "CALENDARIO", set = "MERCADO", ficha = "CARTA", encargos = "ENCARGOS", suerte = "MEJORAS DE SUERTE", logros = "LOGROS" }
+    calendario = "CALENDARIO", set = "MERCADO", ficha = "CARTA", encargos = "ENCARGOS", mejoras = "MEJORAS", logros = "LOGROS" }
 
 -- dibujos de los iconos, 9x9
 local ICONOS = {
@@ -66,7 +69,7 @@ local ICONOS = {
     mercado = { "#########", "#.#.#.#.#", "#########", ".#.....#.", ".#.###.#.", ".#.#.#.#.", ".#.#.#.#.", ".#######.", "........." },
     ventas  = { "....####.", "...#...#.", "..#..#.#.", ".#.....#.", "#......#.", ".#....#..", "..#..#...", "...##....", "........." },
     noticias = { "########.", "#......##", "#.####.##", "#......##", "#.##.#.##", "#......##", "#.####.##", "#########", "........." },
-    suerte = { ".##...##.", "####.####", "####.####", ".#######.", "...###...", ".#######.", "####.####", "####.####", ".##...##." },
+    mejoras = { "....#....", "...###...", "..#####..", ".#######.", "...###...", "...###...", "...###...", "...###...", "........." },
     encargos = { "...###...", "..#...#..", "#########", "#.......#", "#...#...#", "#..###..#", "#...#...#", "#########", "........." },
     logros = { "#.#####.#", "#.#####.#", ".#######.", "..#####..", "...###...", "....#....", "....#....", "..#####..", "........." },
     calendario = { ".#....#..", "#########", "#.......#", "#.#.#.#.#", "#.......#", "#.#.#.#.#", "#.......#", "#########", "........." },
@@ -173,33 +176,40 @@ function movil.preparar()
 end
 
 local function marco()
-    -- sombra, cuerpo, botones laterales y brillo del borde
+    -- sombra, botones laterales, canto metalico y cuerpo negro
     lg.setColor(0, 0, 0, 0.4)
-    lg.rectangle("fill", TEL.x + 4, TEL.y + 6, TEL.w, TEL.h, 16, 16)
-    lg.setColor(p.negro)
-    lg.rectangle("fill", TEL.x - 2, TEL.y - 2, TEL.w + 4, TEL.h + 4, 16, 16)
-    lg.rectangle("fill", TEL.x - 4, TEL.y + 60, 3, 22)
-    lg.rectangle("fill", TEL.x - 4, TEL.y + 88, 3, 22)
-    lg.rectangle("fill", TEL.x + TEL.w + 1, TEL.y + 74, 3, 30)
+    lg.rectangle("fill", TEL.x + 4, TEL.y + 6, TEL.w, TEL.h, 22, 22)
     lg.setColor(p.grisosc)
-    lg.rectangle("fill", TEL.x, TEL.y, TEL.w, TEL.h, 14, 14)
+    lg.rectangle("fill", TEL.x - 3, TEL.y + 64, 4, 20, 1, 1)
+    lg.rectangle("fill", TEL.x - 3, TEL.y + 90, 4, 20, 1, 1)
+    lg.rectangle("fill", TEL.x + TEL.w - 1, TEL.y + 78, 4, 34, 1, 1)
     lg.setColor(p.gris)
-    lg.rectangle("fill", TEL.x + 3, TEL.y + 14, 1, TEL.h - 28)
-    lg.rectangle("fill", TEL.x + 14, TEL.y + 2, TEL.w - 28, 1)
+    lg.rectangle("fill", TEL.x - 1, TEL.y - 1, TEL.w + 2, TEL.h + 2, 22, 22)
     lg.setColor(p.negro)
-    lg.rectangle("fill", PANT.x - 2, PANT.y - 2, PANT.w + 4, PANT.h + 4, 6, 6)
+    lg.rectangle("fill", TEL.x, TEL.y, TEL.w, TEL.h, 21, 21)
+    lg.setColor(1, 1, 1, 0.1)
+    lg.rectangle("fill", TEL.x + 22, TEL.y + 1, TEL.w - 44, 1)
     lg.setColor(1, 1, 1)
+end
+
+-- esquinas redondeadas de la pantalla: se tapan con el negro del marco
+local RADIO = 12
+local TAPA = {}
+for i = 0, RADIO - 1 do
+    local dy = RADIO - i - 0.5
+    TAPA[i + 1] = math.ceil(RADIO - math.sqrt(RADIO * RADIO - dy * dy) - 0.3)
 end
 
 local function esquinasPantalla()
     lg.setColor(p.negro)
-    for _, c in ipairs({ { PANT.x, PANT.y, 1, 1 }, { PANT.x + PANT.w - 3, PANT.y, -1, 1 },
-        { PANT.x, PANT.y + PANT.h - 3, 1, -1 }, { PANT.x + PANT.w - 3, PANT.y + PANT.h - 3, -1, -1 } }) do
-        local x, y = c[1], c[2]
-        lg.rectangle("fill", x, y, 3, 1)
-        lg.rectangle("fill", x, y, 1, 3)
-        lg.rectangle("fill", c[3] > 0 and x or x + 2, c[4] > 0 and y or y + 2, 1, 1)
-        lg.rectangle("fill", x + 1, y + 1, 1, 1)
+    local x2, y2 = PANT.x + PANT.w, PANT.y + PANT.h
+    for i, w in ipairs(TAPA) do
+        if w > 0 then
+            lg.rectangle("fill", PANT.x, PANT.y + i - 1, w, 1)
+            lg.rectangle("fill", x2 - w, PANT.y + i - 1, w, 1)
+            lg.rectangle("fill", PANT.x, y2 - i, w, 1)
+            lg.rectangle("fill", x2 - w, y2 - i, w, 1)
+        end
     end
     lg.setColor(1, 1, 1)
 end
@@ -208,13 +218,20 @@ local function barraEstado()
     local x, y = PANT.x, PANT.y
     lg.setColor(0, 0, 0, app == "inicio" and 0.25 or 1)
     lg.rectangle("fill", x, y, PANT.w, BARRA)
-    fuentes.texto("DÍA " .. mercado.dia(), x + 5, y + 3, 1, p.blanco)
-    -- isla de la camara
-    lg.setColor(p.negro)
-    lg.rectangle("fill", x + PANT.w / 2 - 16, y + 1, 32, 7, 3, 3)
+    fuentes.texto("DÍA " .. mercado.dia(), x + 12, y + 3, 1, p.blanco)
+    -- camara en la pantalla
     lg.setColor(p.grisosc)
-    lg.rectangle("fill", x + PANT.w / 2 + 9, y + 3, 3, 3)
-    fuentes.texto(ui.dinero(partida.dinero), x, y + 3, 1, p.amarillo, "right", PANT.w - 5)
+    lg.circle("fill", x + PANT.w / 2, y + 5, 3.5)
+    lg.setColor(p.negro)
+    lg.circle("fill", x + PANT.w / 2, y + 5, 2.5)
+    -- bateria y dinero
+    local bx = x + PANT.w - 22
+    lg.setColor(p.blanco)
+    lg.rectangle("line", bx + 0.5, y + 3.5, 9, 5)
+    lg.rectangle("fill", bx + 10, y + 5, 1, 2)
+    lg.setColor(p.lima)
+    lg.rectangle("fill", bx + 2, y + 5, 6, 2)
+    fuentes.texto(ui.dinero(partida.dinero), x, y + 3, 1, p.amarillo, "right", PANT.w - 26)
 end
 
 local function barraInicio()
@@ -223,7 +240,7 @@ local function barraInicio()
     lg.rectangle("fill", PANT.x, y, PANT.w, INICIO)
     local encima = ui.encima == "m_inicio"
     lg.setColor(encima and p.blanco or p.grisclaro)
-    lg.rectangle("fill", PANT.x + PANT.w / 2 - 22, y + 4, 44, 2)
+    lg.rectangle("fill", PANT.x + PANT.w / 2 - 22, y + 4, 44, 2, 1, 1)
     if app ~= "inicio" then ui.zona("m_inicio", PANT.x, y, PANT.w, INICIO) end
 end
 
@@ -316,9 +333,11 @@ local function filaCarta(id, x, y, w, idZona, primera, tenue)
     if def.chase then sub = sub .. "  CHASE" end
     fuentes.texto(sub, x + 15, y + 11, 1, p.gris)
     local _, h = mercado.historial(id, primera)
-    if h then grafica.mini(h, x + w - 100, y + 4, 36, 10) end
+    local precio = ui.dinero(mercado.valor(id, primera))
+    local gx = x + w - 4 - math.max(fuentes.ancho(precio), 28) - 40
+    if h and gx > x + 19 + math.max(fuentes.ancho(def.nombre), fuentes.ancho(sub)) then grafica.mini(h, gx, y + 4, 36, 10) end
     local cambio = mercado.cambio(id, 7, primera)
-    fuentes.texto(ui.dinero(mercado.valor(id, primera)), x, y + 3, 1, p.amarillo, "right", w - 4)
+    fuentes.texto(precio, x, y + 3, 1, p.amarillo, "right", w - 4)
     fuentes.texto(ui.porcentaje(cambio), x, y + 11, 1, ui.colorCambio(cambio), "right", w - 4)
     ui.zona(idZona, x, y, w, 18)
 end
@@ -329,9 +348,9 @@ local function posIcono(i)
     local col = (i - 1) % 3
     local fila = math.floor((i - 1) / 3)
     local enFila = math.min(3, #APPS - fila * 3)
-    local paso = 66
+    local paso = 60
     local x0 = PANT.x + PANT.w / 2 - (enFila - 1) * paso / 2
-    return x0 + col * paso, PANT.y + 92 + fila * 50
+    return x0 + col * paso, PANT.y + 88 + fila * 50
 end
 
 local function icono(a, cx, cy)
@@ -377,14 +396,14 @@ local function appInicio()
         if mercado.enTienda(tipo) then table.insert(enTienda, sets[tipo.set].codigo) end
     end
     local linea = #enTienda > 0 and ("EN LA TIENDA: " .. table.concat(enTienda, ", ")) or "LA TIENDA ESTÁ VACÍA"
-    fuentes.texto(linea, PANT.x, PANT.y + 50, 1, p.grisclaro, "center", PANT.w)
+    fuentes.texto(linea, PANT.x + 8, PANT.y + 48, 1, p.grisclaro, "center", PANT.w - 16)
 
     for i, a in ipairs(APPS) do
         icono(a, posIcono(i))
     end
 
     -- widget de la cartera
-    local y = PANT.y + 210
+    local y = PANT.y + 236
     ui.caja(PANT.x + 12, y, PANT.w - 24, 34, p.negro)
     fuentes.texto("TU COLECCIÓN", PANT.x + 18, y + 5, 1, p.grisclaro)
     local h = partida.cartera.h
@@ -392,8 +411,8 @@ local function appInicio()
     fuentes.texto(ui.dinero(valor), PANT.x + 18, y + 15, 2, p.amarillo)
     if #h >= 2 then grafica.mini(h, PANT.x + PANT.w - 70, y + 8, 50, 18, 30) end
     ui.zona("m_app_cartera", PANT.x + 12, y, PANT.w - 24, 34)
-
-    ui.boton("pasarDia", "PASAR DÍA", PANT.x + 30, PANT.y + PANT.h - 40, PANT.w - 60, 20, p.verde)
+    -- el dia solo se pasa con el boton de la izquierda
+    fuentes.texto("PASA EL DÍA EN EL PANEL DE LA IZQUIERDA", PANT.x + 10, y + 46, 1, p.grisclaro, "center", PANT.w - 20)
 end
 
 -- cartera
@@ -448,9 +467,11 @@ local function appCartera()
     local h = partida.cartera.h
     local k = math.max(1, #h - 7)
     local cambio = (h[k] and h[k] > 0) and (valor / h[k] - 1) or 0
-    fuentes.texto(ui.porcentaje(cambio) .. " EN 7 DÍAS", x, y + 12, 1, ui.colorCambio(cambio), "right", w)
+    fuentes.texto(ui.porcentaje(cambio) .. " EN 7 DÍAS", x, y + 10, 1, ui.colorCambio(cambio), "right", w)
+    y = y + 26
+    fuentes.texto("GRÁFICA", x, y + 3, 1, p.gris)
     botonesRango(x + w - 76, y)
-    y = y + 28
+    y = y + 14
     if #h >= 2 then
         grafica.dibujar({ x = x, y = y, w = w, h = 56, series = { { datos = h, color = p.lima, nombre = "" } },
             rango = rango, dia0 = partida.cartera.h0, formato = ui.dinero, id = "cartera" })
@@ -538,7 +559,7 @@ end
 local function filaOferta(o, x, y, w)
     local i = #ofertasVista + 1
     ofertasVista[i] = o
-    ui.caja(x, y, w, 22, p.grisosc)
+    ui.caja(x, y, w, 30, p.grisosc)
     local g = o.vendedor
     fuentes.texto(g.nombre, x + 4, y + 3, 1, p.blanco)
     local ex = x + 8 + fuentes.ancho(g.nombre)
@@ -549,15 +570,15 @@ local function filaOferta(o, x, y, w)
         end
     end
     fuentes.texto((string.format("%.1f", g.estrellas):gsub("%.", ",")), ex + 7, y + 3, 1, p.amarillo)
-    fuentes.texto(textoCosa(o.cosa) .. "  X" .. o.quedan .. "   " .. ui.numero(vendedores.ventas(g)) .. " VENTAS",
-        x + 4, y + 13, 1, p.grisclaro)
+    fuentes.texto(textoCosa(o.cosa) .. "  X" .. o.quedan, x + 4, y + 12, 1, p.grisclaro)
+    fuentes.texto(ui.numero(vendedores.ventas(g)) .. " VENTAS", x + 4, y + 21, 1, p.gris)
     local dif = o.precio / o.ref - 1
     local color = dif <= -0.05 and p.lima or (dif >= 0.08 and p.naranja or p.blanco)
-    fuentes.texto(ui.dinero(o.precio), x, y + 3, 1, color, "right", w - 56)
+    fuentes.texto(ui.dinero(o.precio), x, y + 3, 1, color, "right", w - 4)
     -- con cartas de centimos el porcentaje no dice nada
-    if o.ref >= 20 then fuentes.texto(ui.porcentaje(dif), x, y + 13, 1, color, "right", w - 56) end
-    ui.boton("m_of" .. i, "COMPRAR", x + w - 50, y + 5, 46, 12, p.verde, partida.dinero >= o.precio)
-    return y + 24
+    if o.ref >= 20 then fuentes.texto(ui.porcentaje(dif), x, y + 21, 1, color, "right", w - 54) end
+    ui.boton("m_of" .. i, "COMPRAR", x + w - 50, y + 13, 46, 13, p.verde, partida.dinero >= o.precio)
+    return y + 32
 end
 
 -- titulo, las ofertas y una linea que explica el porcentaje
@@ -573,6 +594,72 @@ local function listaOfertas(lista, x, y, w, titulo, vacia)
     return y + 14
 end
 
+-- lo que se puede mirar de un set; las de reimpresion solo si ya ha habido una
+local SECCIONES = {
+    { "s1", "SOBRES 1ª ED" }, { "c1", "CAJAS 1ª ED" },
+    { "sr", "SOBRES REIMPR." }, { "cr", "CAJAS REIMPR." },
+    { "cartas", "CARTAS DEL SET" },
+}
+
+local function seccionesDe(tipo)
+    local reimpr = mercado.sellado(tipo, false) ~= nil
+    local lista = {}
+    for _, sec in ipairs(SECCIONES) do
+        if reimpr or (sec[1] ~= "sr" and sec[1] ~= "cr") then table.insert(lista, sec) end
+    end
+    return lista
+end
+
+local function seccionSobres(tipo, primera, x, y, w)
+    local precio = mercado.sellado(tipo, primera)
+    local tengo = partida.sobres(tipo.id, primera)
+    fuentes.texto("UN SOBRE VALE", x, y, 1, p.grisclaro)
+    fuentes.texto("TIENES " .. tengo, x, y, 1, p.grisclaro, "right", w)
+    fuentes.texto(precio and ui.dinero(precio) or "-", x, y + 9, 2, primera and p.amarillo or p.blanco)
+    y = y + 24
+    local sufijo = primera and "1" or "r"
+    ui.boton("m_vender1" .. sufijo, "VENDER 1", x, y, 64, 13, p.naranja, tengo > 0 and precio ~= nil)
+    ui.boton("m_venderT" .. sufijo, "VENDER TODOS", x + 68, y, w - 68, 13, p.naranja, tengo > 0 and precio ~= nil)
+    y = y + 17
+    fuentes.texto("LA APP SE QUEDA UN " .. math.floor(mercado.comision() * 100 + 0.5) .. "%", x, y, 1, p.gris)
+    y = y + 10
+    if primera then
+        local tirada = ui.tirada(mercado.tirada(tipo.set))
+        local _, l = fuentes.envolver(tirada, w)
+        fuentes.texto(tirada, x, y, 1, p.grisclaro, "left", w)
+        y = y + #l * fuentes.linea() + 2
+    end
+    return listaOfertas(vendedores.deSobre(tipo, primera), x, y + 4, w, "SE VENDEN HOY", "NADIE VENDE SOBRES HOY")
+end
+
+local function seccionCajas(tipo, primera, x, y, w)
+    local tengo = partida.cajasDe(tipo.id, primera)
+    local valor = mercado.trasComision(mercado.valorCaja(tipo, primera))
+    fuentes.texto("VENDER UNA CAJA TE DA", x, y, 1, p.grisclaro)
+    fuentes.texto("TIENES " .. tengo, x, y, 1, p.grisclaro, "right", w)
+    fuentes.texto(ui.dinero(valor), x, y + 9, 2, primera and p.amarillo or p.blanco)
+    y = y + 24
+    ui.boton("m_vcaja" .. (primera and "1" or "r"), "VENDER UNA CAJA", x, y, w, 13, p.morado, tengo > 0)
+    y = y + 17
+    fuentes.texto("YA CON LA COMISIÓN DEL " .. math.floor(mercado.comision() * 100 + 0.5) .. "%", x, y, 1, p.gris)
+    return listaOfertas(vendedores.deCaja(tipo, primera), x, y + 14, w, "SE VENDEN HOY", "NADIE VENDE CAJAS HOY")
+end
+
+local function seccionCartas(s, x, y, w)
+    local lista = {}
+    for _, def in ipairs(mercado.cartasDe(s.id)) do table.insert(lista, def) end
+    table.sort(lista, function(a, b)
+        local va, vb = mercado.valorExacto(a.id), mercado.valorExacto(b.id)
+        if va ~= vb then return va > vb end
+        return a.id < b.id
+    end)
+    for _, def in ipairs(lista) do
+        filaCarta(def.id, x - 2, y, w + 4, "m_carta_" .. def.id .. "_0", false, partida.copias(def.id) == 0)
+        y = y + 19
+    end
+    return y
+end
+
 local function appSet()
     ofertasVista = {}
     local tipo = sobres[setVista]
@@ -584,73 +671,43 @@ local function appSet()
     chip(fase, x + w - fuentes.ancho(fase) - 6, y + 1, color)
     y = y + 16
 
-    local enTienda = mercado.enTienda(tipo)
-    if enTienda then
-        fuentes.texto("EN TIENDA HOY: " .. ui.dinero(tipo.precio) .. "  (QUEDAN " .. mercado.stock(tipo) .. ")", x, y, 1, p.verde)
+    if mercado.enTienda(tipo) then
+        fuentes.texto("EN TIENDA " .. ui.dinero(tipo.precio) .. "  QUEDAN " .. mercado.stock(tipo), x, y, 1, p.verde)
     else
-        fuentes.texto("NO HAY EN TIENDAS: SOLO DE REVENTA", x, y, 1, p.grisclaro)
+        fuentes.texto("NO HAY EN TIENDAS: SOLO REVENTA", x, y, 1, p.grisclaro)
     end
-    y = y + 10
+    y = y + 11
+    fuentes.texto("PRECIO SELLADO", x, y + 3, 1, p.grisclaro)
     botonesRango(x + w - 76, y)
     y = y + 13
     local h0, h1, hr = mercado.historialSellado(tipo)
     local series = { { datos = h1, color = p.amarillo, nombre = "1ª ED" } }
     if mercado.sellado(tipo, false) then table.insert(series, { datos = hr, color = p.blanco, nombre = "REIMPR." }) end
-    grafica.dibujar({ x = x, y = y, w = w, h = 50, series = series, rango = rango, dia0 = h0, formato = ui.dinero, id = "sellado" })
-    y = y + 56
+    grafica.dibujar({ x = x, y = y, w = w, h = 44, series = series, rango = rango, dia0 = h0, formato = ui.dinero, id = "sellado" })
+    y = y + 50
 
-    -- comprar y vender sobres cerrados
-    for _, primera in ipairs({ true, false }) do
-        local precio = mercado.sellado(tipo, primera)
-        if precio then
-            local nombre = primera and "1ª EDICIÓN" or "REIMPRESIÓN"
-            local tengo = partida.sobres(tipo.id, primera)
-            fuentes.texto(nombre .. "  " .. ui.dinero(precio), x, y + 3, 1, primera and p.amarillo or p.blanco)
-            fuentes.texto("TIENES " .. tengo, x, y + 3, 1, p.grisclaro, "right", w)
-            y = y + 12
-            local sufijo = primera and "1" or "r"
-            ui.boton("m_vender1" .. sufijo, "VENDER 1", x, y, 70, 12, p.naranja, tengo > 0)
-            ui.boton("m_venderT" .. sufijo, "VENDER TODOS", x + 74, y, w - 74, 12, p.naranja, tengo > 0)
-            y = y + 16
-        end
+    -- que mirar: sobres o cajas de cada edicion, o las cartas
+    local lista = seccionesDe(tipo)
+    local hay = false
+    for _, sec in ipairs(lista) do hay = hay or sec[1] == seccionSet end
+    if not hay then seccionSet = "s1" end
+    local bw = math.floor((w - 4) / 2)
+    for i, sec in ipairs(lista) do
+        local ancho = (i == #lista and i % 2 == 1) and w or bw
+        local bx = x + ((i - 1) % 2) * (bw + 4)
+        ui.boton("m_sec_" .. sec[1], sec[2], bx, y, ancho, 13, seccionSet == sec[1] and p.azul or p.grisosc)
+        if i % 2 == 0 or i == #lista then y = y + 16 end
     end
-    -- cajas cerradas: se venden aqui
-    for _, primera in ipairs({ true, false }) do
-        local tengo = partida.cajasDe(tipo.id, primera)
-        if tengo > 0 then
-            local valor = mercado.trasComision(mercado.valorCaja(tipo, primera))
-            fuentes.texto("CAJA " .. (primera and "1ª ED" or "REIMPR.") .. "  " .. ui.dinero(valor), x, y + 3, 1, primera and p.amarillo or p.blanco)
-            fuentes.texto("TIENES " .. tengo, x, y + 3, 1, p.grisclaro, "right", w)
-            y = y + 12
-            ui.boton("m_vcaja" .. (primera and "1" or "r"), "VENDER UNA CAJA", x, y, w, 12, p.morado)
-            y = y + 16
-        end
-    end
-    fuentes.texto("AL VENDER, LA APP SE QUEDA UN " .. math.floor(datosMercado.comision * 100 + 0.5) .. "%", x, y, 1, p.gris)
-    y = y + 10
-    fuentes.texto(ui.tirada(mercado.tirada(s.id)), x, y, 1, p.grisclaro)
-    y = y + 14
+    y = y + 4
+    lg.setColor(p.grisosc)
+    lg.rectangle("fill", x, y - 3, w, 1)
 
-    -- vendedores de segunda mano: sobres y cajas
-    local lista = {}
-    for _, primera in ipairs({ true, false }) do
-        for _, o in ipairs(vendedores.deSobre(tipo, primera)) do table.insert(lista, o) end
-        for _, o in ipairs(vendedores.deCaja(tipo, primera)) do table.insert(lista, o) end
-    end
-    y = listaOfertas(lista, x, y, w, "SE VENDEN HOY", "NADIE VENDE SOBRES NI CAJAS HOY")
-
-    fuentes.texto("CARTAS DEL SET", x, y, 1, p.grisclaro)
-    y = y + 10
-    lista = {}
-    for _, def in ipairs(mercado.cartasDe(s.id)) do table.insert(lista, def) end
-    table.sort(lista, function(a, b)
-        local va, vb = mercado.valorExacto(a.id), mercado.valorExacto(b.id)
-        if va ~= vb then return va > vb end
-        return a.id < b.id
-    end)
-    for _, def in ipairs(lista) do
-        filaCarta(def.id, x - 2, y, w + 4, "m_carta_" .. def.id .. "_0", false, partida.copias(def.id) == 0)
-        y = y + 19
+    if seccionSet == "cartas" then
+        y = seccionCartas(s, x, y, w)
+    elseif seccionSet:sub(1, 1) == "s" then
+        y = seccionSobres(tipo, seccionSet == "s1", x, y, w)
+    else
+        y = seccionCajas(tipo, seccionSet == "c1", x, y, w)
     end
     acabarLista(y)
 end
@@ -677,10 +734,10 @@ local function appFicha()
     fuentes.texto(ui.porcentaje(cambio) .. " EN 7 DÍAS", x, y + 2, 1, ui.colorCambio(cambio), "right", w)
     y = y + 16
     if normales then
-        ui.boton("m_ed0", "NORMAL", x, y, 50, 11, not primera and p.azul or p.grisosc)
-        ui.boton("m_ed1", "1ª EDICIÓN", x + 54, y, 60, 11, primera and p.amarillo or p.grisosc)
+        ui.boton("m_ed0", "NORMAL", x, y, 40, 11, not primera and p.azul or p.grisosc)
+        ui.boton("m_ed1", "1ª ED", x + 44, y, 40, 11, primera and p.amarillo or p.grisosc)
     else
-        fuentes.texto("AÚN TODAS SON DE 1ª EDICIÓN", x, y + 3, 1, p.gris)
+        fuentes.texto("TODAS DE 1ª ED", x, y + 3, 1, p.gris)
     end
     botonesRango(x + w - 76, y)
     y = y + 15
@@ -697,8 +754,9 @@ local function appFicha()
     grafica.dibujar({ x = x, y = y, w = w, h = 78, series = series, volumen = v, rango = rango, dia0 = h0,
         marcas = mercado.diasNoticia(def.id), formato = ui.dinero, id = "ficha" })
     y = y + 82
-    fuentes.texto("BARRAS: VENTAS DE CADA DÍA   LÍNEA AMARILLA: NOTICIA", x, y, 1, p.gris)
-    y = y + 12
+    fuentes.texto("BARRAS: VENTAS DE CADA DÍA", x, y, 1, p.gris)
+    fuentes.texto("LÍNEA AMARILLA: NOTICIA", x, y + 8, 1, p.gris)
+    y = y + 20
 
     local i0 = math.max(1, #h - 29)
     local max, min = 0, math.huge
@@ -725,11 +783,12 @@ local function appFicha()
     y = y + 12
 
     local sigue = partida.seguidas[def.id]
-    ui.boton("m_seguir", sigue and "SIGUIENDO" or "SEGUIR", x, y, 54, 13, sigue and p.verde or p.grisosc)
+    ui.boton("m_seguir", sigue and "SIGUIENDO" or "SEGUIR", x, y, math.floor((w - 8) / 3), 13, sigue and p.verde or p.grisosc)
     local libres = partida.libres(def.id, primera)
-    local lleno = #partida.anuncios >= datosMercado.anuncios.maximo
-    ui.boton("m_publicar", lleno and "VENTAS LLENO" or "PUBLICAR", x + 58, y, 62, 13, p.celeste, libres > 0 and not lleno)
-    ui.boton("m_armario", "EN ARMARIO", x + 124, y, w - 124, 13, p.azul, n > 0)
+    local lleno = #partida.anuncios >= partida.maxAnuncios()
+    local bw = math.floor((w - 8) / 3)
+    ui.boton("m_publicar", lleno and "LLENO" or "PUBLICAR", x + bw + 4, y, bw, 13, p.celeste, libres > 0 and not lleno)
+    ui.boton("m_armario", "ARMARIO", x + 2 * bw + 8, y, w - 2 * bw - 8, 13, p.azul, n > 0)
     y = y + 20
     ofertasVista = {}
     y = listaOfertas(vendedores.deCarta(def.id, primera), x, y, w,
@@ -742,16 +801,16 @@ end
 local function appVentas()
     local x, w = CONT.x + 4, CONT.w - 8
     local y = empezarLista() + 4
-    local max = datosMercado.anuncios.maximo
+    local max = partida.maxAnuncios()
     fuentes.texto("MIS ANUNCIOS " .. #partida.anuncios .. "/" .. max, x + 2, y, 1, p.grisclaro)
-    fuentes.texto("COMISIÓN " .. math.floor(datosMercado.comision * 100 + 0.5) .. "%", x, y, 1, p.gris, "right", w - 2)
+    fuentes.texto("COMISIÓN " .. math.floor(mercado.comision() * 100 + 0.5) .. "%", x, y, 1, p.gris, "right", w - 2)
     y = y + 11
 
     if #partida.anuncios == 0 then
         fuentes.texto("NO TIENES NADA PUBLICADO", x, y + 40, 1, p.grisclaro, "center", w)
         fuentes.texto("ELIGE UNA CARTA EN EL ARMARIO", x, y + 54, 1, p.gris, "center", w)
         fuentes.texto("O EN SU FICHA Y PULSA PUBLICAR", x, y + 62, 1, p.gris, "center", w)
-        ui.boton("ir_armario", "IR AL ARMARIO", x + 50, y + 80, w - 100, 14, p.azul)
+        ui.boton("ir_armario", "IR AL ARMARIO", x + 30, y + 80, w - 60, 14, p.azul)
         acabarLista(y + 100)
         return
     end
@@ -786,42 +845,64 @@ local function appVentas()
     acabarLista(y + 14)
 end
 
--- mejoras de suerte (datos/mejoras.lua)
+-- mejoras (datos/mejoras.lua): suerte, venta y directo
+
+local GRUPOS = {
+    { "suerte", "SUERTE", "PARA TODOS LOS SOBRES QUE ABRAS DESDE YA" },
+    { "venta", "VENTA", "PARA LO QUE VENDES POR EL MÓVIL" },
+    { "directo", "DIRECTO", "PARA TUS DIRECTOS EN LA MESA" },
+}
+
+local function decimal(v)
+    return (string.format("%.2f", v):gsub("0+$", ""):gsub("%.$", ""):gsub("%.", ","))
+end
 
 local function efectoMejora(m, v)
-    if m.formato == "veces" then return "X" .. (math.floor(v * 10 + 0.5) / 10) end
+    if m.formato == "veces" then return "X" .. decimal(v) end
+    if m.formato == "comision" then return math.floor((datosMercado.comision - v) * 100 + 0.5) .. "%" end
+    if m.formato == "huecos" then return tostring(datosMercado.anuncios.maximo + v) end
+    -- curva: probabilidad de que una oferta sea de un 20% o mas sobre el valor
+    if m.formato == "curva" then return math.floor((1 - 0.5 ^ (1 / v)) * 100 + 0.5) .. "%" end
     return math.floor(v * 100 + 0.5) .. "%"
 end
 
-local function appSuerte()
+local function appMejoras()
     local x, w = CONT.x + 4, CONT.w - 8
     local y = empezarLista() + 4
-    fuentes.texto("PARA TODOS LOS SOBRES QUE ABRAS DESDE YA", x, y, 1, p.grisclaro, "center", w)
+    local tw = math.floor((w + 2) / #GRUPOS)
+    local subtitulo
+    for i, g in ipairs(GRUPOS) do
+        ui.boton("m_mtab_" .. g[1], g[2], x + (i - 1) * tw, y, tw - 2, 13, pestanaMejoras == g[1] and p.violeta or p.grisosc)
+        if pestanaMejoras == g[1] then subtitulo = g[3] end
+    end
+    y = y + 18
+    fuentes.texto(subtitulo, x, y, 1, p.grisclaro, "center", w)
     y = y + 12
     for _, m in ipairs(datosMejoras) do
-        local n = partida.nivelMejora(m.id)
-        local _, lineas = fuentes.envolver(m.texto, w - 12)
-        local alto = 40 + #lineas * fuentes.linea()
-        lg.setColor(p.grisosc)
-        lg.rectangle("fill", x, y, w, alto - 2)
-        fuentes.texto(m.nombre, x + 5, y + 4, 1, p.blanco)
-        fuentes.texto(m.texto, x + 5, y + 13, 1, p.grisclaro, "left", w - 12)
-        local py = y + 15 + #lineas * fuentes.linea()
-        for k = 1, #m.valores do
-            lg.setColor(k <= n and p.lima or p.negro)
-            lg.rectangle("fill", x + 5 + (k - 1) * 10, py, 8, 5)
+        if m.grupo == pestanaMejoras then
+            local n = partida.nivelMejora(m.id)
+            local _, lineas = fuentes.envolver(m.texto, w - 12)
+            local alto = 40 + #lineas * fuentes.linea()
+            lg.setColor(p.grisosc)
+            lg.rectangle("fill", x, y, w, alto - 2)
+            fuentes.texto(m.nombre, x + 5, y + 4, 1, p.blanco)
+            fuentes.texto(m.texto, x + 5, y + 13, 1, p.grisclaro, "left", w - 12)
+            local py = y + 15 + #lineas * fuentes.linea()
+            for k = 1, #m.valores do
+                lg.setColor(k <= n and p.lima or p.negro)
+                lg.rectangle("fill", x + 5 + (k - 1) * 10, py, 8, 5)
+            end
+            local cad = "AHORA " .. efectoMejora(m, partida.efecto(m.id))
+            if m.valores[n + 1] then cad = cad .. " > " .. efectoMejora(m, m.valores[n + 1]) end
+            fuentes.texto(cad, x + 5, py + 9, 1, p.cian)
+            local coste = partida.costeMejora(m)
+            if coste then
+                ui.boton("m_mej_" .. m.id, ui.dinero(coste), x + w - 62, py + 2, 58, 14, p.verde, partida.dinero >= coste)
+            else
+                fuentes.texto("AL MÁXIMO", x + w - 62, py + 6, 1, p.amarillo, "center", 58)
+            end
+            y = y + alto + 2
         end
-        local ahora = m.valores[n] or (m.formato == "veces" and 1 or 0)
-        local cad = "AHORA " .. efectoMejora(m, ahora)
-        if m.valores[n + 1] then cad = cad .. " > " .. efectoMejora(m, m.valores[n + 1]) end
-        fuentes.texto(cad, x + 5, py + 9, 1, p.cian)
-        local coste = partida.costeMejora(m)
-        if coste then
-            ui.boton("m_mej_" .. m.id, ui.dinero(coste), x + w - 70, py + 2, 66, 14, p.verde, partida.dinero >= coste)
-        else
-            fuentes.texto("AL MÁXIMO", x + w - 70, py + 6, 1, p.amarillo, "center", 66)
-        end
-        y = y + alto + 2
     end
     acabarLista(y + 4)
 end
@@ -838,7 +919,7 @@ local function filaEncargo(e, x, y, w, oferta, i)
     lg.setColor(tipo.colores.rayas)
     lg.rectangle("fill", x + 4, y + 8, 8, 3)
     fuentes.texto(e.nombre:upper(), x + 16, y + 4, 1, p.blanco)
-    fuentes.texto("+" .. ui.dinero(e.pago), x, y + 3, 2, p.lima, "right", w - 4)
+    fuentes.texto("+" .. ui.dinero(e.pago), x, y + 4, 1, p.lima, "right", w - 4)
     local que = "ABRE " .. e.n .. (e.n == 1 and " SOBRE " or " SOBRES ") .. sets[tipo.set].codigo .. (e.primera and " DE 1ª ED" or "")
     fuentes.texto(que, x + 16, y + 13, 1, e.primera and p.amarillo or p.grisclaro)
     if oferta then
@@ -994,8 +1075,10 @@ local function appCalendario()
         lx = lx + fuentes.ancho(l[1]) + 14
     end
     y = y + 10
-    fuentes.texto("A RAYAS: AÚN NO SE SABE CUÁNDO CAMBIA", x, y, 1, p.gris)
-    y = y + 14
+    local rayas = "A RAYAS: AÚN NO SE SABE CUÁNDO CAMBIA"
+    local _, lr = fuentes.envolver(rayas, w)
+    fuentes.texto(rayas, x, y, 1, p.gris, "left", w)
+    y = y + #lr * fuentes.linea() + 6
 
     for _, s in ipairs(sets.lista) do
         if calendario.conocido(s.id, hoy) then
@@ -1004,11 +1087,11 @@ local function appCalendario()
             if fase == "anunciado" then
                 texto = "SALE EN " .. i.faltan .. (i.faltan == 1 and " DÍA" or " DÍAS")
             elseif fase == "impresion" or fase == "reimpresion" then
-                texto = (fase == "impresion" and "1ª EDICIÓN EN TIENDA" or "REIMPRESIÓN EN TIENDA")
-                if i.quedan < datosCalendario.ultimos then texto = texto .. ": ÚLTIMOS DÍAS" end
+                texto = (fase == "impresion" and "1ª ED EN TIENDA" or "REIMPR. EN TIENDA")
+                if i.quedan < datosCalendario.ultimos then texto = texto .. ": ÚLTIMOS" end
             else
-                texto = "AGOTADO DESDE EL DÍA " .. (hoy - i.e + 1)
-                if fase == "rumor" then texto = texto .. " (HAY RUMORES)" end
+                texto = "AGOTADO DESDE DÍA " .. (hoy - i.e + 1)
+                if fase == "rumor" then texto = texto .. " (RUMOR)" end
             end
             fuentes.texto(s.nombre:upper(), x, y, 1, p.blanco)
             fuentes.texto(texto, x + 44, y, 1, p.grisclaro)
@@ -1309,7 +1392,7 @@ end
 local DIBUJAR = {
     logros = appLogros,
     cartera = appCartera, mercado = appMercado, set = appSet, ficha = appFicha,
-    ventas = appVentas, noticias = appNoticias, calendario = appCalendario, encargos = appEncargos, suerte = appSuerte,
+    ventas = appVentas, noticias = appNoticias, calendario = appCalendario, encargos = appEncargos, mejoras = appMejoras,
 }
 
 function movil.dibujar()
@@ -1428,6 +1511,11 @@ function movil.click(id)
         partida.guardar()
     elseif id:match("^m_rango") then
         rango = tonumber(id:sub(8))
+    elseif id:match("^m_mtab_") then
+        pestanaMejoras = id:sub(8)
+        scroll.mejoras = 0
+    elseif id:match("^m_sec_") then
+        seccionSet = id:sub(7)
     elseif id:match("^m_tab_") then
         pestanaCartera = id:sub(7)
         scroll.cartera = 0
@@ -1438,6 +1526,7 @@ function movil.click(id)
         movil.abrirFicha(tonumber(id:sub(7)), false)
     elseif id:match("^m_set_") then
         setVista = id:sub(7)
+        seccionSet = "s1"
         scroll.set = 0
         ir("set")
     elseif id == "m_ed0" or id == "m_ed1" then
