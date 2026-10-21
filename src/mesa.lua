@@ -277,6 +277,9 @@ local function dibujarTapete()
             if love.system.getOS() ~= "Android" then
                 fuentes.texto("O PULSA ESPACIO", cx, cy + 16, 1, p.verde, "center", T.w)
             end
+            if directo.sugerir() then
+                fuentes.texto("CONSEJO: EMPIEZA UN DIRECTO ANTES >", cx, cy + 30, 1, p.naranja, "center", T.w)
+            end
         else
             fuentes.texto("NO TE QUEDAN SOBRES", cx, cy, 2, p.lima, "center", T.w)
             fuentes.texto("CÓMPRALOS EN LA TIENDA", cx, cy + 16, 1, p.verde, "center", T.w)

@@ -1,5 +1,6 @@
 -- Emojis de pixel que suben por el chat del directo cuando sale algo bueno
--- (o muy malo). Cada uno es un dibujo de 7x7; los de texto se escriben.
+-- (o muy malo). Cada uno es un dibujo pequeño (7x7 o 9x9); los de texto se escriben.
+-- Todos son nuestros: nada de emotes de otros (ni caras de streamers).
 local p = require "datos.paleta"
 local fuentes = require "src.fuentes"
 
@@ -7,7 +8,8 @@ local lg = love.graphics
 
 local emojis = {}
 
-local COLORES = { r = p.rojo, o = p.naranja, y = p.amarillo, w = p.blanco, k = p.negro, g = p.verde, l = p.lima, c = p.cian, v = p.violeta }
+local COLORES = { r = p.rojo, o = p.naranja, y = p.amarillo, w = p.blanco, k = p.negro, g = p.verde, l = p.lima, c = p.cian,
+    v = p.violeta, b = p.celeste, a = p.azul }
 
 local DIBUJOS = {
     corazon = { ".rr.rr.", "rwrrrrr", "rrrrrrr", "rrrrrrr", ".rrrrr.", "..rrr..", "...r..." },
@@ -17,15 +19,26 @@ local DIBUJOS = {
     estrella = { "...y...", "..yyy..", "yyyyyyy", ".yyyyy.", "..yyy..", ".yy.yy.", "y.....y" },
     moneda = { "..yyy..", ".yoooy.", "yoyyyoy", "yoyoyoy", "yoyyyoy", ".yoooy.", "..yyy.." },
     corona = { "y..y..y", "yy.y.yy", "yyyyyyy", "yrycyry", "yyyyyyy", ".......", "......." },
+    -- la rana del canal
+    rana = { ".ggg.ggg.", "gwkwgwkwg", "gwwwgwwwg", "ggggggggg", "grgggggrg", "ggkkkkkgg", ".ggggggg.", "..lllll.." },
+    -- cara de flipar con la boca abierta
+    flipa = { "..yyyyy..", ".yyyyyyy.", "yykyyykyy", "yykyyykyy", "yyyyyyyyy", "yyykkkyyy", "yyykrkyyy", ".yykkkyy.", "..yyyyy.." },
+    -- llorando de risa
+    risa = { "..yyyyy..", ".yyyyyyy.", "ykkyyykky", "byyyyyyyb", "byyyyyyyb", "bkkkkkkkb", "ykwwwwwky", ".ykkkkky.", "..yyyyy.." },
+    payaso = { ".rr...rr.", "rrwwwwwrr", "rwkwwwkwr", ".wwwwwww.", ".wwwrwww.", ".wrwwwrw.", ".wwrrrww.", "..wwwww.." },
+    diamante = { ".bcccb.", "bcwccwb", "bcccccb", ".bcccb.", "..bcb..", "...b...", "......." },
+    cohete = { ".....ww", "....wcw", "...www.", ".awww..", ".www...", "oow....", "yo....." },
+    stonks = { "k......", "k.....l", "k....l.", "k.l.l..", "kl.l...", "k......", "kkkkkkk" },
 }
-local TEXTOS = { ["67"] = p.lima, W = p.cian, GG = p.amarillo }
+local TEXTOS = { ["67"] = p.lima, W = p.cian, GG = p.amarillo, L = p.rojo, OMG = p.violeta, POG = p.lima, ["100"] = p.rojo }
 
 local imagenes = {}
 local function imagen(k)
     if imagenes[k] then return imagenes[k] end
-    local d = love.image.newImageData(7, 7)
-    for y, fila in ipairs(DIBUJOS[k]) do
-        for x = 1, 7 do
+    local dibujo = DIBUJOS[k]
+    local d = love.image.newImageData(#dibujo[1], #dibujo)
+    for y, fila in ipairs(dibujo) do
+        for x = 1, #fila do
             local col = COLORES[fila:sub(x, x)]
             if col then d:setPixel(x - 1, y - 1, col[1], col[2], col[3], 1) end
         end

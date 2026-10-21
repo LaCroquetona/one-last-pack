@@ -88,6 +88,7 @@ end
 function apertura.empezar(tipo, primera, desde)
     tipoActual, primeraActual = tipo, primera
     entrada = desde
+    if not directo.activo() then directo.avisarSinDirecto() end
     local defs
     defs, godpack = generador.sobre(tipo)
     mano = {}

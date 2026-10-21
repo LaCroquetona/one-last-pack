@@ -5,6 +5,8 @@ return {
     -- espectadores segun tus seguidores: base + raiz(seguidores) * raiz + seguidores * lineal
     -- (0 seguidores: 0-1; 30: unos 5; 400: unos 26; 2.000: unos 80)
     espectadores = { base = 0.5, raiz = 0.9, lineal = 0.02, ruido = 0.25 },
+    -- hasta cuantos directos hechos se avisa de que abres sobres sin directo
+    avisarHasta = 3,
     -- lo que tarda la gente en llegar al empezar y en moverse (por segundo)
     llegada = 0.08,
     -- una carta buena trae mirones: el directo sube esto (x) y se va pasando

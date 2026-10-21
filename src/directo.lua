@@ -77,7 +77,7 @@ end
 -- chat
 
 local function poner(msg)
-    if msg.propina and love.math.random() < 0.5 then emojis.lanzar({ "moneda" }, 1, 0) end
+    if msg.propina and love.math.random() < 0.5 then emojis.lanzar({ "moneda", "moneda", "stonks" }, 1, 0) end
     table.insert(chat, msg)
     while #chat > datos.chat.max do table.remove(chat, 1) end
 end
@@ -168,7 +168,7 @@ end
 
 -- cuantas propinas caen con estos espectadores y este multiplicador
 local function tirarPropinas(espectadores, mult)
-    local prob = math.min(0.6, datos.propinas.prob * mult)
+    local prob = math.min(0.6, datos.propinas.prob * mult * partida.efecto("micro"))
     local lista = {}
     for _ = 1, math.floor(espectadores + 0.5) do
         if love.math.random() < prob then table.insert(lista, cantidadPropina(espectadores)) end
@@ -185,6 +185,7 @@ end
 
 local function ganarSeguidores(n)
     if not d then return end
+    n = n * partida.efecto("camara")
     d.acumulado = d.acumulado + n
     local enteros = math.floor(d.acumulado)
     if enteros <= 0 then return end
@@ -219,6 +220,7 @@ function directo.simularSobre(espectadores, defs, godpack)
     local mejor, chase = mejorDe(defs, godpack)
     local extra = (S.mejor[mejor.rareza] or 0) + (chase and S.chase or 0) + (godpack and S.godpack or 0)
     local seguidores = (S.porSobre + espectadores * S.porEspectador + extra * (1 + espectadores * 0.02)) / cansancio()
+        * partida.efecto("camara")
     local total = 0
     for _, v in ipairs(tirarPropinas(espectadores, 1)) do total = total + v end
     for _, def in ipairs(defs) do
@@ -311,7 +313,7 @@ function directo.rasgar(godpack)
     if godpack then
         d.subidon = d.subidon + datos.subidon.godpack
         rafaga("godpack", math.min(datos.chat.maxReaccion, 2 + cuantos(d.esp * 0.5)), 2)
-        if d.esp >= 1 then emojis.lanzar({ "fuego", "estrella", "corona", "67", "GG" }, 4 + math.floor(d.esp * 0.2), 2.5) end
+        if d.esp >= 1 then emojis.lanzar({ "fuego", "estrella", "corona", "67", "GG", "flipa", "cohete", "OMG", "POG" }, 4 + math.floor(d.esp * 0.2), 2.5) end
     end
 end
 
@@ -322,7 +324,7 @@ function directo.caja()
     d.subidon = d.subidon + 0.3
     if d.esp >= 1 then
         rafaga("caja", math.min(datos.chat.maxReaccion, 1 + cuantos(d.esp * 0.25)), 2)
-        emojis.lanzar({ "fuego", "W", "ojos" }, 2 + math.floor(d.esp * 0.1), 2)
+        emojis.lanzar({ "fuego", "W", "ojos", "flipa", "rana" }, 2 + math.floor(d.esp * 0.1), 2)
     end
 end
 
@@ -346,11 +348,12 @@ function directo.carta(def, nueva)
     if n > 0 then rafaga(def.rareza, n, r.nivel >= 5 and 2.5 or 1.2) end
     -- emojis: de rara para arriba, mas cuanta mas gente y mejor la carta
     if r.nivel >= 3 and d.esp >= 1 then
-        local tipos = ({ { "corazon", "fuego" }, { "fuego", "corazon", "ojos" }, { "fuego", "estrella", "67" },
-                         { "estrella", "fuego", "67", "W", "corona" } })[r.nivel - 2]
+        local tipos = ({ { "corazon", "fuego", "rana" }, { "fuego", "corazon", "ojos", "flipa", "diamante" },
+                         { "fuego", "estrella", "67", "POG", "flipa", "cohete" },
+                         { "estrella", "fuego", "67", "W", "corona", "OMG", "flipa", "diamante" } })[r.nivel - 2]
         emojis.lanzar(tipos, 1 + math.floor(d.esp * 0.05 * (r.nivel - 2)), r.nivel >= 5 and 2 or 1)
     end
-    if def.chase and d.esp >= 1 then emojis.lanzar({ "corona", "estrella" }, 3, 1.5) end
+    if def.chase and d.esp >= 1 then emojis.lanzar({ "corona", "estrella", "diamante", "100" }, 3, 1.5) end
     if def.chase and d.esp >= 1 then rafaga("chase", math.min(C.maxReaccion, 1 + cuantos(d.esp * 0.3)), 2) end
     if nueva and d.esp >= 6 and love.math.random() < 0.3 then decir("nueva", 0.8) end
     -- las buenas traen mirones y propinas al momento
@@ -375,7 +378,7 @@ local function nuevaPeticion()
     if #todos == 0 then return end
     local lista = (#tuyos > 0 and love.math.random() < C.tuyos) and tuyos or todos
     local t = lista[love.math.random(#lista)]
-    local pago = t.precio * (C.pago[1] + love.math.random() * (C.pago[2] - C.pago[1])) * (1 + d.esp * C.porEspectador2)
+    local pago = t.precio * (C.pago[1] + love.math.random() * (C.pago[2] - C.pago[1])) * (1 + d.esp * C.porEspectador2) * partida.efecto("aro")
     local idioma = partida.canal.idioma
     local texto = azar(datosEncargos.textos[idioma]):gsub("{s}", sets[t.set].codigo)
     d.peticion = { tipo = t.id, codigo = sets[t.set].codigo, pago = math.floor(pago / 10 + 0.5) * 10, t = C.segundos,
@@ -411,7 +414,7 @@ function directo.finSobre(defs, godpack, tipoId)
     d.quieto = 0
     local S = datos.seguir
     local mejor, chase = mejorDe(defs, godpack)
-    if rarezas[mejor.rareza].nivel <= 2 and d.esp >= 4 and love.math.random() < 0.5 then emojis.lanzar({ "calavera" }, 2, 1) end
+    if rarezas[mejor.rareza].nivel <= 2 and d.esp >= 4 and love.math.random() < 0.5 then emojis.lanzar({ "calavera", "payaso", "L", "risa" }, 2, 1) end
     local extra = (S.mejor[mejor.rareza] or 0) + (chase and S.chase or 0) + (godpack and S.godpack or 0)
     ganarSeguidores((S.porSobre + d.esp * S.porEspectador + extra * (1 + d.esp * 0.02)) / cansancio())
     cobrarPropinas(tirarPropinas(d.esp, 1), 0.5)
@@ -576,8 +579,60 @@ local function dibujarTripode(cx, y0)
         fuentes.texto(tostring(directo.espectadores()), x + 2, y + 22, 2, p.blanco, "center", w - 4)
         fuentes.texto("VIENDO", x + 2, y + 36, 1, p.grisclaro, "center", w - 4)
     else
-        fuentes.texto("OFF", x + 2, y + 26, 1, p.gris, "center", w - 4)
+        -- apagado: llama la atencion para que se vea que se puede emitir
+        local t = love.timer.getTime()
+        if math.floor(t * 2) % 2 == 0 then
+            lg.setColor(p.rojo)
+            lg.circle("fill", cx, y + 20, 6)
+            lg.setColor(p.blanco)
+            lg.circle("fill", cx, y + 20, 2)
+        end
+        fuentes.texto("LIVE", x + 2, y + 32, 1, p.blanco, "center", w - 4)
+        fuentes.texto("TOCA", x + 2, y + 41, 1, p.gris, "center", w - 4)
+        if not editando then ui.zona("dir_empezar", x, y, w, h) end
     end
+end
+
+-- aviso de que se esta abriendo un sobre sin directo (unos segundos)
+local avisoSinDirecto = 0
+-- a quien aun no ha hecho casi directos se le recuerda que existen
+function directo.sugerir()
+    return not d and partida.canal.directos < datos.avisarHasta
+end
+
+function directo.avisarSinDirecto()
+    if directo.sugerir() then avisoSinDirecto = 2.5 end
+end
+
+-- boton de empezar: late, brilla y tiene un bocadillo encima
+local function botonEmpezar(x, by, w)
+    local t = love.timer.getTime()
+    local dt = love.timer.getDelta()
+    avisoSinDirecto = math.max(0, avisoSinDirecto - dt)
+    local aviso = avisoSinDirecto > 0
+    local pulso = 0.75 + math.sin(t * 5) * 0.25
+    local temblor = aviso and math.floor(math.sin(t * 40) * 2 + 0.5) or 0
+    fx.aura(x + w / 2, by + 11, p.rojo, 70, (aviso and 0.5 or 0.28) * pulso)
+    ui.boton("dir_empezar", "EMPEZAR DIRECTO", x + temblor, by, w, 22,
+        { p.rojo[1] * (0.8 + pulso * 0.3), p.rojo[2] * pulso, p.rojo[3] * pulso }, not editando)
+    if math.floor(t * 2) % 2 == 0 then
+        lg.setColor(p.blanco)
+        lg.circle("fill", x + temblor + 10, by + 10, 3)
+    end
+    if editando then return end
+    -- bocadillo que bota
+    local texto = aviso and "¡ESTÁS SIN DIRECTO!" or "¡GANA PROPINAS!"
+    local bw = fuentes.ancho(texto) + 10
+    local bx = math.floor(x + (w - bw) / 2)
+    local bot = math.floor(math.abs(math.sin(t * 4)) * 3)
+    local yb = by - 17 - bot
+    local fondo = aviso and p.rojo or p.amarillo
+    lg.setColor(p.negro)
+    lg.rectangle("fill", bx - 1, yb - 1, bw + 2, 13)
+    lg.setColor(fondo)
+    lg.rectangle("fill", bx, yb, bw, 11)
+    lg.polygon("fill", x + w / 2 - 4, yb + 11, x + w / 2 + 4, yb + 11, x + w / 2, yb + 15)
+    fuentes.texto(texto, bx, yb + 3, 1, aviso and p.blanco or p.negro, "center", bw)
 end
 
 -- texto partido en lineas que caben en w
@@ -715,9 +770,7 @@ local function dibujarPanel(x, y, w, h)
         end
     end
 
-    local by = y + h - 24
-    local pulso = 0.8 + math.sin(love.timer.getTime() * 3) * 0.2
-    ui.boton("dir_empezar", "EMPEZAR DIRECTO", x + 6, by, w - 12, 18, { p.rojo[1] * pulso, p.rojo[2] * pulso, p.rojo[3] * pulso }, not editando)
+    botonEmpezar(x + 6, y + h - 28, w - 12)
 end
 
 -- la columna del directo (x, y, w, h: todo su hueco)
