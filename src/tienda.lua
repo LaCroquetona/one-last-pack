@@ -82,7 +82,9 @@ local POR_FILA = 4
 
 local function selector()
     local lista = conocidos()
-    local w = 66
+    -- con flechas las pestañas se estrechan para que nada quede bajo el panel
+    local flechas = #lista > POR_FILA
+    local w = flechas and 58 or 66
     local pos = 1
     for i, s in ipairs(lista) do
         if s == tipo then pos = i end
@@ -90,7 +92,7 @@ local function selector()
     local desde = math.floor((pos - 1) / POR_FILA) * POR_FILA + 1
     local hasta = math.min(#lista, desde + POR_FILA - 1)
     local n = hasta - desde + 1
-    local x0 = 160 - (n * w + (n - 1) * 4) / 2
+    local x0 = (flechas and 150 or 160) - (n * w + (n - 1) * 4) / 2
     for i = desde, hasta do
         local s = lista[i]
         local activo = s == tipo
@@ -98,7 +100,7 @@ local function selector()
         local texto = sets[s.set].codigo .. "  " .. (salido and ui.dinero(s.precio) or ("DÍA " .. calendario.plan[s.set][1].desde))
         ui.boton("tipo_" .. s.id, texto, x0 + (i - desde) * (w + 4), 50, w, 16, activo and s.colores.rayas or p.grisosc)
     end
-    if #lista > POR_FILA then
+    if flechas then
         local ant, sig = lista[math.max(1, desde - 1)], lista[math.min(#lista, hasta + 1)]
         ui.boton("tipo_" .. ant.id, "<", x0 - 20, 50, 16, 16, p.gris, desde > 1)
         ui.boton("tipo_" .. sig.id, ">", x0 + n * (w + 4), 50, 16, 16, p.gris, hasta < #lista)

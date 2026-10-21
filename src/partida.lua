@@ -72,6 +72,7 @@ function partida.nueva()
     partida.logros = {}         -- id del logro = dia en que se consiguio
     partida.encargos = {}        -- aceptados: { nombre, tipo, n, hechos, pago, dias, primera }
     partida.ofertasEncargo = {}  -- sin aceptar: lo mismo + espera
+    partida.tutorial = 1         -- paso del tutorial (false: hecho o saltado)
     for tipo, n in pairs(sobres.inicio.sobres) do
         partida.guardados[tipo] = n
         partida.guardados1[tipo] = n
@@ -671,7 +672,7 @@ function partida.guardarDeMesa(u)
     return false
 end
 
--- mejoras de suerte (datos/mejoras.lua)
+-- mejoras del movil (datos/mejoras.lua): suerte, venta y directo
 
 function partida.nivelMejora(id)
     return partida.mejoras[id] or 0
@@ -683,13 +684,22 @@ function partida.costeMejora(m)
     return math.floor(m.coste * m.multiplica ^ n / 10 + 0.5) * 10
 end
 
+local mejoraPorId = {}
+for _, m in ipairs(datosMejoras) do mejoraPorId[m.id] = m end
+
+-- lo que da ahora una mejora (o lo que hay sin ella)
+function partida.efecto(id)
+    local m = mejoraPorId[id]
+    return m.valores[partida.nivelMejora(id)] or m.nada
+end
+
+function partida.maxAnuncios()
+    return datosMercado.anuncios.maximo + partida.efecto("anuncios")
+end
+
 function partida.aplicarSuerte()
-    local s = { segunda = 0, extra = 0, godpack = 1 }
-    for _, m in ipairs(datosMejoras) do
-        local n = partida.nivelMejora(m.id)
-        if n > 0 then s[m.id] = m.valores[n] end
-    end
-    generador.suerte = s
+    generador.suerte = { segunda = partida.efecto("segunda"), extra = partida.efecto("extra"), godpack = partida.efecto("godpack") }
+    mercado.rebajaComision = partida.efecto("comision")
 end
 
 function partida.comprarMejora(m)
@@ -790,7 +800,7 @@ end
 -- anuncios del movil
 
 function partida.huecosAnuncios()
-    return datosMercado.anuncios.maximo - #partida.anuncios
+    return partida.maxAnuncios() - #partida.anuncios
 end
 
 -- publica una copia concreta
@@ -837,7 +847,7 @@ local function nuevaOferta(a)
     local nombre = libres[love.math.random(#libres)]
     a.vistos[nombre] = true
     -- casi todas cerca del valor; las muy altas salen poco (curva)
-    local f = d.rango[1] + love.math.random() ^ (d.curva or 1) * (d.rango[2] - d.rango[1])
+    local f = d.rango[1] + love.math.random() ^ partida.efecto("regateo") * (d.rango[2] - d.rango[1])
     table.insert(a.ofertas, {
         nombre = nombre,
         precio = math.max(1, math.floor(valorAnuncio(a) * f + 0.5)),
@@ -1024,7 +1034,7 @@ function partida.guardar()
 end
 
 local CAMPOS = { "dinero", "abiertos", "inv", "uid", "guardados", "guardados1", "anuncios",
-    "orden", "mesa", "seguidas", "opciones", "fundasLibres", "cartera", "premios", "canal", "mejoras", "encargos", "ofertasEncargo", "cajas", "cajas1", "cajaAbierta", "topsLibres", "apartados", "vendidos", "logros" }
+    "orden", "mesa", "seguidas", "opciones", "fundasLibres", "cartera", "premios", "canal", "mejoras", "encargos", "ofertasEncargo", "cajas", "cajas1", "cajaAbierta", "topsLibres", "apartados", "vendidos", "logros", "tutorial" }
 
 function partida.guardarYa()
     pendiente = false
@@ -1154,6 +1164,8 @@ function partida.cargar()
         for _, s in ipairs(sets.lista) do partida.revisarPremios(s.id, false) end
     end
     partida.encargosHechos, partida.encargosCaducados = {}, {}
+    -- partidas de antes del tutorial: ya saben jugar
+    if datos.tutorial == nil then partida.tutorial = false end
     -- partidas de antes de elegir rarezas: holo o mejor con funda, full art o mejor con top
     if partida.opciones.fundaDesde == nil then
         partida.opciones.fundaDesde = partida.opciones.autoFundas == false and 0 or 4
