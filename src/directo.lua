@@ -244,7 +244,8 @@ end
 function directo.empezar()
     if d then return end
     d = { t = 0, esp = 0, pico = 0, objetivo = base(partida.canal.seguidores), ruido = 0, subidon = 1,
-          quieto = 0, sobres = 0, propinas = 0, seguidores = 0, acumulado = 0, tipo = tipoElegido, sueltos = 0 }
+          quieto = 0, sobres = 0, propinas = 0, seguidores = 0, acumulado = 0, tipo = tipoElegido, sueltos = 0,
+          pedidos = {}, ventas = 0, ingresos = 0 }
     chat, cola = {}, {}
     emojis.limpiar()
     sonido.tocar("nueva")
@@ -269,6 +270,7 @@ local function dibujarResumen(ancho, alto)
         { "SEGUIDORES NUEVOS", "+" .. r.seguidores .. "  (" .. ui.numero(partida.canal.seguidores) .. ")", p.lima },
         { "PROPINAS", ui.dinero(r.propinas), p.amarillo },
     }
+    if r.venta then table.insert(filas, { "SOBRES VENDIDOS " .. r.ventas, ui.dinero(r.ingresos), p.lima }) end
     for i, f in ipairs(filas) do
         local fy = y + 16 + i * 14
         fuentes.texto(f[1], x + 14, fy, 1, p.grisclaro)
@@ -295,7 +297,8 @@ function directo.terminar(silencioso)
     local c = partida.canal
     c.directos = c.directos + 1
     c.record = math.max(c.record, d.pico)
-    directo.resumenUltimo = { t = d.t, sobres = d.sobres, pico = d.pico, seguidores = d.seguidores, propinas = d.propinas }
+    directo.resumenUltimo = { t = d.t, sobres = d.sobres, pico = d.pico, seguidores = d.seguidores, propinas = d.propinas,
+                              venta = d.tipo == "venta", ventas = d.ventas, ingresos = d.ingresos }
     d = nil
     chat = {}
     partida.guardar()
@@ -403,6 +406,81 @@ function directo.peticion()
     return d and d.peticion
 end
 
+-- venta de sobres: el chat compra sobres que tienes y tu los abres
+
+local V = datos.venta
+
+-- precio de mercado de un sobre de esa edicion
+local function precioSobre(t, primera)
+    return mercado.sellado(t, primera) or mercado.sellado(t, not primera) or t.precio
+end
+
+-- la edicion que sale al sacar un sobre (primero las normales, como la mesa)
+local function edicionQueSale(t)
+    return partida.sobres(t.id, false) <= 0
+end
+
+local function sobresEnVenta()
+    local lista = {}
+    for _, t in ipairs(sobres.lista) do
+        if partida.disponibles(t.id) > 0 then table.insert(lista, t) end
+    end
+    return lista
+end
+
+local function nuevoPedido()
+    local lista = sobresEnVenta()
+    if #lista == 0 then return end
+    local t = lista[love.math.random(#lista)]
+    local margen = V.margen[1] + love.math.random() * (V.margen[2] - V.margen[1])
+        + math.min(V.margenMax, d.esp * V.margenPorEspectador)
+    margen = 1 + (margen - 1) * partida.efecto("aro")
+    local idioma = partida.canal.idioma
+    local texto = azar(V.textos[idioma].compra):gsub("{s}", sets[t.set].codigo)
+    local pe = { tipo = t.id, codigo = sets[t.set].codigo, margen = margen, t = V.segundos,
+                 nombre = nombreAlAzar(), color = colorAlAzar() }
+    table.insert(d.pedidos, pe)
+    table.insert(cola, { t = 0, nombre = pe.nombre, color = pe.color, texto = texto })
+    sonido.tocar("nueva", 1.4)
+end
+
+-- precio que pagaria ahora un pedido
+function directo.precioPedido(pe, primera)
+    local t
+    for _, s in ipairs(sobres.lista) do if s.id == pe.tipo then t = s end end
+    if primera == nil then primera = edicionQueSale(t) end
+    return math.floor(precioSobre(t, primera) * pe.margen / 10 + 0.5) * 10
+end
+
+function directo.pedidos()
+    return d and d.pedidos or {}
+end
+
+-- la mesa empieza a abrir un sobre: si alguien lo ha comprado, cobras y las
+-- cartas son suyas (devuelve el pedido o nil)
+function directo.reservar(tipo, primera)
+    if not d or d.tipo ~= "venta" then return nil end
+    for i, pe in ipairs(d.pedidos) do
+        if pe.tipo == tipo.id then
+            table.remove(d.pedidos, i)
+            local precio = directo.precioPedido(pe, primera)
+            partida.dinero = partida.dinero + precio
+            partida.canal.ventas = (partida.canal.ventas or 0) + 1
+            d.ventas, d.ingresos = d.ventas + 1, d.ingresos + precio
+            d.comprador = pe
+            poner({ sistema = true, texto = "VENDIDO A " .. pe.nombre:upper() .. ": +" .. ui.dinero(precio), color = p.lima, nace = d.t })
+            sonido.tocar("moneda", 1.1)
+            fx.monedas(570, 200, 10, 120, 200)
+            partida.guardar()
+            return pe
+        end
+    end
+end
+
+function directo.forzarPedido()
+    if d then nuevoPedido() end
+end
+
 function directo.forzarPeticion()
     if d then nuevaPeticion() end
 end
@@ -411,10 +489,23 @@ function directo.finSobre(defs, godpack, tipoId)
     if not d then return end
     if tipoId then revisarPeticion(tipoId) end
     d.sobres = d.sobres + 1
+    -- el comprador reacciona a lo que le ha tocado
+    local comprador = d.comprador
+    d.comprador = nil
     d.quieto = 0
     local S = datos.seguir
     local mejor, chase = mejorDe(defs, godpack)
     if rarezas[mejor.rareza].nivel <= 2 and d.esp >= 4 and love.math.random() < 0.5 then emojis.lanzar({ "calavera", "payaso", "L", "risa" }, 2, 1) end
+    if comprador then
+        local suerte = rarezas[mejor.rareza].nivel >= 4 or chase or godpack
+        local idioma = partida.canal.idioma
+        table.insert(cola, { t = 0.4, nombre = comprador.nombre, color = comprador.color,
+                             texto = azar(V.textos[idioma][suerte and "bien" or "mal"]) })
+        if suerte then
+            ganarSeguidores(V.seguidoresSuerte)
+            d.subidon = d.subidon + 0.2
+        end
+    end
     local extra = (S.mejor[mejor.rareza] or 0) + (chase and S.chase or 0) + (godpack and S.godpack or 0)
     ganarSeguidores((S.porSobre + d.esp * S.porEspectador + extra * (1 + d.esp * 0.02)) / cansancio())
     cobrarPropinas(tirarPropinas(d.esp, 1), 0.5)
@@ -453,7 +544,21 @@ function directo.update(dt, enMesa)
 
     -- peticiones del chat: mas cuanta mas gente; caducan si no las cumples
     local C = datosEncargos.chat
-    if d.peticion then
+    if d.tipo == "venta" then
+        for i = #d.pedidos, 1, -1 do
+            local pe = d.pedidos[i]
+            pe.t = pe.t - dt
+            if pe.t <= 0 then
+                table.remove(d.pedidos, i)
+                table.insert(cola, { t = 0, nombre = pe.nombre, color = pe.color,
+                                     texto = azar(V.textos[partida.canal.idioma].caducada) })
+            end
+        end
+        if #d.pedidos < V.max and d.esp >= V.espectadoresMin and d.t > 8 then
+            local porMinuto = math.min(V.maxPorMinuto, V.porMinuto + d.esp * V.porEspectador)
+            if love.math.random() < porMinuto * dt / 60 then nuevoPedido() end
+        end
+    elseif d.peticion then
         d.peticion.t = d.peticion.t - dt
         if d.peticion.t <= 0 then
             local pe = d.peticion
@@ -699,6 +804,25 @@ local function dibujarChat(x, y, w, h)
         fuentes.texto(string.format("%d:%02d", math.floor(pe.t / 60), math.floor(pe.t % 60)), x, y + 36, 1,
             parpadeo and p.rojo or p.blanco, "right", w - 8)
         tope = y + 51
+    elseif d.tipo == "venta" then
+        local n = #d.pedidos
+        local alto = math.max(1, n) * 10 + 12
+        lg.setColor(p.lima[1], p.lima[2], p.lima[3], 0.12)
+        lg.rectangle("fill", x + 2, y + 23, w - 4, alto)
+        fuentes.texto("COMPRAS DEL CHAT", x + 6, y + 26, 1, p.lima)
+        if n == 0 then
+            local hay = #sobresEnVenta() > 0
+            fuentes.texto(hay and "ESPERANDO COMPRADORES..." or "NO TIENES SOBRES QUE VENDER", x + 6, y + 35, 1, hay and p.gris or p.naranja)
+        end
+        for i, pd in ipairs(d.pedidos) do
+            local fy = y + 25 + i * 10
+            local parpadeo = pd.t < 20 and math.floor(pd.t * 3) % 2 == 0
+            fuentes.texto(pd.codigo, x + 6, fy, 1, p.amarillo)
+            fuentes.texto(ui.dinero(directo.precioPedido(pd)), x + 24, fy, 1, p.lima)
+            fuentes.texto(string.format("%d:%02d", math.floor(pd.t / 60), math.floor(pd.t % 60)), x, fy, 1,
+                parpadeo and p.rojo or p.blanco, "right", w - 8)
+        end
+        tope = y + 25 + alto
     end
 
     -- mensajes de abajo arriba

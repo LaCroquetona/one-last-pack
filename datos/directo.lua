@@ -56,9 +56,36 @@ return {
         max = 40,
     },
 
-    -- tipos de directo (de momento solo se puede hacer el de apertura)
+    -- venta de sobres en directo (como en internet): el chat te compra sobres
+    -- que tienes guardados, los abres en directo y las cartas son para quien
+    -- paga. Cobras el precio de mercado del sobre con un margen.
+    -- porMinuto + espectadores * porEspectador compradores al minuto (con tope);
+    -- margen: lo que pagan sobre el precio de mercado, sube con la gente
+    -- (margenPorEspectador, hasta margenMax); segundos: lo que esperan
+    venta = {
+        porMinuto = 1.0, porEspectador = 0.1, maxPorMinuto = 4, espectadoresMin = 1,
+        max = 3, segundos = 90,
+        margen = { 1.08, 1.22 }, margenPorEspectador = 0.0025, margenMax = 0.15,
+        -- seguidores extra si al comprador le toca algo bueno (holo o mejor)
+        seguidoresSuerte = 3,
+        textos = {
+            es = { compra = { "me pillo un {s}", "VENDEME UN {s}", "quiero un {s} pls", "un {s} para mi", "abreme un {s} que lo pago",
+                              "yo compro un {s}", "{s} para el menda", "me llevo un {s} bro", "pago un {s} pa ver que sale", "un {s} y que salga la chase" },
+                   bien = { "LETS GOOO QUE ES MIO", "NO PUEDE SER MI CARTAAA", "GOAT GOAT GOAT", "vale esto ya lo pago", "MADRE MIA QUE SUERTE", "te compro otro ya" },
+                   mal = { "bueno otra vez sera", "L tremenda", "todo bulk bro", "mi cartera llora", "ni una rara jajaja", "el siguiente sale fijo" },
+                   caducada = { "bueno me voy que tardas", "se me ha quitado la gana", "otro dia lo compro" } },
+            en = { compra = { "ill buy a {s}", "SELL ME A {s}", "one {s} for me pls", "open a {s} for me", "taking a {s}",
+                              "i want a {s}", "{s} please", "ill pay for a {s}", "one {s} lets go", "{s} for me bro" },
+                   bien = { "LETS GOOO ITS MINE", "NO WAY MY CARD", "GOATED PULL", "worth every cent", "INSANE LUCK", "buying another one" },
+                   mal = { "unlucky", "massive L", "all bulk bro", "my wallet is crying", "not even a rare lol", "next one hits for sure" },
+                   caducada = { "too slow im out", "nvm", "maybe next stream" } },
+        },
+    },
+
+    -- tipos de directo
     tipos = {
         { id = "apertura", nombre = "APERTURA" },
+        { id = "venta", nombre = "VENTA DE SOBRES" },
         { id = "evaluacion", nombre = "EVALUACIÓN", proximamente = true },
         { id = "coleccion", nombre = "COLECCIÓN", proximamente = true },
     },
