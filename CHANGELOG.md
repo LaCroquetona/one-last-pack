@@ -5,6 +5,36 @@ parte de una fase); el del medio solo cuando termino una fase entera y la doy
 por buena. Los arreglos de una versión que todavía estoy probando van en esa
 misma versión. El juego se queda por debajo de 1.0 hasta que esté completo.
 
+## v0.8.2 - 2026-10-22 - Paso del día, venta en directo y reajustes
+
+- **Paso del día con fundido a negro**: la pantalla se funde, se pone el sol,
+  sale la luna, el contador pasa de DÍA X a DÍA X+1 y se ve lo que ganaste y
+  los sobres que abriste el día anterior. Tocar lo acorta; mientras dura no
+  se puede tocar nada. Las notificaciones salen al volver la imagen.
+- **Venta de sobres en directo** (nuevo tipo de directo, VENTA DE SOBRES):
+  como los directos de internet, el chat te compra sobres que tienes
+  guardados. Arriba del chat salen las compras (sobre, precio y tiempo, hasta
+  3 a la vez, 90 s). Al abrir un sobre de ese set cobras al momento y las
+  cartas son del comprador: se ven, pero se van al acabar. Pagan el precio de
+  mercado del sobre con un margen del 8-22% que sube con la gente que mira
+  (hasta +15% más). Si le toca holo o mejor lo celebra y ganas seguidores.
+  Con más espectadores llegan más compradores (hasta 4 por minuto). El
+  resumen del directo enseña los sobres vendidos y lo cobrado.
+- **1ª ediciones y sellado suben más rápido** tras agotarse: una carta de 1ª
+  ed va x1,9 a los 30 días y x3,4 a los 100 (antes x1,5 y x2,2); los sobres y
+  cajas cerrados de 1ª ed, x2,3 a los 30 y x4,6 a los 100.
+- **Mejoras reajustadas** (medido abriendo 20.000 sobres de cada set):
+  - SUERTE: cada una sube unos 6-8 puntos lo que trae un sobre y con las tres
+    al máximo queda en un ~100-105% (el imán de god packs a x3,5 daba tanto
+    como las otras dos juntas). Segunda oportunidad hasta 16%, carta extra
+    hasta 45%, imán hasta x2,2.
+  - VENTA: ESCAPARATE más caro y hasta +5 anuncios; CUENTA PRO y BUENA
+    REPUTACIÓN más baratas (la reputación llega más lejos).
+  - DIRECTO: CÁMARA HD más cara; MICRO DE ESTUDIO hasta x2,5 propinas y
+    más barato; ARO DE LUZ hasta x2,3 en peticiones y también sube el margen
+    de la venta de sobres.
+  - Cada nivel cuesta x2-2,3 el anterior (antes x2,4).
+
 ## v0.8.1 - 2026-10-21 - Móvil nuevo, tutorial, mejoras y directo
 
 - **Móvil rediseñado**: ahora parece un móvil y no una tablet (más estrecho y

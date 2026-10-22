@@ -12,7 +12,7 @@ local tutorial = require "src.tutorial"
 
 local menu = {}
 
-local VERSION = "v0.8.1"
+local VERSION = "v0.8.2"
 local abanico = {}
 
 function menu.preparar()
