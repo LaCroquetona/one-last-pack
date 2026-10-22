@@ -139,7 +139,7 @@ function dev.click(id)
     elseif id == "dev_dia" then
         nav.pasarDia()
     elseif id:match("^dev_dia%d") then
-        for _ = 1, tonumber(id:sub(8)) do nav.pasarDia() end
+        for _ = 1, tonumber(id:sub(8)) do nav.pasarDia(true) end
     elseif id == "dev_ofertas" then
         partida.generarOfertas()
     elseif id == "dev_noticia" then

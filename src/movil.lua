@@ -1475,7 +1475,7 @@ function movil.click(id)
     if id == "saltarEnvio" then
         terminarEnvio()
     elseif id == "pasarDia" then
-        movil.pasarDia()
+        nav.pasarDia()
     elseif id == "m_inicio" then
         inicio()
     elseif id == "m_atras" then

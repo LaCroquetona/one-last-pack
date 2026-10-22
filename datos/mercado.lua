@@ -64,10 +64,11 @@ return {
     },
 
     -- Vintage: la 1ª edicion agotada sube sin techo, cada vez mas despacio pero
-    -- sin pararse: (1 + dias / tau) ^ alfa. Con tau 30 y alfa 0.55: x2,2 a los
-    -- 100 dias, x3,7 a los 300, x5,3 a los 600. Las chase y los sobres cerrados
-    -- con su propio alfa
-    vintage = { tau = 30, alfa = 0.55, alfaChase = 0.75, alfaSellado = 0.7, caidaRumor = 0.05 },
+    -- sin pararse: (1 + dias / tau) ^ alfa. Con tau 15 y alfa 0.6: x1,5 a los
+    -- 15 dias, x1,9 a los 30, x3,4 a los 100, x6,2 a los 300 (antes x2,2 a los
+    -- 100). Las chase y los sobres cerrados con su propio alfa (los sellados,
+    -- los que mas suben: x2,3 a los 30 dias, x4,6 a los 100)
+    vintage = { tau = 15, alfa = 0.6, alfaChase = 0.72, alfaSellado = 0.75, caidaRumor = 0.05 },
 
     -- Tirada de 1ª edicion: cada set imprime como minimo "minima" sobres. Lo que
     -- compras tu nunca pasa de una "cuota" de la tirada (entre 5% y 15%, se
