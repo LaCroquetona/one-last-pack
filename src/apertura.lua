@@ -31,6 +31,7 @@ local DURACION_ENTRADA = 0.45
 local estado, t
 local entrada
 local mano, godpack, mejor
+local paraOtro      -- comprador del directo (venta) o nil
 local tipoActual, primeraActual
 local lote
 local idx, fase, tf
@@ -88,6 +89,8 @@ end
 function apertura.empezar(tipo, primera, desde)
     tipoActual, primeraActual = tipo, primera
     entrada = desde
+    -- venta en directo: si alguien del chat ha comprado este sobre, las cartas son suyas
+    paraOtro = directo.reservar(tipo, primera)
     if not directo.activo() then directo.avisarSinDirecto() end
     local defs
     defs, godpack = generador.sobre(tipo)
@@ -101,7 +104,7 @@ function apertura.empezar(tipo, primera, desde)
     if dev.saltar then
         for i, c in ipairs(mano) do
             c.boca = true
-            c.nueva, c.copia = partida.anadir(c.def.id, primera)
+            if not paraOtro then c.nueva, c.copia = partida.anadir(c.def.id, primera) end
             c.x, c.y, c.escala = ranuraX(i), RANURA_Y, MINI
         end
         sonido.tocar(mejor.id)
@@ -202,7 +205,7 @@ end
 local CUENTA = { [0] = 0, 0.35, 0.8, 1.5 }
 
 local function impacto(c, r)
-    c.nueva, c.copia = partida.anadir(c.def.id, primeraActual)
+    if not paraOtro then c.nueva, c.copia = partida.anadir(c.def.id, primeraActual) end
     c.precio = mercado.valor(c.def.id, primeraActual)
     c.nivelPrecio = nivelPrecio(c.precio)
     c.tPrecio, c.tic, c.contado = 0, 0, false
@@ -589,12 +592,14 @@ local function dibujarRevelando()
         carta.dibujar(c.def, c.x, c.y, c.escala, c.escala, 0, true, nil, false, extra())
     end
     dibujarActual(mano[idx])
+    if paraOtro then texto("SOBRE DE " .. paraOtro.nombre:upper(), 26, 1, p.lima) end
 end
 
 local ANDROID = love.system.getOS() == "Android"
 
 local function dibujarResumen()
     if godpack then texto("¡¡GOD PACK!!", 36, 3, rarezas.secreta.color) end
+    if paraOtro then texto("SOBRE DE " .. paraOtro.nombre:upper(), 26, 1, p.lima) end
     local er = escalaResumen()
     local cw, ch = carta.ANCHO * er, carta.ALTO * er
     -- con dos filas los textos van mas pegados
@@ -699,7 +704,11 @@ end
 
 -- se recoge la mesa: las cartas ya estan en el armario
 function apertura.recoger()
-    estado, mano = nil, nil
+    if paraOtro and mano then
+        fx.texto(CX, CY - 40, "ENVIADO A " .. paraOtro.nombre:upper(), p.lima)
+        sonido.tocar("giro")
+    end
+    estado, mano, paraOtro = nil, nil, nil
 end
 
 -- la carta del resumen que hay en (x, y), para soltarle una funda

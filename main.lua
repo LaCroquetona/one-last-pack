@@ -22,6 +22,7 @@ local intro = require "src.firma"
 local escritorio = require "src.escritorio"
 local mesa = require "src.mesa"
 local directo = require "src.directo"
+local transicion = require "src.transicion"
 
 local lg = love.graphics
 
@@ -111,7 +112,7 @@ function nav.alternarPantalla()
 end
 
 local function bloqueado()
-    return (escena == "mesa" and apertura.bloqueada()) or (escena == "movil" and movil.ocupado())
+    return transicion.activa() or (escena == "mesa" and apertura.bloqueada()) or (escena == "movil" and movil.ocupado())
 end
 
 function nav.ir(nombre)
@@ -130,6 +131,7 @@ end
 
 function nav.empezar()
     dineroVisto = partida.dinero
+    transicion.empezarDia()
     movil.reiniciar()
     armario.reiniciar()
     directo.reiniciar()
@@ -146,10 +148,16 @@ function nav.lote(n)
     if apertura.lote(n) then escena = "mesa" end
 end
 
--- pasar el dia corta el directo
-function nav.pasarDia()
+-- pasar el dia corta el directo: fundido a negro y se ve el dia nuevo
+-- (directo: sin el fundido, para las pruebas y los bots)
+function nav.pasarDia(directoYa)
+    if transicion.activa() then return end
     directo.terminar()
-    movil.pasarDia()
+    if directoYa then
+        movil.pasarDia()
+        return
+    end
+    transicion.pasarDia(movil.pasarDia)
 end
 
 function nav.verCarta(id)
@@ -192,6 +200,7 @@ end
 
 function love.update(dt)
     dt = math.min(dt, 1 / 20)
+    transicion.update(dt)
     fx.update(dt)
     dineroVisto = fx.lerp(dineroVisto, partida.dinero, math.min(1, dt * 8))
     partida.update(dt)
@@ -230,7 +239,8 @@ function love.update(dt)
         mesa.update(dtJuego)
     end
     directo.update(dt, escena == "mesa")
-    movil.update(dt)
+    -- con la pantalla en negro los avisos del movil esperan
+    if not transicion.activa() then movil.update(dt) end
 end
 
 function love.mousepressed(x, y, boton)
@@ -239,6 +249,10 @@ function love.mousepressed(x, y, boton)
         return
     end
     if boton ~= 1 then return end
+    if transicion.activa() then
+        transicion.saltar()
+        return
+    end
     local mx, my = aJuego(x, y)
     local id = ui.click(mx, my)
     if ui.clickModal(id) or ui.clickOverlay(id) then
@@ -299,6 +313,10 @@ local ORDEN = { "tienda", "mesa", "armario", "movil" }
 function love.keypressed(tecla)
     -- escribiendo el nombre del canal las teclas son letras
     if directo.tecla(tecla) then return end
+    if transicion.activa() then
+        transicion.saltar()
+        return
+    end
     local alt = love.keyboard.isDown("lalt") or love.keyboard.isDown("ralt")
     if tecla == "f11" or (tecla == "return" and alt) then
         nav.alternarPantalla()
@@ -438,6 +456,7 @@ local function presentar(conMesa, conBarra)
     lg.setBlendMode("alpha")
     -- lo que gira (la mano, la caja volando) va encima a la resolucion real
     encima.dibujar(e, ox, oy)
+    transicion.dibujar(e, ox, oy, VISTO, OX)
 end
 
 function love.draw()
