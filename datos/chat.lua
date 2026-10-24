@@ -151,7 +151,7 @@ return {
             "should i keep packs sealed?", "when is the next set?", "will that go up?", "where are you from?",
         },
         charla = {
-            "6-7", "fr fr", "no cap", "skibidi rip", "aura +100", "pure brainrot", "chat is dead lol", "W stream",
+            "6-7", "fr fr", "no cap", "skibidi rip", "aura +6969", "pure brainrot", "chat is dead lol", "W stream",
             "clean hands pls", "dont bend the cards", "that pack has rizz", "lowkey like this channel", "sigma opening",
             "cant hear you", "play some music", "pack ASMR", "one more and i sleep", "goated channel", "rip my allowance",
             "watching this instead of homework", "the pack sound hits", "blue guy is the best", "chat we are cooked",
