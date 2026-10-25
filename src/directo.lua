@@ -3,6 +3,7 @@
 -- La apertura avisa de lo que pasa (rasgar, suspense, carta, fin del sobre) y
 -- el chat reacciona segun cuanta gente haya.
 local datos = require "datos.directo"
+local V = datos.venta
 local datosEncargos = require "datos.encargos"
 local sobres = require "datos.sobres"
 local sets = require "datos.sets"
@@ -48,26 +49,60 @@ local function nombreAlAzar()
         nombre = azar(N.b) .. "_" .. azar(N.c)
     end
     if love.math.random() < 0.45 then nombre = nombre .. love.math.random(1, 99) end
-    return (nombre:gsub("_$", ""))
+    -- sin espacios (los trozos vacios de la lista dejan huecos) ni guiones sueltos
+    nombre = nombre:gsub("%s", ""):gsub("€", ""):gsub("__+", "_"):gsub("^_", ""):gsub("_$", "")
+    if nombre == "" or nombre:match("^%d+$") then nombre = "ANON" .. nombre end
+    return nombre
 end
 
 local function colorAlAzar()
     return p[azar(datos.colores)]
 end
 
+-- abrir muy rapido no multiplica el directo: por encima de ritmo.normal
+-- sobres por minuto, cada sobre da menos (propinas y seguidores de lo
+-- normal, el subidon de las holo). Lo viral (full art o mas) cuenta entero
+local function factorRitmo()
+    if not d then return 1 end
+    local R = datos.ritmo
+    local n = 0
+    for _, t in ipairs(d.marcas or {}) do
+        if d.t - t < R.ventana then n = n + 1 end
+    end
+    return math.min(1, R.normal * R.ventana / 60 / math.max(1, n))
+end
+
+local function marcarSobre()
+    d.marcas = d.marcas or {}
+    table.insert(d.marcas, d.t)
+    while #d.marcas > 0 and d.t - d.marcas[1] > datos.ritmo.ventana do table.remove(d.marcas, 1) end
+end
+
 -- conseguir seguidores cuesta mas cuantos mas tienes
 local function cansancio()
-    return 1 + partida.canal.seguidores / datos.seguir.cansancio
+    local A = datos.seguir.arranque
+    local c = 1 + partida.canal.seguidores / datos.seguir.cansancio
+    if partida.canal.seguidores < A.hasta then c = c / A.mult end
+    return c
 end
 
 -- espectadores "de base" con estos seguidores
 local function base(seguidores)
     local E = datos.espectadores
+    if seguidores > E.umbral then seguidores = E.umbral + (seguidores - E.umbral) * E.despues end
     return E.base + math.sqrt(seguidores) * E.raiz + seguidores * E.lineal
 end
 
 function directo.activo()
     return d ~= nil
+end
+
+function directo.tipo()
+    return d and d.tipo
+end
+
+function directo.vendiendo()
+    return d and d.vendiendo
 end
 
 function directo.espectadores()
@@ -166,11 +201,15 @@ local function cantidadPropina(espectadores)
     return 100
 end
 
--- cuantas propinas caen con estos espectadores y este multiplicador
-local function tirarPropinas(espectadores, mult)
-    local prob = math.min(0.6, datos.propinas.prob * mult * partida.efecto("micro"))
+-- cuantas propinas caen con estos espectadores y este multiplicador.
+-- viral: algo gordo, da propina toda la gente (si no, se satura)
+local function tirarPropinas(espectadores, mult, viral)
+    local P = datos.propinas
+    local prob = math.min(P.probMax, P.prob * mult * partida.efecto("micro"))
+    local dan = espectadores
+    if not viral and dan > P.tope then dan = P.tope + (dan - P.tope) * P.despuesTope end
     local lista = {}
-    for _ = 1, math.floor(espectadores + 0.5) do
+    for _ = 1, math.floor(dan + 0.5) do
         if love.math.random() < prob then table.insert(lista, cantidadPropina(espectadores)) end
     end
     return lista
@@ -215,22 +254,33 @@ end
 
 -- seguidores y propinas de un sobre entero, sin chat (lo usan los bots).
 -- Devuelve seguidores ganados (decimal) y centimos de propinas
-function directo.simularSobre(espectadores, defs, godpack)
-    local S, P = datos.seguir, datos.propinas
-    local mejor, chase = mejorDe(defs, godpack)
+-- seguidores que trae un sobre; f: factor del ritmo (lo de las holo y lo
+-- normal baja si abres muy rapido, lo viral no)
+function directo.seguidoresSobre(espectadores, mejor, chase, godpack, f)
+    local S = datos.seguir
+    local viral = datos.propinas.viral[mejor.rareza] or chase or godpack
     local extra = (S.mejor[mejor.rareza] or 0) + (chase and S.chase or 0) + (godpack and S.godpack or 0)
-    local seguidores = (S.porSobre + espectadores * S.porEspectador + extra * (1 + espectadores * 0.02)) / cansancio()
-        * partida.efecto("camara")
+    return ((S.porSobre + espectadores * S.porEspectador) * f + extra * (1 + espectadores * 0.02) * (viral and 1 or f))
+        / cansancio()
+end
+
+-- f: factor del ritmo (1 si no se abre mas rapido de lo normal)
+function directo.simularSobre(espectadores, defs, godpack, f)
+    f = f or 1
+    local P = datos.propinas
+    local mejor, chase = mejorDe(defs, godpack)
+    local seguidores = directo.seguidoresSobre(espectadores, mejor, chase, godpack, f) * partida.efecto("camara")
     local total = 0
-    for _, v in ipairs(tirarPropinas(espectadores, 1)) do total = total + v end
+    for _, v in ipairs(tirarPropinas(espectadores, f)) do total = total + v end
     for _, def in ipairs(defs) do
-        local mult = (P.rareza[def.rareza] or 0) + (def.chase and P.chase or 0)
+        local viral = P.viral[def.rareza] or def.chase
+        local mult = ((P.rareza[def.rareza] or 0) + (def.chase and P.chase or 0)) * (viral and 1 or f)
         if mult > 0 then
-            for _, v in ipairs(tirarPropinas(espectadores, mult)) do total = total + v end
+            for _, v in ipairs(tirarPropinas(espectadores, mult, viral)) do total = total + v end
         end
     end
     if godpack then
-        for _, v in ipairs(tirarPropinas(espectadores, P.godpack)) do total = total + v end
+        for _, v in ipairs(tirarPropinas(espectadores, P.godpack, true)) do total = total + v end
     end
     return seguidores, total
 end
@@ -243,9 +293,10 @@ end
 
 function directo.empezar()
     if d then return end
+    if tipoElegido == "venta" and partida.canal.seguidores < V.desbloqueo then tipoElegido = "apertura" end
     d = { t = 0, esp = 0, pico = 0, objetivo = base(partida.canal.seguidores), ruido = 0, subidon = 1,
           quieto = 0, sobres = 0, propinas = 0, seguidores = 0, acumulado = 0, tipo = tipoElegido, sueltos = 0,
-          pedidos = {}, ventas = 0, ingresos = 0 }
+          pedidos = {}, ventas = 0, ingresos = 0, hype = 0, vendiendo = true }
     chat, cola = {}, {}
     emojis.limpiar()
     sonido.tocar("nueva")
@@ -361,10 +412,17 @@ function directo.carta(def, nueva)
     if nueva and d.esp >= 6 and love.math.random() < 0.3 then decir("nueva", 0.8) end
     -- las buenas traen mirones y propinas al momento
     local S = datos.subidon
-    d.subidon = d.subidon + (S[def.rareza] or 0) + (def.chase and S.chase or 0)
     local P = datos.propinas
-    local mult = (P.rareza[def.rareza] or 0) + (def.chase and P.chase or 0)
-    if mult > 0 then cobrarPropinas(tirarPropinas(d.esp, mult), 0.8) end
+    local viral = P.viral[def.rareza] or def.chase
+    local f = viral and 1 or factorRitmo()
+    d.subidon = d.subidon + ((S[def.rareza] or 0) + (def.chase and S.chase or 0)) * f
+    local mult = ((P.rareza[def.rareza] or 0) + (def.chase and P.chase or 0)) * f
+    if mult > 0 then cobrarPropinas(tirarPropinas(d.esp, mult, viral), 0.8) end
+    -- en la venta, lo bueno da ganas de comprar
+    if d.tipo == "venta" then
+        local H = V.hype
+        d.hype = math.min(H.max, d.hype + (H[def.rareza] or 0) + (def.chase and H.chase or 0))
+    end
 end
 
 -- peticiones del chat: alguien paga por que abras un sobre concreto
@@ -408,7 +466,6 @@ end
 
 -- venta de sobres: el chat compra sobres que tienes y tu los abres
 
-local V = datos.venta
 
 -- precio de mercado de un sobre de esa edicion
 local function precioSobre(t, primera)
@@ -422,8 +479,10 @@ end
 
 local function sobresEnVenta()
     local lista = {}
+    local caja = partida.cajaAbierta
     for _, t in ipairs(sobres.lista) do
-        if partida.disponibles(t.id) > 0 then table.insert(lista, t) end
+        -- los de la caja abierta tambien se venden
+        if partida.disponibles(t.id) > 0 or (caja and caja.tipo == t.id and caja.quedan > 0) then table.insert(lista, t) end
     end
     return lista
 end
@@ -433,7 +492,7 @@ local function nuevoPedido()
     if #lista == 0 then return end
     local t = lista[love.math.random(#lista)]
     local margen = V.margen[1] + love.math.random() * (V.margen[2] - V.margen[1])
-        + math.min(V.margenMax, d.esp * V.margenPorEspectador)
+        + math.min(V.margenMax, d.esp * V.margenPorEspectador) + d.hype * V.hype.margen
     margen = 1 + (margen - 1) * partida.efecto("aro")
     local idioma = partida.canal.idioma
     local texto = azar(V.textos[idioma].compra):gsub("{s}", sets[t.set].codigo)
@@ -459,7 +518,7 @@ end
 -- la mesa empieza a abrir un sobre: si alguien lo ha comprado, cobras y las
 -- cartas son suyas (devuelve el pedido o nil)
 function directo.reservar(tipo, primera)
-    if not d or d.tipo ~= "venta" then return nil end
+    if not d or d.tipo ~= "venta" or not d.vendiendo then return nil end
     for i, pe in ipairs(d.pedidos) do
         if pe.tipo == tipo.id then
             table.remove(d.pedidos, i)
@@ -493,7 +552,6 @@ function directo.finSobre(defs, godpack, tipoId)
     local comprador = d.comprador
     d.comprador = nil
     d.quieto = 0
-    local S = datos.seguir
     local mejor, chase = mejorDe(defs, godpack)
     if rarezas[mejor.rareza].nivel <= 2 and d.esp >= 4 and love.math.random() < 0.5 then emojis.lanzar({ "calavera", "payaso", "L", "risa" }, 2, 1) end
     if comprador then
@@ -506,10 +564,12 @@ function directo.finSobre(defs, godpack, tipoId)
             d.subidon = d.subidon + 0.2
         end
     end
-    local extra = (S.mejor[mejor.rareza] or 0) + (chase and S.chase or 0) + (godpack and S.godpack or 0)
-    ganarSeguidores((S.porSobre + d.esp * S.porEspectador + extra * (1 + d.esp * 0.02)) / cansancio())
-    cobrarPropinas(tirarPropinas(d.esp, 1), 0.5)
-    if godpack then cobrarPropinas(tirarPropinas(d.esp, datos.propinas.godpack), 1) end
+    marcarSobre()
+    local f = factorRitmo()
+    ganarSeguidores(directo.seguidoresSobre(d.esp, mejor, chase, godpack, f))
+    cobrarPropinas(tirarPropinas(d.esp, f), 0.5)
+    if godpack then cobrarPropinas(tirarPropinas(d.esp, datos.propinas.godpack, true), 1) end
+    if d.tipo == "venta" then d.hype = math.min(V.hype.max, d.hype + V.hype.sobre + (godpack and V.hype.godpack or 0)) end
     if d.esp <= 3 then
         if love.math.random() < datos.chat.finSobre then decir("finSobre", 0.6 + love.math.random()) end
     elseif love.math.random() < 0.3 then
@@ -545,18 +605,28 @@ function directo.update(dt, enMesa)
     -- peticiones del chat: mas cuanta mas gente; caducan si no las cumples
     local C = datosEncargos.chat
     if d.tipo == "venta" then
+        d.hype = d.hype * math.exp(-V.hype.baja * dt)
+        -- con las ventas paradas los pedidos esperan (no corre su tiempo)
         for i = #d.pedidos, 1, -1 do
             local pe = d.pedidos[i]
-            pe.t = pe.t - dt
+            if d.vendiendo then pe.t = pe.t - dt end
             if pe.t <= 0 then
                 table.remove(d.pedidos, i)
                 table.insert(cola, { t = 0, nombre = pe.nombre, color = pe.color,
                                      texto = azar(V.textos[partida.canal.idioma].caducada) })
             end
         end
-        if #d.pedidos < V.max and d.esp >= V.espectadoresMin and d.t > 8 then
-            local porMinuto = math.min(V.maxPorMinuto, V.porMinuto + d.esp * V.porEspectador)
-            if love.math.random() < porMinuto * dt / 60 then nuevoPedido() end
+        if d.vendiendo and #d.pedidos < V.max and d.esp >= V.espectadoresMin then
+            if not d.primerPedido and d.t > V.primero then
+                -- el primero llega pronto para que no estes parado
+                d.primerPedido = true
+                nuevoPedido()
+            elseif d.t > 8 then
+                local perfil = partida.efecto("perfil")
+                local porMinuto = math.min(V.maxPorMinuto * (1 + (perfil - 1) * 0.5),
+                    (V.porMinuto + d.esp * V.porEspectador) * (1 + d.hype) * perfil)
+                if love.math.random() < porMinuto * dt / 60 then nuevoPedido() end
+            end
         end
     elseif d.peticion then
         d.peticion.t = d.peticion.t - dt
@@ -757,7 +827,13 @@ local function partir(cad, w)
 end
 
 local function lineasMensaje(m, w)
-    if m.sistema then return { { { m.texto, m.color } } } end
+    if m.sistema then
+        -- partidas, que las largas (VENDIDO A ...) se salian del chat
+        local res = {}
+        -- el euro va pegado a su cifra (que no se quede solo en otra linea)
+        for i, l in ipairs(partir((m.texto:gsub(" €", "€")), w)) do res[i] = { { l, m.color } } end
+        return res
+    end
     if m.sigue then
         local suyo = datos.textos[partida.canal.idioma].sigue
         return { { { m.nombre, m.color }, { " " .. suyo, p.lima } } }
@@ -809,10 +885,28 @@ local function dibujarChat(x, y, w, h)
         local alto = math.max(1, n) * 10 + 12
         lg.setColor(p.lima[1], p.lima[2], p.lima[3], 0.12)
         lg.rectangle("fill", x + 2, y + 23, w - 4, alto)
-        fuentes.texto("COMPRAS DEL CHAT", x + 6, y + 26, 1, p.lima)
+        -- vender o abrir para ti (el titulo se acorta si no cabe con el boton)
+        local textoBoton = d.vendiendo and "VENDIENDO" or "PARA MÍ"
+        local anchoBoton = fuentes.ancho("VENDIENDO") + 8
+        local titulo = fuentes.ancho("COMPRAS DEL CHAT") + anchoBoton + 14 > w and "COMPRAS" or "COMPRAS DEL CHAT"
+        fuentes.texto(titulo, x + 6, y + 26, 1, p.lima)
+        ui.boton("dir_vender", textoBoton, x + w - anchoBoton - 4, y + 24, anchoBoton, 9, d.vendiendo and p.verdeosc or p.naranja)
+        -- barra de hype: cuanto mas, mas compran y mas pagan
+        if d.hype > 0.05 then
+            local bw = math.floor((w - 12) * math.min(1, d.hype / V.hype.max))
+            lg.setColor(p.naranja)
+            lg.rectangle("fill", x + 6, y + 33, bw, 1)
+        end
         if n == 0 then
             local hay = #sobresEnVenta() > 0
-            fuentes.texto(hay and "ESPERANDO COMPRADORES..." or "NO TIENES SOBRES QUE VENDER", x + 6, y + 35, 1, hay and p.gris or p.naranja)
+            -- cada texto con una version corta por si no cabe
+            local texto, color = { "ESPERANDO COMPRADORES...", "ESPERANDO..." }, p.gris
+            if not d.vendiendo then texto, color = { "VENTAS PARADAS: LOS SOBRES SON TUYOS", "PARADAS: SON TUYOS" }, p.naranja
+            elseif not hay then texto, color = { "NO TIENES SOBRES QUE VENDER", "SIN SOBRES QUE VENDER" }, p.naranja end
+            local t = fuentes.ancho(texto[1]) <= w - 12 and texto[1] or texto[2]
+            fuentes.texto(t, x + 6, y + 35, 1, color)
+        elseif not d.vendiendo then
+            fuentes.texto("PARADO", x + 60, y + 35, 1, p.naranja)
         end
         for i, pd in ipairs(d.pedidos) do
             local fy = y + 25 + i * 10
@@ -882,12 +976,13 @@ local function dibujarPanel(x, y, w, h)
     fuentes.texto("TIPO DE DIRECTO", x + 6, ty, 1, p.grisclaro)
     for i, t in ipairs(datos.tipos) do
         local by = ty + 8 + (i - 1) * 13
-        if t.proximamente then
+        local falta = t.id == "venta" and partida.canal.seguidores < V.desbloqueo
+        if t.proximamente or falta then
             ui.caja(x + 6, by, w - 12, 11, p.negro)
             fuentes.texto(t.nombre, x + 10, by + 3, 1, p.gris)
             -- con el texto grande no cabe la palabra larga
-            local pronto = "PRÓXIMAMENTE"
-            if fuentes.ancho(t.nombre) + fuentes.ancho(pronto) + 10 > w - 16 then pronto = "PRONTO" end
+            local pronto = falta and (V.desbloqueo .. " SEG.") or "PRÓXIMAMENTE"
+            if fuentes.ancho(t.nombre) + fuentes.ancho(pronto) + 10 > w - 16 then pronto = falta and tostring(V.desbloqueo) or "PRONTO" end
             fuentes.texto(pronto, x + 6, by + 3, 1, p.grisosc, "right", w - 16)
         else
             ui.boton("dir_tipo_" .. t.id, t.nombre, x + 6, by, w - 12, 11, tipoElegido == t.id and p.morado or p.grisosc)
@@ -923,6 +1018,8 @@ function directo.click(id)
     elseif id == "dir_idioma_es" or id == "dir_idioma_en" then
         partida.canal.idioma = id:sub(-2)
         partida.guardar()
+    elseif id == "dir_vender" then
+        if d then d.vendiendo = not d.vendiendo end
     elseif id:match("^dir_tipo_") then
         tipoElegido = id:sub(10)
     else

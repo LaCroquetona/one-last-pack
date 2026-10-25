@@ -4,7 +4,14 @@
 return {
     -- espectadores segun tus seguidores: base + raiz(seguidores) * raiz + seguidores * lineal
     -- (0 seguidores: 0-1; 30: unos 5; 400: unos 26; 2.000: unos 80)
-    espectadores = { base = 0.5, raiz = 0.9, lineal = 0.02, ruido = 0.25 },
+    espectadores = { base = 0.5, raiz = 0.9, lineal = 0.02, ruido = 0.25,
+        -- a partir de "umbral" seguidores la gente sube mucho mas lento: los
+        -- seguidores de mas cuentan solo "despues" (los sigues teniendo)
+        umbral = 800, despues = 0.2 },
+    -- ritmo: abrir mas de "normal" sobres por minuto (mirado en los ultimos
+    -- "ventana" segundos) no da mas: cada sobre trae menos propinas y
+    -- seguidores de lo normal y las holo menos subidon. Lo viral, entero
+    ritmo = { normal = 4, ventana = 60 },
     -- hasta cuantos directos hechos se avisa de que abres sobres sin directo
     avisarHasta = 3,
     -- lo que tarda la gente en llegar al empezar y en moverse (por segundo)
@@ -29,17 +36,28 @@ return {
         chase = 4, godpack = 16,
         -- con gente mirando tambien se sigue sin abrir (por espectador y minuto)
         porMinuto = 0.0032,
+        -- al empezar el canal (menos de "hasta" seguidores) se gana x"mult":
+        -- que llegues pronto a la venta de sobres
+        arranque = { hasta = 30, mult = 2.5 },
     },
 
     -- propinas: cada espectador puede dar una al acabar un sobre (prob), y
     -- al salir una carta buena (prob x lo de su rareza)
     propinas = {
-        prob = 0.012,
-        rareza = { holo = 3, fullart = 8, secreta = 20 },
-        chase = 12, godpack = 40,
+        prob = 0.01,
+        rareza = { holo = 3, fullart = 8, secreta = 14 },
+        chase = 10, godpack = 30,
+        -- tope de probabilidad por espectador (aunque el multiplicador sea alto)
+        probMax = 0.35,
         -- cuanto dan: {minimo, maximo, peso, espectadores que hacen falta}
         -- (las propinas gordas solo llegan a canales con gente)
-        cantidades = { { 20, 60, 65, 0 }, { 60, 150, 27, 5 }, { 150, 400, 7, 25 }, { 400, 1000, 1, 60 } },
+        cantidades = { { 20, 60, 70, 0 }, { 60, 150, 24, 10 }, { 150, 400, 5, 40 }, { 400, 1000, 1, 100 } },
+        -- con mucha gente, en lo normal (el sobre, raras, holos) solo dan
+        -- propina "tope" espectadores y de los de mas solo esta parte: que una
+        -- rara no pague mas que el sobre. Lo gordo (viral) cuenta con toda la
+        -- gente: un god pack o una secreta en directo es un clip viral
+        tope = 22, despuesTope = 0.1,
+        viral = { secreta = true, chase = true, godpack = true },
     },
 
     chat = {
@@ -63,9 +81,18 @@ return {
     -- margen: lo que pagan sobre el precio de mercado, sube con la gente
     -- (margenPorEspectador, hasta margenMax); segundos: lo que esperan
     venta = {
-        porMinuto = 1.0, porEspectador = 0.1, maxPorMinuto = 4, espectadoresMin = 1,
+        porMinuto = 0.5, porEspectador = 0.3, maxPorMinuto = 4, espectadoresMin = 1,
         max = 3, segundos = 90,
-        margen = { 1.08, 1.22 }, margenPorEspectador = 0.0025, margenMax = 0.15,
+        margen = { 1.0, 1.06 }, margenPorEspectador = 0.0015, margenMax = 0.05,
+        -- hace falta tener estos seguidores para hacer directos de venta
+        desbloqueo = 20,
+        -- el primer comprador llega pronto (segundos) si tienes sobres
+        primero = 10,
+        -- hype: lo que abres en directo (tuyo o vendido) da ganas de comprar.
+        -- Sube los compradores (x 1 + hype) y lo que pagan (+ hype * margenHype,
+        -- hasta hypeMax de hype); se va pasando (baja por segundo)
+        hype = { sobre = 0.15, rara = 0.1, holo = 0.35, fullart = 0.8, secreta = 1.5, chase = 0.8, godpack = 2,
+                 baja = 0.012, max = 3, margen = 0.04 },
         -- seguidores extra si al comprador le toca algo bueno (holo o mejor)
         seguidoresSuerte = 3,
         textos = {
@@ -93,16 +120,16 @@ return {
     -- nombres del chat: trozo + trozo (+ numero a veces)
     nombres = {
         a = { "xX", "el", "la", "mr", "don", "lil", "big", "pro", "sir", "mini", "super", "the", "real", "not", "tito", "abuelo",
-              "doña", "mega", "ultra", "baby", "tia", "profe", "capi", "dr", "miss", "uncle", "its", "just", "yo_soy" },
+              "doña", "mega", "ultra", "baby", "tia", "profe", "capi", "dr", "miss", "uncle", "its", "just", "yo_soy" , "porro" ,"petardo" , "Elba", "Elena"},
         b = { "Sobrero", "Pakito", "Holo", "Rizz", "Skibidi", "Sigma", "Aura", "Bicho", "Pack", "Carta", "Foil", "Chase",
               "Bulk", "Gamer", "Kevin", "Lucia", "Mateo", "Nerea", "Iker", "Vega", "Pollito", "Mango", "Cheto", "Ripper",
               "Toploader", "Funda", "Brainrot", "Goat", "Ipad", "Nugget", "Patata", "Croqueta", "Fideo", "Tigre", "Ninja",
               "Pepe", "Manolo", "Jaime", "Sara", "Hugo", "Leo", "Alba", "Dani", "Pablo", "Marta", "Ruben", "Ainhoa", "Unai",
               "Gato", "Pato", "Churro", "Tortilla", "Gamba", "Boqueron", "Tostada", "Pixel", "Turbo", "Cohete", "Rayo",
               "Bruma", "Plasma", "Brasa", "Sobrecito", "Mazo", "Binder", "Slab", "Gema", "Dragon", "Lobo", "Zorro",
-              "Panda", "Koala", "Waffle", "Taco", "Noodle", "Cookie", "Lemon", "Shadow", "Storm", "Blaze", "Frost" },
-        c = { "TCG", "Hunter", "Lover", "Fan", "King", "Queen", "Master", "Kid", "Boss", "Main", "Rips", "Cards", "Lord", "",
-              "Pro", "YT", "Live", "Plays", "OG", "Prime", "Lol", "XD", "Max", "Jr", "Uwu", "Vibes", "Squad", "" },
+              "Panda", "Koala", "Waffle", "Taco", "Noodle", "Cookie", "Lemon", "Shadow", "Storm", "Blaze", "Frost" , "Pedro","Perro","ginnaso", "polla" , "ginna" , "sodeagua", "","","€€","",""," "," "," "},
+        c = { "TCG", "Hunter", "Lover", "Fan", "King", "Queen", "Master", "Kid", "Boss", "Main", "Rips", "Cards", "Lord", " ",
+              "Pro", "YT", "Live", "Plays", "OG", "Prime", "Lol", "XD", "Max", "Jr", "Uwu", "Vibes", "Squad", "sanchez", " "," "," "," "," "," "," "," " },
     },
     colores = { "rojo", "naranja", "amarillo", "lima", "verde", "celeste", "cian", "violeta", "blanco", "grisclaro" },
 
