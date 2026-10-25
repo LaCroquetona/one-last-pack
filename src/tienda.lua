@@ -10,6 +10,7 @@ local sobre = require "src.sobre"
 local fx = require "src.fx"
 local sonido = require "src.sonido"
 local fuentes = require "src.fuentes"
+local desbloqueos = require "src.desbloqueos"
 local ui = require "src.ui"
 local nav = require "src.nav"
 local caja = require "src.caja"
@@ -130,15 +131,20 @@ local function estado()
 end
 
 local function panelFundas()
+    -- salen con la primera rara (los tops con la primera full art)
+    if not desbloqueos.hay("fundas") then return end
+    local tops = desbloqueos.hay("tops")
     local x, y, w = 14, 296, 276
     ui.caja(x, y, w, 40)
     fuentes.texto("FUNDAS", x + 6, y + 5, 1, p.blanco)
     fuentes.texto("TIENES " .. partida.fundasLibres .. " SIN USAR", x + 6, y + 5, 1, p.grisclaro, "right", w - 12)
-    fuentes.texto("TOP " .. partida.topsLibres, x + 6, y + 5, 1, p.celeste, "center", w - 12)
+    if tops then fuentes.texto("TOP " .. partida.topsLibres, x + 6, y + 5, 1, p.celeste, "center", w - 12) end
     ui.boton("fundas", "20 FUNDAS  " .. ui.dinero(PRECIO_FUNDAS), x + 6, y + 18, (w - 16) / 2, 15,
         p.verdeosc, partida.dinero >= PRECIO_FUNDAS)
-    ui.boton("tops", "10 TOP LOADERS  " .. ui.dinero(PRECIO_TOPS), x + 10 + (w - 16) / 2, y + 18, (w - 16) / 2, 15,
-        p.azul, partida.dinero >= PRECIO_TOPS)
+    if tops then
+        ui.boton("tops", "10 TOP LOADERS  " .. ui.dinero(PRECIO_TOPS), x + 10 + (w - 16) / 2, y + 18, (w - 16) / 2, 15,
+            p.azul, partida.dinero >= PRECIO_TOPS)
+    end
     if ui.encima == "tops" then
         ui.tooltip("Top loaders", p.celeste, { { "Plástico rígido encima de la funda" }, { "Elige en el armario desde qué rareza se ponen solos", p.grisclaro } })
     end
@@ -192,7 +198,11 @@ end
 
 function tienda.dibujar()
     ui.boton("sec_sobres", "SOBRES", 14, 28, 60, 14, seccion == "sobres" and p.verde or p.grisosc)
-    ui.boton("sec_cajas", "CAJAS", 78, 28, 60, 14, seccion == "cajas" and p.verde or p.grisosc)
+    if desbloqueos.hay("cajas") then
+        ui.boton("sec_cajas", "CAJAS", 78, 28, 60, 14, seccion == "cajas" and p.verde or p.grisosc)
+    else
+        seccion = "sobres"
+    end
     if seccion == "cajas" then
         if not calendario.conocido(tipo.set, mercado.dia()) then tipo = sobres.lista[1] end
         selector()
@@ -265,7 +275,9 @@ function tienda.dibujar()
         local max = partida.maxCompra(tipo)
         local cinco = math.min(5, max)
         ui.boton("comprar1", "COMPRAR " .. ui.dinero(precio), PANEL_X, by, 100, 16, p.verde, max >= 1)
-        ui.boton("comprar5", (cinco > 1 and cinco or 5) .. " POR " .. ui.dinero(precio * math.max(2, cinco)), PANEL_X + 108, by, 100, 16, p.verde, cinco > 1)
+        -- sin dinero o sin stock para 2 se ve lo que costarian 5 (antes ponia el precio de 2)
+        local n = cinco > 1 and cinco or 5
+        ui.boton("comprar5", n .. " POR " .. ui.dinero(precio * n), PANEL_X + 108, by, 100, 16, p.verde, cinco > 1)
     elseif salido then
         local reventa = mercado.compraReventa(tipo, true)
         local r2 = mercado.compraReventa(tipo, false)

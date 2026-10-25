@@ -428,9 +428,15 @@ local function panelFundas()
     fuentes.texto(cogida and "SUÉLTALA AQUÍ" or "ARRASTRA AQUÍ", FUNDAS.x + 30, FUNDAS.y + 12, 1, cogida and p.lima or p.grisclaro)
     fuentes.texto("TOP " .. partida.topsLibres, FUNDAS.x + 80, FUNDAS.y + 4, 1, partida.topsLibres > 0 and p.celeste or p.gris)
     -- desde que rareza se ponen solas
+    -- solo con la mejora SERVICIO DE FUNDAS (1: fundas, 2: tambien tops)
     local o = partida.opciones
-    ui.boton("autoFundas", "F:" .. NIVEL_CORTO[o.fundaDesde or 0], FUNDAS.x + 30, FUNDAS.y + 20, 40, 11, (o.fundaDesde or 0) > 0 and p.verde or p.gris)
-    ui.boton("autoTops", "T:" .. NIVEL_CORTO[o.topDesde or 0], FUNDAS.x + 72, FUNDAS.y + 20, 40, 11, (o.topDesde or 0) > 0 and p.azul or p.gris)
+    local auto = partida.efecto("autofundas")
+    if auto >= 1 then
+        ui.boton("autoFundas", "F:" .. NIVEL_CORTO[o.fundaDesde or 0], FUNDAS.x + 30, FUNDAS.y + 20, 40, 11, (o.fundaDesde or 0) > 0 and p.verde or p.gris)
+    end
+    if auto >= 2 then
+        ui.boton("autoTops", "T:" .. NIVEL_CORTO[o.topDesde or 0], FUNDAS.x + 72, FUNDAS.y + 20, 40, 11, (o.topDesde or 0) > 0 and p.azul or p.gris)
+    end
     if ui.encima == "autoFundas" or ui.encima == "autoTops" then
         ui.tooltip("Protección automática", p.cian, {
             { "F: funda a las cartas nuevas desde esa rareza" },

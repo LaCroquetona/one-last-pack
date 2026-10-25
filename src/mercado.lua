@@ -244,9 +244,16 @@ end
 -- tienda
 
 -- precio en la tienda y edicion, o nil si no hay sobres en la tienda
+-- mejoras MAYORISTA (rebaja) y PROVEEDOR (sobres de mas al dia); las pone
+-- partida.aplicarSuerte
+mercado.rebajaTienda, mercado.extraStock = 0, 0
+
 function mercado.enTienda(tipo)
     local hay, primera = calendario.enTienda(tipo.set, mercado.estado.dia)
     if not hay then return nil end
+    if mercado.rebajaTienda > 0 then
+        return math.max(10, math.floor(tipo.precio * (1 - mercado.rebajaTienda) / 10 + 0.5) * 10), primera
+    end
     return tipo.precio, primera
 end
 
@@ -718,8 +725,9 @@ end
 local function reponerStock(dia)
     mercado.estado.cajas = mercado.estado.cajas or {}
     for _, tipo in ipairs(sobres.lista) do
-        mercado.estado.stock[tipo.id] = stockDelDia(tipo, dia)
-        mercado.estado.cajas[tipo.id] = stockDelDia(tipo, dia) > 0 and sobres.caja.porDia or 0
+        local n = stockDelDia(tipo, dia)
+        mercado.estado.stock[tipo.id] = n > 0 and n + mercado.extraStock or 0
+        mercado.estado.cajas[tipo.id] = n > 0 and sobres.caja.porDia or 0
     end
 end
 
