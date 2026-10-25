@@ -146,6 +146,16 @@ function fuentes.envolver(cad, ancho)
     return fuentes.pixel:getWrap(cad, ancho / factor())
 end
 
+-- un parrafo partido en lineas como fuentes.envolver, todas al mismo tamaño
+-- (fuentes.texto con ancho encoge una linea que cabria en pequeño)
+function fuentes.parrafo(cad, x, y, color, ancho)
+    local _, lineas = fuentes.envolver(cad, ancho)
+    for i, l in ipairs(lineas) do
+        fuentes.texto(l, x, y + (i - 1) * fuentes.linea(), 1, color)
+    end
+    return #lineas
+end
+
 -- alinear: nil, "left", "center" o "right" (con ancho)
 function fuentes.texto(cad, x, y, escala, color, alinear, ancho)
     escala = escala or 1

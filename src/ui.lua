@@ -6,7 +6,8 @@ local sonido = require "src.sonido"
 
 local lg = love.graphics
 
-local ui = { mx = 0, my = 0 }
+-- tactil: movil o tablet (main.lua lo pone); botones mas altos y el dedo no tiene que acertar justo
+local ui = { mx = 0, my = 0, tactil = false }
 
 local zonas = {}
 -- lo que se ve de pantalla a lo ancho (mas que 0-640 en moviles alargados)
@@ -19,15 +20,29 @@ local function dentro(z, x, y)
     return x >= z.x and x < z.x + z.w and y >= z.y and y < z.y + z.h
 end
 
-local function buscar(x, y)
+-- en pantallas tactiles el dedo tapa: si no se toca nada justo, vale el
+-- boton mas cercano a menos de TOLERANCIA pixeles del juego
+local TOLERANCIA = 8
+
+local function buscar(x, y, exacto)
     for i = #zonas, 1, -1 do
         if dentro(zonas[i], x, y) then return zonas[i].id end
     end
+    if exacto or not ui.tactil then return nil end
+    local mejor, dmin
+    for i = #zonas, 1, -1 do
+        local z = zonas[i]
+        local dx = math.max(z.x - x, 0, x - (z.x + z.w))
+        local dy = math.max(z.y - y, 0, y - (z.y + z.h))
+        local dist = math.max(dx, dy)
+        if dist <= TOLERANCIA and (not dmin or dist < dmin) then mejor, dmin = z.id, dist end
+    end
+    return mejor
 end
 
 function ui.empezar(mx, my)
     ui.mx, ui.my = mx, my
-    ui.encima = buscar(mx, my)
+    ui.encima = buscar(mx, my, true)
     if ui.encima and ui.encima ~= anterior then sonido.tocar("encima") end
     anterior = ui.encima
     zonas = {}
@@ -80,9 +95,15 @@ local function oscuro(c)
     return { c[1] * 0.55, c[2] * 0.55, c[3] * 0.55 }
 end
 
-function ui.boton(id, texto, x, y, w, h, color, activo)
+-- quieto: se pinta igual pero no se puede pulsar (sin que cambie de color)
+function ui.boton(id, texto, x, y, w, h, color, activo, quieto)
     if activo == nil then activo = true end
-    local alza = ui.anim(id, (activo and ui.encima == id) and 1 or 0)
+    -- en el movil ningun boton baja de 14 de alto (crece por arriba y por abajo)
+    if ui.tactil and h < 14 then
+        y = y - math.floor((14 - h) / 2)
+        h = 14
+    end
+    local alza = ui.anim(id, (activo and not quieto and ui.encima == id) and 1 or 0)
     local dy = -math.floor(alza * 2 + 0.5)
     local c = activo and color or p.grisosc
 
@@ -94,7 +115,7 @@ function ui.boton(id, texto, x, y, w, h, color, activo)
     lg.rectangle("fill", x + 1, y + dy + 1, w - 2, h - 3)
     fuentes.texto(texto, x, y + dy + math.floor((h - 5) / 2), 1, activo and p.blanco or p.gris, "center", w)
 
-    if activo then ui.zona(id, x, y, w, h) end
+    if activo and not quieto then ui.zona(id, x, y, w, h) end
 end
 
 -- caja oscura con borde, la de los paneles

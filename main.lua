@@ -13,6 +13,7 @@ local nav = require "src.nav"
 local partida = require "src.partida"
 local dev = require "src.dev"
 local tutorial = require "src.tutorial"
+local desbloqueos = require "src.desbloqueos"
 local apertura = require "src.apertura"
 local tienda = require "src.tienda"
 local armario = require "src.armario"
@@ -31,6 +32,9 @@ local lg = love.graphics
 -- sobra a cada lado. El lienzo va al triple para que el texto del movil
 -- (x4/3) quede nitido
 local ANCHO, ALTO = 640, 360
+-- ancho que tiene que sobrar a la izquierda para poner los botones de las
+-- pantallas en columna (riel) en vez de arriba
+local RIEL_MIN = 54
 local VISTO, OX = ANCHO, 0
 local DOBLE = 3
 local pantalla
@@ -94,7 +98,12 @@ function nav.vista()
     return VISTO, OX
 end
 
+-- la ultima posicion que llego por evento: en Android getPosition puede
+-- devolver un fotograma la del toque anterior, y lo que coges saltaba alli
+-- y volvia (parpadeo al coger un sobre)
+local ultimoX, ultimoY
 local function raton()
+    if ultimoX then return aJuego(ultimoX, ultimoY) end
     return aJuego(love.mouse.getPosition())
 end
 
@@ -174,7 +183,10 @@ function love.load()
     lg.setDefaultFilter("nearest", "nearest")
     lg.setLineStyle("rough")
     -- en el movil el texto va mas grande (OLP_MOVIL=1 lo prueba en el PC)
-    if love._os == "Android" or love._os == "iOS" or os.getenv("OLP_MOVIL") then fuentes.factor = 4 / 3 end
+    if love._os == "Android" or love._os == "iOS" or os.getenv("OLP_MOVIL") then
+        fuentes.factor = 4 / 3
+        ui.tactil = true
+    end
     medirPantalla()
     if love.filesystem.read(ARCHIVO_PANTALLA) == "completa" then
         love.window.setFullscreen(true, "desktop")
@@ -204,6 +216,7 @@ function love.update(dt)
     fx.update(dt)
     dineroVisto = fx.lerp(dineroVisto, partida.dinero, math.min(1, dt * 8))
     partida.update(dt)
+    if escena ~= "menu" then desbloqueos.update(dt) end
     -- premios por completar sets: aviso, confeti y monedas
     local premio = table.remove(partida.premiosNuevos, 1)
     if premio then
@@ -249,11 +262,13 @@ function love.mousepressed(x, y, boton)
         return
     end
     if boton ~= 1 then return end
+    ultimoX, ultimoY = x, y
     if transicion.activa() then
         transicion.saltar()
         return
     end
     local mx, my = aJuego(x, y)
+    ui.mx, ui.my = mx, my
     local id = ui.click(mx, my)
     if ui.clickModal(id) or ui.clickOverlay(id) then
         if id then sonido.tocar("click") end
@@ -293,6 +308,7 @@ function love.mousereleased(x, y, boton)
 end
 
 function love.mousemoved(x, y)
+    ultimoX, ultimoY = x, y
     local mx, my = aJuego(x, y)
     ui.moverRaton(mx, my)
     if escena == "armario" then armario.mover(mx, my) end
@@ -378,11 +394,26 @@ local function dibujarBarra()
     -- en el movil un poco mas anchos para que se pulsen bien
     local x = izq + 6
     local extra = fuentes.factor > 1 and 8 or 0
+    -- pantallas alargadas (moviles de 19,5:9 o mas): lo que sobra a la
+    -- izquierda se usa para botones grandes, uno encima de otro
+    local riel = izq + RIEL_MIN <= -4
+    local ry = 26
+    -- mientras se abre un sobre (o pasa algo) se ven igual pero no se pulsan:
+    -- que no desaparezcan y vuelvan a salir con cada sobre
+    local quieto = bloqueado()
     local function boton(id, texto, w, color)
-        ui.boton(id, texto, x, 3, w + extra, 14, color)
+        local q = quieto and id ~= "ir_dev"
+        if riel then
+            local rw = -4 - izq
+            local rh = id == "ir_dev" and 22 or 56
+            ui.boton(id, texto, izq + 2, ry, rw - 2, rh, color, true, q)
+            ry = ry + rh + 6
+            return
+        end
+        ui.boton(id, texto, x, 3, w + extra, 14, color, true, q)
         x = x + w + extra + 3
     end
-    if not bloqueado() then
+    do
         boton("ir_tienda", "TIENDA", 38, escena == "tienda" and p.verde or p.gris)
         boton("ir_mesa", "MESA", 34, escena == "mesa" and p.verde or (directo.activo() and p.rojo or p.gris))
         boton("ir_armario", "ARMARIO", 42, escena == "armario" and p.verde or p.gris)
@@ -391,15 +422,13 @@ local function dibujarBarra()
         if ui.encima == "ir_movil" and directo.activo() then
             ui.tooltip("Se acaba el directo", p.rojo, { { "El móvil es el que graba" } })
         end
-    else
-        x = x + 179 + extra * 4
     end
     boton("ir_dev", "DEV", 24, dev.abierto and p.naranja or p.grisosc)
 
     local dinero = ui.dinero(dineroVisto)
     local dx = der - 8 - fuentes.ancho(dinero, 2)
     fuentes.texto(dinero, dx, 4, 2, p.amarillo)
-    local info = "DÍA " .. mercado.dia() .. "   SOBRES " .. partida.sobresGuardados()
+    local info = "DÍA " .. mercado.dia() .. "   SOBRES " .. partida.sobresSinAbrir()
     local ix = dx - 12 - fuentes.ancho(info)
     fuentes.texto(info, ix, 8, 1, p.grisclaro)
     if escena == "armario" then armario.pestanas(x + 4, ix - 6) end
