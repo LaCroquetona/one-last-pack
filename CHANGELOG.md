@@ -5,6 +5,103 @@ parte de una fase); el del medio solo cuando termino una fase entera y la doy
 por buena. Los arreglos de una versión que todavía estoy probando van en esa
 misma versión. El juego se queda por debajo de 1.0 hasta que esté completo.
 
+Fases (hasta la 0.8): fase 1 = v0.6.0, fase 2 = v0.7.0-0.7.1,
+fase 3 = v0.7.2-0.7.4, fase 4 = v0.8.0-0.8.2. Desde la v0.9.0 ya no hay
+fases: se sigue el roadmap. La v0.9.0 se preparó como v0.8.3 y salió con
+otro número.
+
+## v0.9.0 - 2026-10-25 - Desbloqueos por hitos, móvil y mejoras nuevas
+
+### Arreglos tras probarla (misma versión)
+
+- **Avisos de uno en uno**: los ¡NUEVO! ya no se juntan. Sale uno, y el
+  siguiente espera 25 segundos de juego (6 tras el tutorial). Nunca salen ni
+  se miran mientras abres un sobre o tienes uno en el tapete.
+- **Avisos que ya no valen se quitan**: "sin dinero" y "sin sobres" se
+  comprueban al ir a enseñarlos. Gastarte todo en la tienda o poner tu último
+  sobre en el tapete ya no hace creer al juego que te has quedado sin nada.
+- **Desbloqueos más espaciados**: el mercado sale con repetidas tras 6 sobres
+  (o sin dinero) y los encargos tras 2 directos.
+- **Economía** (se ganaba demasiado abriendo rápido y revendiendo cajas):
+  - abrir más de 4 sobres por minuto en directo no da más: cada sobre trae
+    menos propinas, seguidores y subidón; lo viral (secreta, chase, god pack)
+    cuenta entero;
+  - propinas más bajas (probabilidad 0,010, las gordas piden más gente, la
+    full art ya no es viral);
+  - la venta de sobres en directo paga algo menos de margen;
+  - las cajas de los vendedores se venden caras (de media un 12% sobre la
+    tienda o sus sobres cerrados): ya no sale a cuenta comprarlas para vender
+    sus sobres sueltos.
+- **Chat**: las líneas largas (VENDIDO A ...) y los textos de la venta ya no
+  se salen. Los nombres no llevan huecos ni símbolos raros.
+- **Caja abierta**: sus sobres cuentan en SOBRES de arriba y en la venta en
+  directo (antes decía "no tienes sobres que vender").
+- **Menú lateral**: ya no desaparece al abrir un sobre (se ve igual, solo no se
+  pulsa hasta acabar).
+- **Sobre que parpadeaba al cogerlo** en el móvil: saltaba un fotograma a donde
+  tocaste la vez anterior.
+- **Mejoras**: CUENTA PRO enseña decimales (8% > 7,5%) y todas las
+  descripciones van al mismo tamaño.
+- **APK**: Android enseña la versión de verdad (0.9.0) y no la 0.5.3. Va
+  firmada con una clave nueva del juego (`herramientas/clave/`): hay que
+  desinstalar la anterior una vez (se pierde la partida del móvil); las
+  siguientes ya se instalan encima.
+
+- **Móvil y pantallas alargadas**:
+  - en pantallas de 19,5:9 o más (Redmi Note 13 y casi todos los móviles
+    de ahora) TIENDA, MESA, ARMARIO y MÓVIL pasan a botones grandes en
+    columna a la izquierda, en el hueco que sobraba; en 16:9 y 18:9 siguen
+    arriba;
+  - en pantallas táctiles ningún botón baja de 14 de alto y si el dedo no
+    acierta justo vale el botón más cercano (hasta 8 píxeles del juego);
+  - los botones de la carta de la mesa (enfundar, vender, top, armario), más
+    grandes en el móvil;
+  - el título de las compras del directo y el "20 SEG." ya no se pisan con
+    el texto grande.
+
+- **Desbloqueos por hitos** (`src/desbloqueos.lua`, `datos/desbloqueos.lua`):
+  al empezar solo hay sobres, la mesa y el directo de apertura. Lo demás sale
+  jugando, cada cosa con un aviso corto (¡NUEVO! + VALE) y una flecha:
+  - fundas con la primera rara; top loaders (y 3 de regalo) con la primera
+    full art o secreta;
+  - CARTERA, MERCADO, VENTAS y LOGROS al tener una repetida o quedarte sin
+    dinero; ENCARGOS tras el primer directo; MEJORAS con 25 €; NOTICIAS y
+    CALENDARIO al anunciarse el S2; CAJAS en la tienda al salir el S2;
+  - venta de sobres en directo con 20 seguidores;
+  - avisos sueltos: sin sobres (ve a la tienda), pasar el día y sin dinero
+    (vende cartas, como mucho una vez al día).
+- **Intro de 3 mensajes** en vez del tutorial de 14 pasos: bienvenida, empezar
+  directo y arrastrar/abrir. Lo demás se explica al desbloquearse.
+- **Top loaders arrastrables** desde la caja de la mesa, al lado de las fundas
+  (si la carta no tiene funda se la pone).
+- **Propinas y espectadores con umbral**: pasados 800 seguidores los
+  espectadores suben mucho más lento (los de más cuentan un 20%). En lo normal
+  (sobre, raras, holos) solo dan propina 25 espectadores y de los de más un
+  12%; full art, secreta, chase y god pack cuentan con toda la gente (clip
+  viral).
+- **Arranque del canal**: con menos de 30 seguidores se ganan x2,5, para llegar
+  pronto a la venta de sobres.
+- **Venta de sobres en directo**:
+  - se desbloquea con 20 seguidores;
+  - el primer comprador llega a los ~10 s;
+  - botón VENDIENDO / PARA MÍ: con las ventas paradas los sobres son tuyos y
+    los pedidos esperan;
+  - hype: lo que abres (tuyo o vendido) y sobre todo lo bueno da ganas de
+    comprar: más compradores (x1 + hype) y algo más de margen; barrita naranja;
+  - margen más bajo: 0-8% + hasta 6% por espectadores + hype (antes 8-22%).
+- **Mejoras nuevas** (10 niveles baratos al principio, al máximo dan lo mismo
+  que antes): pestaña TIENDA con MAYORISTA (tienda hasta -8%), PROVEEDOR (hasta
+  +8 sobres al día por set) y SERVICIO DE FUNDAS (el autoenfundado ahora es una
+  mejora: fundas, luego fundas y tops); en DIRECTO, TIENDA EN EL PERFIL (más
+  compradores en la venta).
+- **Arreglo**: sin dinero, el botón de 5 sobres de la tienda ponía el precio de
+  2 (4 € en el S1).
+- **Partidas de antes**: todo desbloqueado, niveles de mejora x2 (5 = 10) y
+  autoenfundado incluido.
+- **Bots** (`herramientas/bots`): perfiles nuevos vendeDirecto (el que sabe),
+  ludopata, especulador y novato; minutos de directo al día (`MINUTOS`),
+  sobres por día limitados y traza (`TRAZA=1`).
+
 ## v0.8.2 - 2026-10-22 - Paso del día, venta en directo y reajustes
 
 - **Paso del día con fundido a negro**: la pantalla se funde, se pone el sol,
