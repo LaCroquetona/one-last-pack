@@ -19,6 +19,7 @@ local directo = require "src.directo"
 local fx = require "src.fx"
 local sonido = require "src.sonido"
 local fuentes = require "src.fuentes"
+local desbloqueos = require "src.desbloqueos"
 local ui = require "src.ui"
 
 local lg = love.graphics
@@ -149,6 +150,32 @@ end
 
 -- dibujo
 
+-- un monton de fundas o de top loaders de la caja (se arrastran a una carta)
+local function monton(que, x, y, w, h, estrecho)
+    local esTop = que == "top"
+    local libres = (esTop and partida.topsLibres or partida.fundasLibres) - ((mano and mano.cosa == que) and 1 or 0)
+    local color = esTop and p.celeste or p.cian
+    ui.caja(x, y, w, h, p.grisosc)
+    fuentes.texto(esTop and "TOPS" or "FUNDAS", x, y + 4, 1, p.blanco, "center", w)
+    for i = math.min(4, libres), 1, -1 do
+        local fx0, fy0 = x + w / 2 - 11 + i * 2, y + 14 - i
+        lg.setColor(1, 1, 1, esTop and 0.2 or 0.12)
+        lg.rectangle("fill", fx0, fy0, 18, 25)
+        lg.setColor(color[1], color[2], color[3], 0.7)
+        lg.rectangle("line", fx0 + 0.5, fy0 + 0.5, 17, 24)
+        -- el top loader es rigido: borde de arriba gordo
+        if esTop then lg.rectangle("fill", fx0 + 1, fy0 + 1, 16, 3) end
+    end
+    fuentes.texto("X" .. math.max(0, libres), x, y + 44, 1, libres > 0 and color or p.rojo, "center", w)
+    local puede = libres > 0 and not apertura.bloqueada()
+    local pista
+    if puede then pista = estrecho and "ARRASTRA" or "ARRÁSTRALA A UNA CARTA"
+    elseif libres > 0 then pista = estrecho and "TRAS ABRIR" or "AL ACABAR EL SOBRE"
+    else pista = estrecho and "EN TIENDA" or "CÓMPRALAS EN LA TIENDA" end
+    fuentes.texto(pista, x, y + 52, 1, p.grisclaro, "center", w)
+    if puede then ui.zona("caja_" .. que, x, y, w, h) end
+end
+
 local function dibujarCaja()
     -- caja de carton
     lg.setColor(p.negro)
@@ -208,23 +235,17 @@ local function dibujarCaja()
         end
     end
 
-    -- fundas
-    local F = FUNDAS
-    local libres = partida.fundasLibres - ((mano and mano.cosa == "funda") and 1 or 0)
-    ui.caja(F.x, F.y, F.w, F.h, p.grisosc)
-    fuentes.texto("FUNDAS", F.x, F.y + 4, 1, p.blanco, "center", F.w)
-    for i = math.min(4, libres), 1, -1 do
-        local fx0, fy0 = F.x + F.w / 2 - 9 + i * 2, F.y + 14 - i
-        lg.setColor(1, 1, 1, 0.12)
-        lg.rectangle("fill", fx0, fy0, 18, 25)
-        lg.setColor(p.cian[1], p.cian[2], p.cian[3], 0.7)
-        lg.rectangle("line", fx0 + 0.5, fy0 + 0.5, 17, 24)
+    -- fundas (y top loaders al lado cuando salen): solo tras desbloquearlas
+    if desbloqueos.hay("fundas") then
+        local F = FUNDAS
+        if desbloqueos.hay("tops") then
+            local fw = math.floor(F.w / 2) - 1
+            monton("funda", F.x, F.y, fw, F.h, true)
+            monton("top", F.x + fw + 2, F.y, F.w - fw - 2, F.h, true)
+        else
+            monton("funda", F.x, F.y, F.w, F.h)
+        end
     end
-    fuentes.texto("X" .. math.max(0, libres), F.x, F.y + 44, 1, libres > 0 and p.cian or p.rojo, "center", F.w)
-    local puede = libres > 0 and not apertura.bloqueada()
-    fuentes.texto(puede and "ARRÁSTRALA A UNA CARTA" or (libres > 0 and "AL ACABAR EL SOBRE" or "CÓMPRALAS EN LA TIENDA"),
-        F.x, F.y + 52, 1, p.grisclaro, "center", F.w)
-    if puede then ui.zona("caja_funda", F.x, F.y, F.w, F.h) end
 
     -- copias en la mesa
     fuentes.texto("DEL ARMARIO " .. partida.propiasEnMesa() .. "/" .. partida.MAX_MESA, CAJA.x, CAJA.y + CAJA.h - 26, 1, p.grisclaro, "center", CAJA.w)
@@ -345,16 +366,30 @@ local function botonesCopia()
         mesaSel = nil
         return
     end
-    local w = 76
+    -- en el movil los botones son mas grandes
+    local w = ui.tactil and 90 or 76
+    local bh, paso = 12, 14
+    if ui.tactil then bh, paso = 17, 20 end
+    local n = 2 + (desbloqueos.hay("fundas") and 1 or 0) + (desbloqueos.hay("tops") and 1 or 0)
     local e = escalaDe(s)
     local x = math.max(TAPETE.x + 2, math.min(TAPETE.x + TAPETE.w - w - 2, s.x - w / 2))
     local y = s.y + CH * e / 2 + 4
-    if y + 54 > TAPETE.y + TAPETE.h then y = s.y - CH * e / 2 - 58 end
-    ui.boton("mesa_funda", c.f and "QUITAR FUNDA" or "ENFUNDAR", x, y, w, 12, c.f and p.gris or p.verdeosc)
-    ui.boton("mesa_vender", "VENDER +" .. ui.dinero(mercado.ventaRapida(s.id, c.p)), x, y + 14, w, 12,
+    if y + n * paso > TAPETE.y + TAPETE.h then y = s.y - CH * e / 2 - n * paso - 4 end
+    y = math.max(TAPETE.y + 2, y)
+    -- fundas y tops solo cuando ya han salido
+    local by = y
+    if desbloqueos.hay("fundas") then
+        ui.boton("mesa_funda", c.f and "QUITAR FUNDA" or "ENFUNDAR", x, by, w, bh, c.f and p.gris or p.verdeosc)
+        by = by + paso
+    end
+    ui.boton("mesa_vender", "VENDER +" .. ui.dinero(mercado.ventaRapida(s.id, c.p)), x, by, w, bh,
         partida.copias(s.id) == 1 and p.rojo or p.naranja)
-    ui.boton("mesa_top", c.t and "QUITAR TOP" or "PONER TOP", x, y + 28, w, 12, c.t and p.gris or p.azul, c.t or partida.topsLibres > 0)
-    ui.boton("mesa_guardar", "AL ARMARIO", x, y + 42, w, 12, p.azul)
+    by = by + paso
+    if desbloqueos.hay("tops") then
+        ui.boton("mesa_top", c.t and "QUITAR TOP" or "PONER TOP", x, by, w, bh, c.t and p.gris or p.azul, c.t or partida.topsLibres > 0)
+        by = by + paso
+    end
+    ui.boton("mesa_guardar", "AL ARMARIO", x, by, w, bh, p.azul)
 end
 
 local function dibujarMano()
@@ -373,22 +408,29 @@ local function dibujarMano()
         lg.draw(sobre.imagen(mano.tipo), mano.x, mano.y, mano.a, e, e, W / 2, 4)
     elseif mano.cosa == "cajabox" then
         caja.dibujar(mano.tipo, mano.x, mano.y, mano.escala, { rot = mano.a, colgada = true, sombra = { 6, 10 } })
-    elseif mano.cosa == "funda" then
+    elseif mano.cosa == "funda" or mano.cosa == "top" then
+        local esTop = mano.cosa == "top"
         local w, h = CW * 2, CH * 2
         lg.push()
         lg.translate(mano.x, mano.y)
         lg.rotate(mano.a)
         lg.setColor(1, 1, 1, 0.18)
         lg.rectangle("fill", -w / 2, -h / 2, w, h)
-        lg.setColor(p.cian[1], p.cian[2], p.cian[3], 0.8)
+        local color = esTop and p.celeste or p.cian
+        lg.setColor(color[1], color[2], color[3], 0.8)
         lg.rectangle("line", -w / 2 + 0.5, -h / 2 + 0.5, w - 1, h - 1)
+        if esTop then
+            lg.rectangle("line", -w / 2 + 1.5, -h / 2 + 1.5, w - 3, h - 3)
+            lg.rectangle("fill", -w / 2 + 2, -h / 2 + 2, w - 4, 5)
+        end
         lg.setColor(1, 1, 1, 0.35)
         lg.rectangle("fill", -w / 2 + 4, -h / 2 + 4, 3, h - 8)
         lg.pop()
         lg.setColor(1, 1, 1)
         local objetivo = apertura.cartaEn(ui.mx, ui.my)
-        if objetivo and not (objetivo.copia and objetivo.copia.f) then
-            fuentes.texto("SUELTA PARA ENFUNDAR", ui.mx - 50, ui.my + CH + 4, 1, p.cian, "center", 100)
+        local ya = objetivo and objetivo.copia and (esTop and objetivo.copia.t or (not esTop and objetivo.copia.f))
+        if objetivo and not ya then
+            fuentes.texto(esTop and "SUELTA PARA PONER TOP" or "SUELTA PARA ENFUNDAR", ui.mx - 50, ui.my + CH + 4, 1, color, "center", 100)
         end
     elseif mano.cosa == "copia" then
         local def = partida.carta(mano.id)
@@ -594,8 +636,8 @@ function mesa.presionar(id, x, y)
     end
     if id and id:match("^caja_") then
         local que = id:sub(6)
-        if que == "funda" then
-            mano = { cosa = "funda", x = x, y = y, a = 0, w = 0, vx = 0, escala = 1 }
+        if que == "funda" or que == "top" then
+            mano = { cosa = que, x = x, y = y, a = 0, w = 0, vx = 0, escala = 1 }
         else
             local hx, hy = huecoDe(que)
             mano = { cosa = "sobre", tipo = que, x = x, y = y, a = 0, w = 0, vx = 0, escala = 1, hx = hx, hy = hy }
@@ -650,6 +692,24 @@ local function enfundarCopia(c, x, y)
     return false
 end
 
+local function ponerTopCopia(c, x, y)
+    if c.t then return false end
+    if partida.topsLibres <= 0 then
+        sonido.tocar("latido")
+        fx.texto(x, y - 10, "SIN TOP LOADERS: CÓMPRALOS EN LA TIENDA", p.rojo)
+        return false
+    end
+    if not c.f and partida.fundasLibres <= 0 then
+        sinFundas(x, y)
+        return false
+    end
+    if partida.ponerTop(c) then
+        brilloFunda(x, y)
+        return true
+    end
+    return false
+end
+
 function mesa.soltar(x, y)
     pulsadoEnTapete = false
     local m = mano
@@ -673,10 +733,11 @@ function mesa.soltar(x, y)
             sonido.tocar("giro")
             partida.guardar()
         end
-    elseif m.cosa == "funda" then
+    elseif m.cosa == "funda" or m.cosa == "top" then
+        local hacer = m.cosa == "top" and ponerTopCopia or enfundarCopia
         local c = apertura.cartaEn(x, y)
         if c and c.copia then
-            if enfundarCopia(c.copia, x, y) then c.brillo = 1 end
+            if hacer(c.copia, x, y) then c.brillo = 1 end
             return
         end
         -- la copia de la mesa de mas arriba en ese punto
@@ -687,7 +748,7 @@ function mesa.soltar(x, y)
         end
         if s then
             local copia = partida.copia(s.id, s.u)
-            if copia and enfundarCopia(copia, x, y) then s.brillo = 1 end
+            if copia and hacer(copia, x, y) then s.brillo = 1 end
         end
     elseif m.cosa == "copia" then
         local s = entradaMesa(m.u)
