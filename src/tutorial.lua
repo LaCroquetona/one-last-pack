@@ -4,48 +4,26 @@
 -- partida.tutorial: numero del paso, o false si ya se acabo o se salto
 local p = require "datos.paleta"
 local partida = require "src.partida"
-local mercado = require "src.mercado"
 local directo = require "src.directo"
 local apertura = require "src.apertura"
 local fuentes = require "src.fuentes"
 local sonido = require "src.sonido"
 local ui = require "src.ui"
+local desbloqueos = require "src.desbloqueos"
 
 local lg = love.graphics
 
 local tutorial = {}
 
-local dia0 = 1
 
+-- la intro es corta: lo demas se explica al desbloquearse (src/desbloqueos.lua)
 local PASOS = {
-    { texto = "¡BIENVENIDO A ONE LAST PACK! ABRE SOBRES, COMPLETA LA COLECCIÓN Y SÁCATE UN DINERO VENDIENDO CARTAS Y HACIENDO DIRECTOS.",
+    { texto = "¡BIENVENIDO A ONE LAST PACK! ABRE SOBRES, HAZ DIRECTOS Y SÁCATE UN DINERO. LO DEMÁS SE IRÁ DESBLOQUEANDO SOBRE LA MARCHA.",
       boton = "EMPEZAR" },
     { texto = "EMPIEZA UN DIRECTO: MIENTRAS ABRES, EL CHAT TE DA PROPINAS Y GANAS SEGUIDORES.",
       apunta = "dir_empezar", boton = "AHORA NO", hecho = function() return directo.activo() end },
-    { texto = "ARRASTRA UN SOBRE DE LA CAJA AL TAPETE.",
-      apunta = "caja_set", hecho = function() return apertura.activa() or partida.abiertos > 0 end },
-    { texto = "MANTÉN PULSADO EL SOBRE PARA RASGARLO Y VE SACANDO LAS CARTAS.",
-      hecho = function() return partida.abiertos > 0 and not apertura.bloqueada() end },
-    { texto = "TOCA UNA CARTA DE LA MESA.",
-      hecho = function() return ui.rect("mesa_vender") ~= nil end, boton = "SIGUIENTE" },
-    { texto = "PUEDES ENFUNDARLA, VENDERLA AL MOMENTO O MANDARLA AL ARMARIO. LAS FUNDAS DE LA CAJA TAMBIÉN SE ARRASTRAN A UNA CARTA.",
-      boton = "SIGUIENTE" },
-    { texto = "EL DIRECTO LO PARAS CUANDO QUIERAS. SI SACAS EL MÓVIL O PASAS EL DÍA, SE CORTA.",
-      boton = "SIGUIENTE", salta = function() return not directo.activo() end },
-    { texto = "VE A LA TIENDA A POR MÁS SOBRES.",
-      apunta = "ir_tienda", hecho = function(escena) return escena == "tienda" end },
-    { texto = "AQUÍ COMPRAS SOBRES, CAJAS Y FUNDAS. CADA SET ESTÁ UN TIEMPO EN TIENDA Y LUEGO SE AGOTA. LA 1ª EDICIÓN VALE MÁS.",
-      apunta = "comprar1", boton = "SIGUIENTE" },
-    { texto = "EN EL ARMARIO ESTÁ TU COLECCIÓN.",
-      apunta = "ir_armario", hecho = function(escena) return escena == "armario" end },
-    { texto = "TUS CARTAS POR SETS: COPIAS, ÁLBUM Y LO QUE GUARDAS SIN ABRIR. DESDE AQUÍ TAMBIÉN SE VENDE.",
-      boton = "SIGUIENTE" },
-    { texto = "SACA EL MÓVIL.",
-      apunta = "ir_movil", hecho = function(escena) return escena == "movil" end },
-    { texto = "MERCADO: SOBRES Y CAJAS DE CADA SET. VENTAS: TUS ANUNCIOS. ENCARGOS: TE PAGAN POR ABRIR. MEJORAS: SUERTE, VENTA Y DIRECTO.",
-      apunta = "m_app_mercado", boton = "SIGUIENTE" },
-    { texto = "PASA EL DÍA: LLEGAN OFERTAS A TUS ANUNCIOS, NOTICIAS Y SOBRES A LA TIENDA, Y LOS PRECIOS SE MUEVEN.",
-      apunta = "pasarDia", boton = "¡A JUGAR!", hecho = function() return mercado.dia() > dia0 end },
+    { texto = "ARRASTRA UN SOBRE DE LA CAJA AL TAPETE Y MANTÉN PULSADO PARA ABRIRLO.",
+      apunta = "caja_set1", hecho = function() return partida.abiertos > 0 and not apertura.bloqueada() end },
 }
 
 function tutorial.activo()
@@ -54,12 +32,12 @@ end
 
 local function terminar()
     partida.tutorial = false
+    desbloqueos.vale(require("datos.desbloqueos").esperaTutorial)
     partida.guardar()
 end
 
 local function siguiente()
     partida.tutorial = partida.tutorial + 1
-    dia0 = mercado.dia()
     if not PASOS[partida.tutorial] then
         terminar()
         sonido.tocar("nueva")
@@ -81,13 +59,20 @@ end
 
 local t = 0
 
+-- el aviso de desbloqueo que toca (cuando no hay intro ni se esta abriendo)
+local function avisoActual()
+    if tutorial.activo() then return nil end
+    return desbloqueos.siguiente()
+end
+
 function tutorial.dibujar(escena)
-    if not tutorial.activo() or ui.modal or ui.overlay then return end
+    if ui.modal or ui.overlay then return end
     if escena ~= "mesa" and escena ~= "tienda" and escena ~= "armario" and escena ~= "movil" then return end
-    revisar(escena)
-    if not tutorial.activo() then return end
+    if tutorial.activo() then revisar(escena) end
+    local paso = tutorial.activo() and PASOS[partida.tutorial] or avisoActual()
+    if not paso then return end
+    local esAviso = not tutorial.activo()
     t = t + love.timer.getDelta()
-    local paso = PASOS[partida.tutorial]
 
     -- marco y flecha sobre lo que hay que tocar
     local z = paso.apunta and ui.rect(paso.apunta)
@@ -128,9 +113,13 @@ function tutorial.dibujar(escena)
     lg.rectangle("fill", x, y, w, h, 4, 4)
     lg.setColor(p.amarillo)
     lg.rectangle("fill", x, y, 3, h, 2, 2)
-    fuentes.texto("TUTORIAL " .. partida.tutorial .. "/" .. #PASOS, x + 8, y + 6, 1, p.amarillo)
-    fuentes.texto(paso.texto, x + 8, y + 17, 1, p.blanco, "left", w - 16)
+    fuentes.texto(esAviso and "¡NUEVO!" or ("TUTORIAL " .. partida.tutorial .. "/" .. #PASOS), x + 8, y + 6, 1, p.amarillo)
+    fuentes.parrafo(paso.texto, x + 8, y + 17, p.blanco, w - 16)
     local by = y + h - 17
+    if esAviso then
+        ui.boton("tut_vale", "VALE", x + w - 68, by, 60, 12, p.verde)
+        return
+    end
     ui.boton("tut_saltar", "SALTAR TUTORIAL", x + 8, by, 74, 12, p.grisosc)
     if paso.boton then
         local bw = math.max(60, fuentes.ancho(paso.boton) + 12)
@@ -143,13 +132,15 @@ function tutorial.click(id)
         terminar()
     elseif id == "tut_sig" then
         siguiente()
+    elseif id == "tut_vale" then
+        desbloqueos.vale()
+        sonido.tocar("encima", 1.4)
     end
 end
 
 -- volver a verlo desde el menu
 function tutorial.repetir()
     partida.tutorial = 1
-    dia0 = mercado.dia()
 end
 
 return tutorial
