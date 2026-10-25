@@ -95,8 +95,8 @@ function vendedores.deSobre(tipo, primera)
 end
 
 function vendedores.deCaja(tipo, primera)
-    local ref, clase = referencia(tipo, primera, true)
-    return ofertas("c" .. tipo.id .. (primera and 1 or 0), ref, clase, datos.ofertas.caja, datos.stock.caja,
+    local ref = referencia(tipo, primera, true)
+    return ofertas("c" .. tipo.id .. (primera and 1 or 0), ref, "caja", datos.ofertas.caja, datos.stock.caja,
         { que = "caja", tipo = tipo.id, primera = primera })
 end
 

@@ -3,6 +3,8 @@
 -- alrededor de una referencia:
 --   tienda:  mientras la tienda lo vende, su precio oficial
 --   sellado: cuando ya no, lo que vale cerrado en el mercado
+--   caja:    las cajas, siempre (su referencia es la de la tienda o la
+--            de sus sobres cerrados)
 --   carta:   lo que vale la carta (algo por encima: si no, se compraria
 --            para venderla al momento)
 -- media y desv de la campana; min y max la recortan. Los de mas estrellas
@@ -13,10 +15,13 @@ return {
         tienda  = { media = 1.04, desv = 0.10, min = 0.78, max = 1.50 },
         sellado = { media = 1.06, desv = 0.10, min = 0.80, max = 1.60 },
         carta   = { media = 1.14, desv = 0.08, min = 0.92, max = 1.60 },
+        -- las cajas cerradas se revenden caras (y asi no sale a cuenta
+        -- comprarlas para vender sus sobres sueltos en directo)
+        caja    = { media = 1.12, desv = 0.07, min = 0.95, max = 1.50 },
         porEstrella = 0.025,
     },
-    -- una caja de reventa se mira contra sus 18 sobres cerrados, algo rebajada
-    cajaReventa = 0.95,
+    -- una caja de reventa se mira contra sus 18 sobres cerrados
+    cajaReventa = 1.0,
     -- cuantas ofertas hay de cada cosa ({ minimo, maximo }) y cuantas unidades
     -- tiene cada vendedor
     ofertas = { sobre = { 2, 5 }, caja = { 0, 3 } },

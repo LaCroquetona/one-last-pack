@@ -74,6 +74,7 @@ function partida.nueva()
     partida.encargos = {}        -- aceptados: { nombre, tipo, n, hechos, pago, dias, primera }
     partida.ofertasEncargo = {}  -- sin aceptar: lo mismo + espera
     partida.tutorial = 1         -- paso del tutorial (false: hecho o saltado)
+    partida.desbloqueos = {}     -- lo que ya ha salido (src/desbloqueos.lua)
     for tipo, n in pairs(sobres.inicio.sobres) do
         partida.guardados[tipo] = n
         partida.guardados1[tipo] = n
@@ -235,11 +236,13 @@ function partida.anadir(id, primera)
     -- funda y top loader solos segun la rareza (opciones.fundaDesde / topDesde)
     local nivel = rarezas[porId[id].rareza].nivel
     local o = partida.opciones
-    if (o.fundaDesde or 0) > 0 and nivel >= o.fundaDesde and partida.fundasLibres > 0 then
+    -- solo con la mejora SERVICIO DE FUNDAS (1: fundas, 2: tambien tops)
+    local auto = partida.efecto("autofundas")
+    if auto >= 1 and (o.fundaDesde or 0) > 0 and nivel >= o.fundaDesde and partida.fundasLibres > 0 then
         partida.fundasLibres = partida.fundasLibres - 1
         c.f = true
     end
-    if c.f and (o.topDesde or 0) > 0 and nivel >= o.topDesde and partida.topsLibres > 0 then
+    if auto >= 2 and c.f and (o.topDesde or 0) > 0 and nivel >= o.topDesde and partida.topsLibres > 0 then
         partida.topsLibres = partida.topsLibres - 1
         c.t = true
     end
@@ -580,6 +583,11 @@ function partida.sobresGuardados()
     return n
 end
 
+-- los que se ven como "sin abrir": los guardados y los de la caja abierta
+function partida.sobresSinAbrir()
+    return partida.sobresGuardados() + (partida.cajaAbierta and partida.cajaAbierta.quedan or 0)
+end
+
 -- tipoId: el sobre que se quiere abrir; sin el, el primero que quede.
 -- Se abren antes los de reimpresion: los de 1ª edicion cerrados valen mas
 -- apartados: no salen en la mesa (clase "s" sobres, "c" cajas)
@@ -701,6 +709,8 @@ end
 function partida.aplicarSuerte()
     generador.suerte = { segunda = partida.efecto("segunda"), extra = partida.efecto("extra"), godpack = partida.efecto("godpack") }
     mercado.rebajaComision = partida.efecto("comision")
+    mercado.rebajaTienda = partida.efecto("mayorista")
+    mercado.extraStock = partida.efecto("proveedor")
 end
 
 function partida.comprarMejora(m)
@@ -1035,7 +1045,7 @@ function partida.guardar()
 end
 
 local CAMPOS = { "dinero", "abiertos", "inv", "uid", "guardados", "guardados1", "anuncios",
-    "orden", "mesa", "seguidas", "opciones", "fundasLibres", "cartera", "premios", "canal", "mejoras", "encargos", "ofertasEncargo", "cajas", "cajas1", "cajaAbierta", "topsLibres", "apartados", "vendidos", "logros", "tutorial" }
+    "orden", "mesa", "seguidas", "opciones", "fundasLibres", "cartera", "premios", "canal", "mejoras", "encargos", "ofertasEncargo", "cajas", "cajas1", "cajaAbierta", "topsLibres", "apartados", "vendidos", "logros", "tutorial", "desbloqueos" }
 
 function partida.guardarYa()
     pendiente = false
@@ -1167,6 +1177,16 @@ function partida.cargar()
     partida.encargosHechos, partida.encargosCaducados = {}, {}
     -- partidas de antes del tutorial: ya saben jugar
     if datos.tutorial == nil then partida.tutorial = false end
+    -- partidas de antes de los desbloqueos (v0.8.2 o antes): todo abierto, y
+    -- las mejoras tienen el doble de niveles (5 de antes = 10 de ahora)
+    if datos.desbloqueos == nil then
+        partida.desbloqueos = { todo = true }
+        for id, n in pairs(partida.mejoras) do
+            local m = mejoraPorId[id]
+            partida.mejoras[id] = m and math.min(n * 2, #m.valores) or nil
+        end
+        partida.mejoras.autofundas = 2
+    end
     -- partidas de antes de elegir rarezas: holo o mejor con funda, full art o mejor con top
     if partida.opciones.fundaDesde == nil then
         partida.opciones.fundaDesde = partida.opciones.autoFundas == false and 0 or 4
