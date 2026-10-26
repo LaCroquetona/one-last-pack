@@ -12,8 +12,9 @@ for _, c in ipairs(cartas) do
     table.insert(r[c.rareza], c)
 end
 
--- sobres seguidos sin holo o mejor, uno por tipo de sobre
-local sequia = {}
+-- sobres seguidos sin holo o mejor, uno por tipo de sobre (la piedad).
+-- Es la tabla de la partida (partida.sequia), asi se guarda
+generador.sequia = {}
 
 -- herramientas de desarrollador: "godpack" o "secreta" para el siguiente sobre
 generador.forzar = nil
@@ -81,7 +82,7 @@ function generador.sobre(tipo)
     generador.forzar = nil
     local ultimo = tipo.huecos[#tipo.huecos]
     local porRareza = porSet[tipo.set]
-    local seco = sequia[tipo.id] or 0
+    local seco = generador.sequia[tipo.id] or 0
     local sobre, usadas = {}, {}
     local mejorNivel = 0
 
@@ -117,7 +118,7 @@ function generador.sobre(tipo)
         table.insert(sobre, c)
         mejorNivel = math.max(mejorNivel, rarezas[c.rareza].nivel)
     end
-    sequia[tipo.id] = mejorNivel >= 4 and 0 or seco + 1
+    generador.sequia[tipo.id] = mejorNivel >= 4 and 0 or seco + 1
 
     table.sort(sobre, function(a, b)
         local na, nb = rarezas[a.rareza].nivel, rarezas[b.rareza].nivel
