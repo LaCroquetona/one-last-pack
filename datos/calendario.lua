@@ -19,5 +19,5 @@ return {
     ultimos = 3,       -- dias antes de que acabe una tirada
     rumor = { 2, 4 },  -- dias antes de una reimpresion
     -- hasta que dia se planifica
-    horizonte = 800,
+    horizonte = 4000,
 }

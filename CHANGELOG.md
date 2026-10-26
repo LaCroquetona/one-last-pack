@@ -10,6 +10,42 @@ fase 3 = v0.7.2-0.7.4, fase 4 = v0.8.0-0.8.2. Desde la v0.9.0 ya no hay
 fases: se sigue el roadmap. La v0.9.0 se preparó como v0.8.3 y salió con
 otro número.
 
+## v0.9.1 - 2026-10-26 - Atajos de la mesa, reportes de bugs y opciones
+
+- **Guardar un sobre sin abrir**: mientras cae o está en el tapete sin rasgar,
+  botón GUARDAR, arrastrarlo a la caja de cartón, ESC o clic derecho. Vuelve a
+  donde estaba (la caja abierta o tus sobres) con las cartas que ya le
+  tocaron: al abrirlo después salen esas mismas (no se puede usar para cambiar
+  la suerte). Si alguien del chat lo había comprado, se le devuelve el dinero
+  y el pedido vuelve a la lista.
+- **Cajas sin abrir**: tocar una caja cerrada en la mesa (sin arrastrarla)
+  saca el chip SACAR SOBRES; en el armario > SELLADO, botón SACAR por caja.
+  Sus 18 sobres pasan a los guardados sin animación.
+- **Caja abierta**: un sobre suyo soltado en la caja de cartón guarda todos
+  los que le quedan.
+- **RECOGER MESA**: sin sobres, un botón manda las cartas sueltas al armario
+  (y el espacio hace lo mismo).
+- **Bocadillos**: cada gesto nuevo se explica una vez con un bocadillo.
+- **Lo que llevas del set**: arriba a la izquierda del tapete, el set del
+  último sobre con cartas y %. En el álbum, el total con % y VER LAS QUE
+  FALTAN (con su precio en el mercado).
+- **Venta en directo**: las cajas cerradas también cuentan; el chat te pide
+  sobres aunque solo tengas cajas.
+- **Tutorial**: en el último paso pone TERMINAR TUTORIAL.
+- **Música**: suena `intro_theme.ogg` en la intro y el menú; se apaga al
+  entrar a jugar. Va en la carpeta `musica/`.
+- **Opciones**: volumen de la música y de los efectos, guardados aparte de la
+  partida.
+- **Reportar bug** (menú): escribes qué ha pasado y se guarda un reporte con
+  tu partida, la versión, el dispositivo y tus últimas 200 acciones; también
+  se copia al portapapeles. `herramientas/reporte.sh` lo abre y carga la
+  partida.
+- **Pantalla de error propia**: si el juego peta, guarda un reporte solo con
+  el error y lo dice (botones COPIAR REPORTE, ABRIR CARPETA y SALIR).
+- **Arreglos**: el contador de piedad (sobres seguidos sin holo) ya se guarda
+  al cerrar el juego; el calendario de reimpresiones llega mucho más allá del
+  día 800.
+
 ## v0.9.0 - 2026-10-25 - Desbloqueos por hitos, móvil y mejoras nuevas
 
 ### Arreglos tras probarla (misma versión)
