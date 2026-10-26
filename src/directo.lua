@@ -474,15 +474,21 @@ end
 
 -- la edicion que sale al sacar un sobre (primero las normales, como la mesa)
 local function edicionQueSale(t)
-    return partida.sobres(t.id, false) <= 0
+    -- ESPACIO saca primero de la caja abierta, luego de los guardados
+    local caja = partida.cajaAbierta
+    if caja and caja.tipo == t.id and caja.quedan > 0 then return caja.primera == true end
+    if partida.sobres(t.id) > 0 then return partida.sobres(t.id, false) <= 0 end
+    -- solo hay cajas cerradas: la que se abriria
+    return partida.cajasDe(t.id, false) <= 0
 end
 
 local function sobresEnVenta()
     local lista = {}
     local caja = partida.cajaAbierta
     for _, t in ipairs(sobres.lista) do
-        -- los de la caja abierta tambien se venden
-        if partida.disponibles(t.id) > 0 or (caja and caja.tipo == t.id and caja.quedan > 0) then table.insert(lista, t) end
+        -- los de la caja abierta y los de las cajas cerradas tambien se venden
+        if partida.disponibles(t.id) > 0 or partida.cajasDisponibles(t.id) > 0
+            or (caja and caja.tipo == t.id and caja.quedan > 0) then table.insert(lista, t) end
     end
     return lista
 end
@@ -523,6 +529,7 @@ function directo.reservar(tipo, primera)
         if pe.tipo == tipo.id then
             table.remove(d.pedidos, i)
             local precio = directo.precioPedido(pe, primera)
+            pe.cobrado = precio
             partida.dinero = partida.dinero + precio
             partida.canal.ventas = (partida.canal.ventas or 0) + 1
             d.ventas, d.ingresos = d.ventas + 1, d.ingresos + precio
@@ -534,6 +541,22 @@ function directo.reservar(tipo, primera)
             return pe
         end
     end
+end
+
+-- el sobre vendido se guarda sin abrir: se devuelve el dinero y el pedido
+-- vuelve a la lista
+function directo.anularReserva(pe)
+    if not pe or not pe.cobrado then return end
+    local precio = pe.cobrado
+    pe.cobrado = nil
+    partida.dinero = partida.dinero - precio
+    partida.canal.ventas = math.max(0, (partida.canal.ventas or 1) - 1)
+    if not d then return end
+    d.ventas, d.ingresos = math.max(0, d.ventas - 1), d.ingresos - precio
+    d.comprador = nil
+    table.insert(d.pedidos, 1, pe)
+    poner({ sistema = true, texto = "VENTA ANULADA: -" .. ui.dinero(precio), color = p.naranja, nace = d.t })
+    partida.guardar()
 end
 
 function directo.forzarPedido()

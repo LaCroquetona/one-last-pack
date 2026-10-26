@@ -120,7 +120,10 @@ function tutorial.dibujar(escena)
         ui.boton("tut_vale", "VALE", x + w - 68, by, 60, 12, p.verde)
         return
     end
-    ui.boton("tut_saltar", "SALTAR TUTORIAL", x + 8, by, 74, 12, p.grisosc)
+    -- en el ultimo paso ya no se salta nada: se termina
+    local ultimo = partida.tutorial == #PASOS
+    local texto = ultimo and "TERMINAR TUTORIAL" or "SALTAR TUTORIAL"
+    ui.boton("tut_saltar", texto, x + 8, by, math.max(74, fuentes.ancho(texto) + 10), 12, ultimo and p.verde or p.grisosc)
     if paso.boton then
         local bw = math.max(60, fuentes.ancho(paso.boton) + 12)
         ui.boton("tut_sig", paso.boton, x + w - bw - 8, by, bw, 12, p.verde)
