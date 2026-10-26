@@ -24,8 +24,17 @@ local escritorio = require "src.escritorio"
 local mesa = require "src.mesa"
 local directo = require "src.directo"
 local transicion = require "src.transicion"
+local opciones = require "src.opciones"
+local reporte = require "src.reporte"
+local errores = require "src.errores"
 
 local lg = love.graphics
+
+-- si peta, pantalla propia con reporte (src/errores.lua)
+errores.instalar()
+errores.partida = partida.texto
+
+local MUSICA_INTRO = "musica/intro_theme.ogg"
 
 -- el juego se dibuja en 640x360; en pantallas mas alargadas (moviles de
 -- 20:9) se ve mas mesa a los lados: VISTO es el ancho que se ve y OX lo que
@@ -125,7 +134,9 @@ local function bloqueado()
 end
 
 function nav.ir(nombre)
+    reporte.apuntar("ir " .. nombre)
     sonido.carga(0)
+    if nombre == "menu" then sonido.musica(MUSICA_INTRO, 2) end
     -- el movil del directo es el mismo: si lo coges, se acaba el directo
     if nombre == "movil" then directo.terminar() end
     if nombre == "menu" then directo.terminar(true) end
@@ -139,6 +150,7 @@ function nav.ir(nombre)
 end
 
 function nav.empezar()
+    sonido.pararMusica(2)
     dineroVisto = partida.dinero
     transicion.empezarDia()
     movil.reiniciar()
@@ -161,6 +173,7 @@ end
 -- (directo: sin el fundido, para las pruebas y los bots)
 function nav.pasarDia(directoYa)
     if transicion.activa() then return end
+    reporte.apuntar("pasar dia")
     directo.terminar()
     if directoYa then
         movil.pasarDia()
@@ -196,6 +209,7 @@ function love.load()
     sobre.preparar()
     caja.preparar()
     sonido.preparar()
+    opciones.cargar()
     escritorio.preparar()
     movil.preparar()
     mesa.preparar()
@@ -203,6 +217,8 @@ function love.load()
     if partida.logrosSinAviso then logros.revisar(1, true) end
     menu.preparar()
     dineroVisto = partida.dinero
+    reporte.contexto = function() return "D" .. mercado.dia() .. " " .. tostring(escena) end
+    sonido.musica(MUSICA_INTRO, 3)
     intro.empezar(function() escena = "menu" end)
 end
 
@@ -212,6 +228,7 @@ end
 
 function love.update(dt)
     dt = math.min(dt, 1 / 20)
+    sonido.update(dt)
     transicion.update(dt)
     fx.update(dt)
     dineroVisto = fx.lerp(dineroVisto, partida.dinero, math.min(1, dt * 8))
@@ -261,6 +278,11 @@ function love.mousepressed(x, y, boton)
         intro.saltar()
         return
     end
+    -- clic derecho en la mesa: guarda el sobre que aun no se ha abierto
+    if boton == 2 and escena == "mesa" and not ui.modal and not ui.overlay then
+        mesa.cancelar()
+        return
+    end
     if boton ~= 1 then return end
     ultimoX, ultimoY = x, y
     if transicion.activa() then
@@ -270,6 +292,7 @@ function love.mousepressed(x, y, boton)
     local mx, my = aJuego(x, y)
     ui.mx, ui.my = mx, my
     local id = ui.click(mx, my)
+    reporte.apuntar(id and ("click " .. id) or string.format("click %d,%d", mx, my))
     if ui.clickModal(id) or ui.clickOverlay(id) then
         if id then sonido.tocar("click") end
         return
@@ -321,14 +344,17 @@ function love.wheelmoved(_, y)
 end
 
 function love.textinput(t)
+    if reporte.texto(t) then return end
     directo.texto(t)
 end
 
 local ORDEN = { "tienda", "mesa", "armario", "movil" }
 
 function love.keypressed(tecla)
-    -- escribiendo el nombre del canal las teclas son letras
+    -- escribiendo un reporte o el nombre del canal las teclas son letras
+    if reporte.tecla(tecla) then return end
     if directo.tecla(tecla) then return end
+    reporte.apuntar("tecla " .. tecla)
     if transicion.activa() then
         transicion.saltar()
         return
@@ -349,6 +375,8 @@ function love.keypressed(tecla)
     if tecla == "f1" then
         dev.abierto = not dev.abierto
     elseif tecla == "escape" and escena == "armario" and armario.tecla("escape") then
+        return
+    elseif tecla == "escape" and escena == "mesa" and mesa.cancelar() then
         return
     elseif tecla == "escape" then
         if escena == "menu" then
