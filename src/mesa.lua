@@ -47,6 +47,15 @@ local vuelos = {}
 local pulsadoEnTapete = false
 local mesaSel      -- copia de la mesa elegida (u)
 local zMesa = 0
+-- donde se pulso el sobre del tapete: si se arrastra, se coge (para guardarlo)
+local pulsoSobre
+-- chip SACAR SOBRES junto a una caja cerrada que se ha tocado sin arrastrarla
+local chipCaja
+-- donde se pinta cada caja cerrada de la caja de carton (para el chip)
+local sitioCajas = {}
+-- bocadillo de ayuda que se esta viendo (cada uno sale una vez por partida)
+local pistaVista
+local reporte = require "src.reporte"
 
 local function dentro(r, x, y)
     return x >= r.x and x < r.x + r.w and y >= r.y and y < r.y + r.h
@@ -144,8 +153,64 @@ local function soltarSobre(tipoId, x, y, a, escala, deCaja)
     partida.guardar()
     sonido.tocar("giro")
     fx.sacudir(2)
-    apertura.empezar(tipo, primera, { x = x, y = y, a = a, escala = escala })
+    apertura.empezar(tipo, primera, { x = x, y = y, a = a, escala = escala, deCaja = deCaja or nil })
+    reporte.apuntar("sobre " .. tipo.id .. (primera and " 1ed" or "") .. (deCaja and " de caja" or ""))
     return true
+end
+
+-- vuelve volando a su sitio en la caja de carton (o a la caja abierta)
+local function volarACaja(tipoId, x0, y0, e0, a, deCaja)
+    local x1, y1
+    if deCaja and partida.cajaAbierta then
+        x1, y1 = ESQUINA.x, ESQUINA.y
+    else
+        x1, y1 = huecoDe(tipoId)
+    end
+    table.insert(vuelos, { tipo = tipoId, x0 = x0, y0 = y0, x1 = x1, y1 = y1, e0 = e0, a = a or 0, t = 0 })
+end
+
+local function verPista(id)
+    if partida.pistas[id] then return end
+    partida.pistas[id] = true
+    partida.guardar()
+end
+
+-- guarda el sobre del tapete sin abrirlo (boton, ESC o clic derecho)
+function mesa.cancelar()
+    local r = apertura.cancelar()
+    if not r then return false end
+    local cx, cy = apertura.centro()
+    volarACaja(r.tipo, cx, cy, 3, 0, r.deCaja)
+    sonido.tocar("giro")
+    fx.texto(cx, cy - 60, "GUARDADO", p.lima)
+    verPista("guardar")
+    pulsoSobre = nil
+    reporte.apuntar("sobre guardado " .. r.tipo)
+    partida.guardar()
+    return true
+end
+
+-- todas las cartas sueltas de la mesa al armario
+function mesa.recoger()
+    if #partida.mesa == 0 or apertura.activa() or animCaja then return false end
+    partida.recogerMesa()
+    mesaSel = nil
+    sonido.tocar("giro")
+    fx.texto(TAPETE.x + TAPETE.w / 2, TAPETE.y + TAPETE.h / 2, "AL ARMARIO", p.lima)
+    partida.guardar()
+    return true
+end
+
+-- saca los sobres de una caja cerrada sin abrirla
+local function sacarDeCajaCerrada(tipoId)
+    local n = partida.vaciarCaja(sobres[tipoId])
+    chipCaja = nil
+    if not n then return end
+    local s = sitioCajas[tipoId]
+    sonido.tocar("giro")
+    fx.texto(s and s.x or CAJA.x + CAJA.w / 2, (s and s.y or CAJA.y + 170) - 20, "+" .. n .. " SOBRES", p.lima)
+    verPista("sacar")
+    partida.guardar()
 end
 
 -- dibujo
@@ -190,6 +255,15 @@ local function dibujarCaja()
     fuentes.texto("TUS SOBRES", CAJA.x, CAJA.y + 5, 1, p.amarillo, "center", CAJA.w)
 
     local bloqueada = apertura.bloqueada()
+    -- llevas un sobre: soltarlo aqui lo guarda (el de la caja abierta, todos)
+    if mano and mano.cosa == "sobre" and dentro(CAJA, ui.mx, ui.my) then
+        local a = 0.12 + math.sin(love.timer.getTime() * 8) * 0.05
+        lg.setColor(p.lima[1], p.lima[2], p.lima[3], a)
+        lg.rectangle("fill", CAJA.x + 1, CAJA.y + 1, CAJA.w - 2, CAJA.h - 2)
+        local c = partida.cajaAbierta
+        local cad = (mano.deCaja and c) and ("GUARDAR LOS " .. c.quedan) or "GUARDAR"
+        fuentes.texto(cad, CAJA.x, CAJA.y + 15, 1, p.lima, "center", CAJA.w)
+    end
     for k, tipo in ipairs(tiposCaja()) do
         local x, y = hueco(k)
         local n = partida.disponibles(tipo.id)
@@ -231,7 +305,19 @@ local function dibujarCaja()
             local quedan = n - (cogida and 1 or 0)
             if quedan > 0 then caja.dibujar(tipo.id, cx, cy, 1, { mini = true }) end
             fuentes.texto("X" .. quedan, cx + 12, cy + 7, 1, p.blanco)
+            sitioCajas[tipo.id] = { x = cx, y = cy }
             if not bloqueada and not animCaja then ui.zona("cajabox_" .. tipo.id, cx - 16, cy - 14, 32, 27) end
+        end
+    end
+    -- chip para sacar los sobres de la caja tocada (se va solo)
+    if chipCaja and not mano then
+        local s = sitioCajas[chipCaja.tipo]
+        if s and partida.cajasDisponibles(chipCaja.tipo) > 0 and not bloqueada then
+            local w = math.min(CAJA.w - 4, math.max(62, fuentes.ancho("SACAR SOBRES") + 10))
+            local x = math.max(CAJA.x + 2, math.min(CAJA.x + CAJA.w - w - 2, s.x - w / 2))
+            ui.boton("mesa_sacar", "SACAR SOBRES", x, s.y - 30, w, 12, p.azul)
+        else
+            chipCaja = nil
         end
     end
 
@@ -278,13 +364,24 @@ local function dibujarTapete()
         lg.rectangle("fill", T.x + 1, T.y + 1, T.w - 2, T.h - 2)
     end
 
+    -- lo que llevas del set del ultimo sobre, arriba a la izquierda
+    local ultimo = apertura.ultimoTipo()
+    if ultimo and not animCaja then
+        local setId = sobres[ultimo].set
+        local tiene, total = partida.distintas(setId), #partida.cartasDe(setId)
+        local cad = sets[setId].codigo .. " " .. tiene .. "/" .. total .. "  " .. math.floor(tiene / total * 100) .. "%"
+        if tiene >= total then cad = sets[setId].codigo .. " COMPLETO" end
+        fuentes.texto(cad, T.x + 10, T.y + 10, 1, tiene >= total and p.amarillo or { 1, 1, 1, 0.55 })
+    end
+
     -- mientras se abre una caja no hay pistas: la caja es la protagonista
     if not animCaja and not apertura.activa() and #partida.mesa > 0 then
         -- con cartas en la mesa, la pista va abajo y pequeña
         local a = 0.45 + math.sin(love.timer.getTime() * 4) * 0.2
         local cad
         if quedanSobres() == 0 then
-            cad = "NO TE QUEDAN SOBRES: CÓMPRALOS EN LA TIENDA"
+            cad = "SIN SOBRES: CÓMPRALOS EN LA TIENDA"
+            ui.boton("mesa_recoger", "RECOGER MESA", T.x + T.w - 92, T.y + T.h - 22, 84, 16, p.azul)
         elseif love.system.getOS() == "Android" then
             cad = "ARRASTRA OTRO SOBRE: LO DE LA MESA SE GUARDA SOLO"
         else
@@ -465,6 +562,52 @@ local function dibujarVuelos()
     end
 end
 
+-- bocadillos de ayuda: cada gesto nuevo se explica una vez, cuando toca
+local PISTAS = {
+    guardar = "¿MEJOR LUEGO? TOCA GUARDAR O ARRASTRA EL SOBRE A TU CAJA",
+    sacar = "TOCA UNA CAJA PARA SACAR SUS SOBRES SIN ABRIRLA",
+    cajaAbierta = "ARRASTRA UN SOBRE DE LA CAJA A TU CAJA Y SE GUARDAN TODOS",
+}
+
+-- la pista que toca ahora y donde apunta
+local function pistaQueToca()
+    if partida.tutorial or ui.overlay or ui.modal or mano or animCaja then return nil end
+    if apertura.cancelable() and not partida.pistas.guardar then
+        local cx = apertura.centro()
+        return "guardar", cx, 300
+    end
+    if apertura.activa() then return nil end
+    if partida.cajaAbierta and not partida.pistas.cajaAbierta then
+        return "cajaAbierta", ESQUINA.x - 20, ESQUINA.y + 40
+    end
+    if not partida.pistas.sacar then
+        for id, s in pairs(sitioCajas) do
+            if partida.cajasDisponibles(id) > 0 then return "sacar", s.x + 20, s.y - 26 end
+        end
+    end
+end
+
+local function dibujarPista()
+    local id, x, y = pistaQueToca()
+    if not id then
+        pistaVista = nil
+        return
+    end
+    if not pistaVista or pistaVista.id ~= id then pistaVista = { id = id, t = 0 } end
+    local texto = PISTAS[id]
+    local w = math.min(200, fuentes.ancho(texto) + 12)
+    local _, lineas = fuentes.envolver(texto, w - 12)
+    local h = #lineas * fuentes.linea() + 8
+    local bx = math.max(TAPETE.x + 4, math.min(TAPETE.x + TAPETE.w - w - 4, x - w / 2))
+    local by = math.min(TAPETE.y + TAPETE.h - h - 4, y)
+    local a = math.min(1, pistaVista.t * 4)
+    lg.setColor(0, 0, 0, 0.5 * a)
+    lg.rectangle("fill", bx + 2, by + 3, w, h, 3, 3)
+    lg.setColor(p.amarillo[1], p.amarillo[2], p.amarillo[3], a)
+    lg.rectangle("fill", bx, by, w, h, 3, 3)
+    fuentes.parrafo(texto, bx + 6, by + 4, { 0, 0, 0, a }, w - 12)
+end
+
 function mesa.dibujar()
     dibujarTapete()
     dibujarCaja()
@@ -485,6 +628,12 @@ function mesa.dibujar()
         caja.dibujarAnim(animCaja, cx, cy)
     end
     botonesCopia()
+    -- el sobre del tapete aun se puede guardar sin abrir
+    if apertura.cancelable() and not mano then
+        local cx = apertura.centro()
+        ui.boton("mesa_cancelar", "GUARDAR", cx - 30, 280, 60, 12, p.gris)
+    end
+    dibujarPista()
     -- lo que vuela y lo que llevas en la mano gira, asi que va encima
     encima.anotar(dibujarVuelos)
     if mano then encima.anotar(dibujarMano) end
@@ -504,6 +653,15 @@ end
 
 function mesa.update(dt)
     apertura.update(dt, mesa.mantenido())
+    if chipCaja then
+        chipCaja.t = chipCaja.t - dt
+        if chipCaja.t <= 0 then chipCaja = nil end
+    end
+    -- cada bocadillo se ve unos segundos y ya no vuelve
+    if pistaVista then
+        pistaVista.t = pistaVista.t + dt
+        if pistaVista.t > 6 then verPista(pistaVista.id) end
+    end
 
     -- abriendo una caja: al saltar la tapa, fiesta
     if animCaja then
@@ -618,13 +776,24 @@ end
 -- devuelve true si se ha encargado del click
 function mesa.presionar(id, x, y)
     pulsadoEnTapete = false
+    pulsoSobre = nil
+    if id ~= "mesa_sacar" then chipCaja = nil end
+    if id == "mesa_cancelar" then return mesa.cancelar() or true end
+    if id == "mesa_recoger" then
+        mesa.recoger()
+        return true
+    end
+    if id == "mesa_sacar" then
+        if chipCaja then sacarDeCajaCerrada(chipCaja.tipo) end
+        return true
+    end
     if id and directo.click(id) then return true end
     if apertura.enLote() then
         if id then apertura.boton(id) else apertura.pulsar() end
         return true
     end
     if id and id:match("^cajabox_") then
-        mano = { cosa = "cajabox", tipo = id:sub(9), x = x, y = y, a = 0, w = 0, vx = 0, escala = 0.8 }
+        mano = { cosa = "cajabox", tipo = id:sub(9), x = x, y = y, a = 0, w = 0, vx = 0, escala = 0.8, x0 = x, y0 = y }
         sonido.tocar("encima", 1.0)
         return true
     end
@@ -667,6 +836,7 @@ function mesa.presionar(id, x, y)
     if dentro(TAPETE, x, y) then
         pulsadoEnTapete = true
         mesaSel = nil
+        if apertura.sobreEn(x, y) then pulsoSobre = { x = x, y = y } end
         if apertura.activa() and not apertura.enResumen() then apertura.pulsar() end
         return true
     end
@@ -674,8 +844,21 @@ function mesa.presionar(id, x, y)
 end
 
 function mesa.mover(x, y)
-    if mano and mano.cosa == "copia" and not mano.movida then
+    if mano and (mano.cosa == "copia" or mano.cosa == "cajabox") and not mano.movida then
         if math.abs(x - mano.x0) + math.abs(y - mano.y0) > 4 then mano.movida = true end
+    end
+    -- arrastrar el sobre del tapete (sin rasgar) es cogerlo: se puede guardar
+    if pulsoSobre and not mano and love.mouse.isDown(1) and math.abs(x - pulsoSobre.x) + math.abs(y - pulsoSobre.y) > (ui.tactil and 24 or 16) then
+        pulsoSobre = nil
+        local r = apertura.cancelar()
+        if r then
+            pulsadoEnTapete = false
+            local hx, hy = huecoDe(r.tipo)
+            if r.deCaja and partida.cajaAbierta then hx, hy = ESQUINA.x, ESQUINA.y end
+            mano = { cosa = "sobre", tipo = r.tipo, deCaja = r.deCaja or nil, x = x, y = y, a = 0, w = 0, vx = 0,
+                     escala = 3, hx = hx, hy = hy }
+            sonido.tocar("encima", 1.3)
+        end
     end
 end
 
@@ -719,10 +902,27 @@ function mesa.soltar(x, y)
         if dentro(TAPETE, x, y) and soltarSobre(m.tipo, m.x, m.y + sobre.ALTO * m.escala / 2 - 4 * m.escala, m.a, m.escala, m.deCaja) then
             return
         end
+        -- el de la caja abierta soltado en la caja de carton: se guardan todos
+        if m.deCaja and dentro(CAJA, x, y) and partida.cajaAbierta then
+            local n = partida.cerrarCajaAbierta()
+            sonido.tocar("giro")
+            fx.texto(x, y - 10, "+" .. n .. " SOBRES GUARDADOS", p.lima)
+            verPista("cajaAbierta")
+            partida.guardar()
+            table.insert(vuelos, { tipo = m.tipo, x0 = m.x, y0 = m.y + sobre.ALTO * m.escala / 2, x1 = CAJA.x + CAJA.w / 2,
+                                   y1 = CAJA.y + 60, e0 = m.escala, a = m.a, t = 0 })
+            return
+        end
+        if dentro(CAJA, x, y) then verPista("guardar") end
         -- fuera del tapete: vuelve a su sitio en la caja
         table.insert(vuelos, { tipo = m.tipo, x0 = m.x, y0 = m.y + sobre.ALTO * m.escala / 2, x1 = m.hx, y1 = m.hy,
                                e0 = m.escala, a = m.a, t = 0 })
     elseif m.cosa == "cajabox" then
+        -- tocada sin arrastrar: sale el chip para sacar sus sobres
+        if not m.movida then
+            chipCaja = { tipo = m.tipo, t = 3 }
+            return
+        end
         if dentro(TAPETE, x, y) and not apertura.bloqueada() and not animCaja and partida.abrirCaja(sobres[m.tipo]) then
             apertura.recoger()
             partida.recogerMesa()
@@ -838,6 +1038,7 @@ function mesa.espacio()
         end
     end
     if not tipoId then
+        if mesa.recoger() then return end
         fx.texto(TAPETE.x + TAPETE.w / 2, TAPETE.y + 40, "NO TE QUEDAN SOBRES", p.naranja)
         return
     end
@@ -848,6 +1049,7 @@ end
 -- al empezar o cargar otra partida
 function mesa.reiniciar()
     mano, mesaSel, animCaja = nil, nil, nil
+    pulsoSobre, chipCaja, pistaVista = nil, nil, nil
     vuelos = {}
     apertura.recoger()
 end

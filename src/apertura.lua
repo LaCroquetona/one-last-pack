@@ -92,8 +92,10 @@ function apertura.empezar(tipo, primera, desde)
     -- venta en directo: si alguien del chat ha comprado este sobre, las cartas son suyas
     paraOtro = directo.reservar(tipo, primera)
     if not directo.activo() then directo.avisarSinDirecto() end
+    -- si este sobre ya se saco y se guardo sin abrir, trae lo que le toco
     local defs
-    defs, godpack = generador.sobre(tipo)
+    defs, godpack = partida.sacarTirada(tipo.id, primera)
+    if not defs then defs, godpack = generador.sobre(tipo) end
     mano = {}
     for i, def in ipairs(defs) do
         mano[i] = { def = def, x = CX, y = CY, escala = GRANDE, boca = false, nueva = false }
@@ -127,7 +129,8 @@ function apertura.lote(n)
         local tipo, primera = partida.sacarSobre()
         if not tipo then break end
         abiertos = abiertos + 1
-        local defs, gp = generador.sobre(tipo)
+        local defs, gp = partida.sacarTirada(tipo.id, primera)
+        if not defs then defs, gp = generador.sobre(tipo) end
         if gp then godpacks = godpacks + 1 end
         partida.encargoSobre(tipo.id, primera)
         for _, def in ipairs(defs) do
@@ -162,6 +165,36 @@ end
 
 function apertura.pulsar()
     pulsado = true
+end
+
+-- el sobre aun se puede guardar sin abrir: cayendo o en el tapete sin rasgar
+function apertura.cancelable()
+    return estado == "entrando" or estado == "sobre"
+end
+
+-- el punto (x, y) esta encima del sobre del tapete
+function apertura.sobreEn(x, y)
+    if not apertura.cancelable() then return false end
+    local w, h = sobre.ANCHO * ESCALA_SOBRE, sobre.ALTO * ESCALA_SOBRE
+    return math.abs(x - CX) <= w / 2 and math.abs(y - CY) <= h / 2
+end
+
+-- guarda el sobre sin abrir: vuelve a donde estaba con sus cartas ya
+-- echadas (asi no se puede guardar y volver a sacar para cambiar la suerte).
+-- Si alguien del chat lo habia comprado, se le devuelve el dinero.
+-- Devuelve { tipo, primera, deCaja } o nil
+function apertura.cancelar()
+    if not apertura.cancelable() then return nil end
+    sonido.carga(0)
+    carga = 0
+    local defs = {}
+    for i, c in ipairs(mano) do defs[i] = c.def end
+    partida.guardarTirada(tipoActual.id, primeraActual, defs, godpack)
+    if paraOtro then directo.anularReserva(paraOtro) end
+    local deCaja = entrada and entrada.deCaja or false
+    partida.devolverSobre(tipoActual.id, primeraActual, deCaja)
+    estado, mano, paraOtro = nil, nil, nil
+    return { tipo = tipoActual.id, primera = primeraActual, deCaja = deCaja }
 end
 
 -- tipo del ultimo sobre abierto (para sacar otro igual)

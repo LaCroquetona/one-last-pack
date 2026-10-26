@@ -44,8 +44,20 @@ local function delSet()
     return partida.cartasDe(setActivo)
 end
 
+-- album: todas las cartas del set o solo las que faltan
+local soloFaltan = false
+
+local function listaAlbum()
+    if not soloFaltan then return delSet() end
+    local lista = {}
+    for _, def in ipairs(delSet()) do
+        if partida.copias(def.id) == 0 then table.insert(lista, def) end
+    end
+    return lista
+end
+
 local function totalPliegos()
-    return math.ceil(math.ceil(#delSet() / POR_PAGINA) / 2)
+    return math.max(1, math.ceil(math.ceil(#listaAlbum() / POR_PAGINA) / 2))
 end
 
 local function pliego()
@@ -251,7 +263,7 @@ end
 local function dibujarPagina(num, x, y)
     ui.caja(x, y, 236, 324, p.grisosc)
     for j = 1, POR_PAGINA do
-        local def = delSet()[(num - 1) * POR_PAGINA + j]
+        local def = listaAlbum()[(num - 1) * POR_PAGINA + j]
         if def then
             local col = (j - 1) % 3
             local fila = math.floor((j - 1) / 3)
@@ -266,6 +278,17 @@ local function dibujarPagina(num, x, y)
                 if ui.encima == id then tooltipCarta(def) end
             else
                 carta.hueco(def, cx, cy, 2)
+                -- la que falta: que es y lo que cuesta en el mercado
+                local id = "f" .. def.id
+                ui.zona(id, cx - CW, cy - CH, CW * 2, CH * 2)
+                if ui.encima == id then
+                    local r = rarezas[def.rareza]
+                    local normal = hayNormales(def)
+                    ui.tooltip("TE FALTA: " .. def.nombre:upper(), r.color, {
+                        { r.nombre .. (def.chase and "  -  CHASE" or ""), r.color },
+                        { (normal and "Normal " or "1ª edición ") .. ui.dinero(mercado.valor(def.id, not normal)) },
+                    })
+                end
             end
         end
     end
@@ -274,7 +297,10 @@ end
 local function dibujarAlbum()
     local izq = pliego() * 2 - 1
     dibujarPagina(izq, 146, 28)
-    if izq * POR_PAGINA < #delSet() then dibujarPagina(izq + 1, 392, 28) end
+    if izq * POR_PAGINA < #listaAlbum() then dibujarPagina(izq + 1, 392, 28) end
+    if soloFaltan and #listaAlbum() == 0 then
+        fuentes.texto("¡NO TE FALTA NINGUNA!", 146, 180, 2, p.amarillo, "center", 482)
+    end
     lg.setColor(p.grisclaro)
     for _, y in ipairs({ 60, 140, 220, 300 }) do
         lg.circle("line", 387, y, 4)
@@ -354,6 +380,14 @@ local function dibujarSellado()
                 fuentes.texto(f[3] .. ": " .. f[4], fx0, fy + 3, 1, f[2] and p.amarillo or p.blanco)
                 ui.boton("apa_" .. f[1] .. "_" .. tipo.id .. "_" .. (f[2] and "1" or "n"), apartado and "APARTADO" or "APARTAR",
                     fx0 + 118, fy, 70, 12, apartado and p.naranja or p.gris, f[4] > 0 or apartado)
+                -- las cajas se pueden vaciar en los sobres sin abrirlas
+                if f[1] == "c" and f[4] > 0 then
+                    local idSacar = "sac_" .. tipo.id .. "_" .. (f[2] and "1" or "n")
+                    ui.boton(idSacar, "SACAR", fx0 + 76, fy, 38, 12, p.azul)
+                    if ui.encima == idSacar then
+                        ui.tooltip("Sacar los sobres", p.azul, { { "Pasan a tus sobres sin abrir la caja" } })
+                    end
+                end
             end
             y = y + 74
         end
@@ -448,12 +482,13 @@ end
 
 local function panelAlbum()
     ui.caja(6, 98, 118, 194)
-    local paginasAlbum = math.ceil(#delSet() / POR_PAGINA)
+    local paginasAlbum = math.max(1, math.ceil(#listaAlbum() / POR_PAGINA))
     local izq = pliego() * 2 - 1
     local der = math.min(izq + 1, paginasAlbum)
     fuentes.texto("PÁGINAS " .. izq .. "-" .. der .. " DE " .. paginasAlbum, 6, 106, 1, p.blanco, "center", 118)
     ui.boton("pagAnt", "<", 12, 118, 50, 14, p.azul, pliego() > 1)
     ui.boton("pagSig", ">", 68, 118, 50, 14, p.azul, pliego() < totalPliegos())
+    ui.boton("album_faltan", soloFaltan and "VER TODAS" or "VER LAS QUE FALTAN", 12, 134, 106, 10, soloFaltan and p.naranja or p.grisosc)
 
     local y = 146
     for _, r in ipairs(rarezas.lista) do
@@ -470,7 +505,8 @@ local function panelAlbum()
     end
     y = y + 6
     fuentes.texto("TOTAL", 14, y, 1, p.blanco)
-    fuentes.texto(partida.distintas(setActivo) .. "/" .. #delSet(), 14, y, 1, p.blanco, "right", 98)
+    local tiene, total = partida.distintas(setActivo), #delSet()
+    fuentes.texto(tiene .. "/" .. total .. "  " .. math.floor(tiene / total * 100) .. "%", 14, y, 1, tiene >= total and p.amarillo or p.blanco, "right", 98)
 
     -- premios del set: los conseguidos en amarillo
     y = y + 14
@@ -871,6 +907,14 @@ function armario.click(id)
         modo = id:sub(6)
     elseif id == "sel_ant" or id == "sel_sig" then
         paginaSellado = paginaSellado + (id == "sel_sig" and 1 or -1)
+    elseif id:match("^sac_") then
+        local tipoId, ed = id:match("^sac_(.+)_(%w)$")
+        local n = partida.vaciarCaja(sobres[tipoId], ed == "1")
+        if n then
+            sonido.tocar("giro")
+            fx.texto(ui.mx, ui.my - 10, "+" .. n .. " SOBRES", p.lima)
+            partida.guardar()
+        end
     elseif id:match("^apa_") then
         local clase, tipoId, ed = id:match("^apa_(%a)_(.+)_(%w)$")
         partida.apartar(clase, tipoId, ed == "1")
@@ -914,6 +958,9 @@ function armario.click(id)
         partida.opciones[clave] = ((partida.opciones[clave] or 0) + 1) % 7
         if partida.opciones[clave] == 1 or partida.opciones[clave] == 2 then partida.opciones[clave] = 3 end
         partida.guardar()
+    elseif id == "album_faltan" then
+        soloFaltan = not soloFaltan
+        pliegos[setActivo] = 1
     elseif id == "pagAnt" then
         cambiarPliego(-1)
     elseif id == "pagSig" then

@@ -75,12 +75,16 @@ function partida.nueva()
     partida.ofertasEncargo = {}  -- sin aceptar: lo mismo + espera
     partida.tutorial = 1         -- paso del tutorial (false: hecho o saltado)
     partida.desbloqueos = {}     -- lo que ya ha salido (src/desbloqueos.lua)
+    partida.sequia = {}          -- sobres seguidos sin holo, por tipo (la piedad)
+    partida.tiradas = {}         -- sobres que se guardaron sin abrir: ya tienen sus cartas
+    partida.pistas = {}          -- bocadillos de la mesa que ya se han visto
     for tipo, n in pairs(sobres.inicio.sobres) do
         partida.guardados[tipo] = n
         partida.guardados1[tipo] = n
     end
     mercado.nuevo()
     partida.cartera = { h0 = 1, h = { 0 } }
+    generador.sequia = partida.sequia
     partida.aplicarSuerte()
     enOrden = {}
     tocar()
@@ -530,6 +534,74 @@ end
 function partida.meterCaja(tipoId, primera)
     partida.cajas[tipoId] = partida.cajasDe(tipoId) + 1
     if primera then partida.cajas1[tipoId] = partida.cajasDe(tipoId, true) + 1 end
+    tocar()
+end
+
+-- un sobre sacado y guardado sin abrir ya tiene sus cartas: se guardan y
+-- salen en el siguiente de ese tipo y edicion (asi guardarlo no cambia nada)
+local function claveTirada(tipoId, primera)
+    return tipoId .. ":" .. (primera and "1" or "n")
+end
+
+function partida.guardarTirada(tipoId, primera, defs, godpack)
+    local k = claveTirada(tipoId, primera)
+    local ids = {}
+    for i, def in ipairs(defs) do ids[i] = def.id end
+    partida.tiradas[k] = partida.tiradas[k] or {}
+    table.insert(partida.tiradas[k], { c = ids, g = godpack or nil })
+    tocar()
+end
+
+function partida.sacarTirada(tipoId, primera)
+    local k = claveTirada(tipoId, primera)
+    local l = partida.tiradas[k]
+    if not l or #l == 0 then return nil end
+    local t = table.remove(l, 1)
+    if #l == 0 then partida.tiradas[k] = nil end
+    local defs = {}
+    for i, id in ipairs(t.c) do
+        defs[i] = porId[id]
+        if not defs[i] then return nil end
+    end
+    return defs, t.g or false
+end
+
+-- vacia una caja cerrada en los sobres guardados, sin abrirla. primera: la
+-- edicion (nil: la que saldria en la mesa). Devuelve los sobres que salen
+function partida.vaciarCaja(tipo, primera)
+    if primera == nil then
+        primera = sacarCaja(tipo, true)
+        if primera == nil then return nil end
+    else
+        if partida.cajasDe(tipo.id, primera) <= 0 then return nil end
+        partida.cajas[tipo.id] = partida.cajasDe(tipo.id) - 1
+        if primera then partida.cajas1[tipo.id] = partida.cajasDe(tipo.id, true) - 1 end
+    end
+    partida.meterSobres(tipo.id, sobres.caja.sobres, primera)
+    return sobres.caja.sobres
+end
+
+-- la caja abierta de la mesa se cierra: lo que le quede pasa a los guardados
+function partida.cerrarCajaAbierta()
+    local c = partida.cajaAbierta
+    if not c then return 0 end
+    partida.cajaAbierta = nil
+    if c.quedan > 0 then partida.meterSobres(c.tipo, c.quedan, c.primera) end
+    tocar()
+    return c.quedan
+end
+
+-- un sobre que se saco y no se abrio vuelve a donde estaba
+function partida.devolverSobre(tipoId, primera, aCaja)
+    partida.abiertos = math.max(0, partida.abiertos - 1)
+    local c = partida.cajaAbierta
+    if aCaja and c and c.tipo == tipoId and (c.primera or false) == (primera or false) then
+        c.quedan = c.quedan + 1
+    elseif aCaja and not c then
+        partida.cajaAbierta = { tipo = tipoId, quedan = 1, primera = primera or nil }
+    else
+        partida.meterSobres(tipoId, 1, primera)
+    end
     tocar()
 end
 
@@ -1045,13 +1117,23 @@ function partida.guardar()
 end
 
 local CAMPOS = { "dinero", "abiertos", "inv", "uid", "guardados", "guardados1", "anuncios",
-    "orden", "mesa", "seguidas", "opciones", "fundasLibres", "cartera", "premios", "canal", "mejoras", "encargos", "ofertasEncargo", "cajas", "cajas1", "cajaAbierta", "topsLibres", "apartados", "vendidos", "logros", "tutorial", "desbloqueos" }
+    "orden", "mesa", "seguidas", "opciones", "fundasLibres", "cartera", "premios", "canal", "mejoras", "encargos", "ofertasEncargo", "cajas", "cajas1", "cajaAbierta", "topsLibres", "apartados", "vendidos", "logros", "tutorial", "desbloqueos", "sequia", "tiradas", "pistas" }
+
+-- la partida como se guarda (tambien para los reportes de bugs)
+function partida.texto()
+    local datos = { version = VERSION, mercado = mercado.estado }
+    for _, k in ipairs(CAMPOS) do datos[k] = partida[k] end
+    return "return " .. serializar(datos) .. "\n"
+end
+
+-- el archivo guardado tal cual (nil si no hay)
+function partida.archivo()
+    return love.filesystem.read(ARCHIVO)
+end
 
 function partida.guardarYa()
     pendiente = false
-    local datos = { version = VERSION, mercado = mercado.estado }
-    for _, k in ipairs(CAMPOS) do datos[k] = partida[k] end
-    love.filesystem.write(ARCHIVO, "return " .. serializar(datos) .. "\n")
+    love.filesystem.write(ARCHIVO, partida.texto())
     existe = true
 end
 
@@ -1194,6 +1276,7 @@ function partida.cargar()
         partida.opciones.autoFundas = nil
     end
     partida.premiosNuevos = {}
+    generador.sequia = partida.sequia
     partida.aplicarSuerte()
     tocar()
     return true
