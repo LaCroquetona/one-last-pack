@@ -4,6 +4,10 @@ local rarezas = require "datos.rarezas"
 
 local sonido = {}
 local fuentes = {}
+-- volumen de 0 a 1 (src/opciones.lua los cambia)
+sonido.vol = { musica = 0.6, efectos = 1 }
+-- musica: la que suena, a que volumen va y hacia donde
+local musica, musicaNivel, musicaHacia, musicaVel = nil, 0, 0, 1
 local bucleCarga
 local TASA = 44100
 
@@ -81,9 +85,54 @@ function sonido.preparar()
 end
 
 function sonido.tocar(nombre, tono)
+    if sonido.vol.efectos <= 0 then return end
     local s = fuentes[nombre]:clone()
     s:setPitch(tono or 1)
+    s:setVolume(sonido.vol.efectos)
     s:play()
+end
+
+-- musica en bucle (archivo .ogg); si ya suena esa, sigue. Entra con fundido
+function sonido.musica(archivo, fundido)
+    if musica and musica.archivo == archivo then
+        musicaHacia = 1
+        return
+    end
+    if musica then musica.fuente:stop() end
+    musica = nil
+    if not archivo or not love.filesystem.getInfo(archivo) then return end
+    local ok, fuente = pcall(love.audio.newSource, archivo, "stream")
+    if not ok then return end
+    fuente:setLooping(true)
+    musica = { archivo = archivo, fuente = fuente }
+    musicaNivel, musicaHacia, musicaVel = 0, 1, 1 / (fundido or 1)
+    fuente:setVolume(0)
+    fuente:play()
+end
+
+-- la musica se apaga poco a poco y se para
+function sonido.pararMusica(fundido)
+    if not musica then return end
+    musicaHacia, musicaVel = 0, 1 / (fundido or 1.5)
+end
+
+function sonido.musicaSonando()
+    return musica and musica.archivo
+end
+
+function sonido.update(dt)
+    if not musica then return end
+    if musicaNivel < musicaHacia then
+        musicaNivel = math.min(musicaHacia, musicaNivel + dt * musicaVel)
+    elseif musicaNivel > musicaHacia then
+        musicaNivel = math.max(musicaHacia, musicaNivel - dt * musicaVel)
+    end
+    if musicaNivel <= 0 and musicaHacia <= 0 then
+        musica.fuente:stop()
+        musica = nil
+        return
+    end
+    musica.fuente:setVolume(musicaNivel * sonido.vol.musica)
 end
 
 function sonido.carga(nivel)
@@ -92,7 +141,7 @@ function sonido.carga(nivel)
         return
     end
     if not bucleCarga:isPlaying() then bucleCarga:play() end
-    bucleCarga:setVolume(nivel * 0.6)
+    bucleCarga:setVolume(nivel * 0.6 * sonido.vol.efectos)
     bucleCarga:setPitch(1 + nivel * 1.5)
 end
 

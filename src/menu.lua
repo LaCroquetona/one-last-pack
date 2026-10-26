@@ -9,10 +9,13 @@ local fuentes = require "src.fuentes"
 local ui = require "src.ui"
 local nav = require "src.nav"
 local tutorial = require "src.tutorial"
+local opciones = require "src.opciones"
+local reporte = require "src.reporte"
 
 local menu = {}
 
-local VERSION = "v0.9.0"
+local VERSION = "v0.9.1"
+reporte.version = VERSION
 local abanico = {}
 
 function menu.preparar()
@@ -53,8 +56,10 @@ function menu.dibujar()
         y = y + 26
     end
     ui.boton("nueva", "PARTIDA NUEVA", 250, y, 140, 20, hay and p.azul or p.verde)
+    ui.boton("opciones", "OPCIONES", 396, y, 80, 20, p.gris)
     local completa = nav.pantallaCompleta()
     ui.boton("pantalla", completa and "VENTANA" or "PANTALLA COMPLETA", 250, y + 26, 140, 20, p.gris)
+    ui.boton("reportar", "REPORTAR BUG", 396, y + 26, 80, 20, p.grisosc)
     ui.boton("salir", "SALIR", 250, y + 52, 140, 20, p.gris)
     fuentes.texto("F11 O ALT+ENTER: PANTALLA COMPLETA", 0, 348, 1, p.grisosc, "center", 640)
 
@@ -83,6 +88,10 @@ function menu.click(id)
             partida.borrar()
             nav.empezar()
         end
+    elseif id == "opciones" then
+        opciones.abrir()
+    elseif id == "reportar" then
+        reporte.abrir(function() return partida.archivo() or partida.texto() end)
     elseif id == "pantalla" then
         nav.alternarPantalla()
     elseif id == "salir" then

@@ -80,6 +80,25 @@ for c in ("abcdefghijklmnopqrstuvwxyz"):gmatch(".") do
     ALIAS[c] = c:upper()
 end
 
+-- deja solo lo que la fuente sabe pintar (lo demas pasa a espacio)
+function fuentes.limpiar(cad)
+    local ok, res = pcall(function()
+        local out = {}
+        for _, cp in utf8.codes(cad) do
+            local c = utf8.char(cp)
+            out[#out + 1] = GLIFOS[ALIAS[c] or c] and c or " "
+        end
+        return table.concat(out)
+    end)
+    if ok then return res end
+    return (cad:gsub("[^%w %.,:!%?%-%+=%*/#%$_%%%(%)'<>]", " "))
+end
+
+-- si la fuente tiene ese caracter
+function fuentes.tiene(c)
+    return GLIFOS[ALIAS[c] or c] ~= nil
+end
+
 function fuentes.preparar()
     local lista = {}
     for _, cp in utf8.codes(ORDEN) do
