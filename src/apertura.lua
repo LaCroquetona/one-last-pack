@@ -27,6 +27,9 @@ local ESCALA_SOBRE = 4
 local RANURA_Y = 318
 local GIRO = 0.2
 local DURACION_ENTRADA = 0.45
+-- velocidad base de toda la apertura (entrada, rasgar, revelar y resumen);
+-- una mejora de velocidad la multiplicaria
+local VELOCIDAD = 1.2
 
 local estado, t
 local entrada
@@ -238,6 +241,11 @@ end
 local CUENTA = { [0] = 0, 0.35, 0.8, 1.5 }
 
 local function impacto(c, r)
+    -- la carta que buscabas: se celebra encima de ella
+    if not paraOtro and partida.buscada(c.def.id) then
+        fx.texto(c.x, c.y - 70, "¡LA QUE BUSCABAS!", p.amarillo)
+        fx.confeti(c.x, c.y - 40, 30, 120)
+    end
     if not paraOtro then c.nueva, c.copia = partida.anadir(c.def.id, primeraActual) end
     c.precio = mercado.valor(c.def.id, primeraActual)
     c.nivelPrecio = nivelPrecio(c.precio)
@@ -363,7 +371,7 @@ function apertura.update(dt, mantenido)
         pulsado = false
         return
     end
-    dt = dt * dev.velocidad
+    dt = dt * dev.velocidad * VELOCIDAD
     t = t + dt
 
     if estado == "entrando" then
