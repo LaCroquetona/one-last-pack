@@ -14,7 +14,7 @@ local reporte = require "src.reporte"
 
 local menu = {}
 
-local VERSION = "v0.9.1"
+local VERSION = "v0.9.2"
 reporte.version = VERSION
 local abanico = {}
 

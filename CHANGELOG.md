@@ -10,6 +10,35 @@ fase 3 = v0.7.2-0.7.4, fase 4 = v0.8.0-0.8.2. Desde la v0.9.0 ya no hay
 fases: se sigue el roadmap. La v0.9.0 se preparó como v0.8.3 y salió con
 otro número.
 
+## v0.9.2 - 2026-10-27 - Tutorial con mascota y cartas buscadas
+
+- **Mascota**: una croqueta trajeada (provisional, 3 poses) explica todo con
+  su bocadillo. Se pinta a la resolución de la pantalla, sin emborronarse.
+- **Explicación al entrar**: la primera vez que entras al armario, la tienda,
+  el móvil o cada app (y la sección de un set, la ficha de una carta y las
+  cajas de la tienda), la mascota la explica en 1-4 pasos. Oscurece todo
+  menos lo que señala y no deja tocar nada más hasta SIGUIENTE / SALTAR (o
+  ESC). El directo de venta se explica la primera vez que lo haces, sin
+  parar la mesa.
+- **Botón ?** en la barra (o en el riel del móvil): vuelve a explicar la
+  pantalla o app en la que estás. VER TUTORIAL del menú lo reinicia todo.
+- **Lo nuevo de otras pantallas** ya no sale como panel en la mesa: un aviso
+  corto arriba y un punto rojo en MÓVIL / TIENDA y en el icono de la app
+  hasta que entras.
+- **Coger el móvil en directo**: la primera vez la mascota avisa de que se
+  corta (y de la cámara que llegará), con SEGUIR EN DIRECTO o COGERLO IGUAL.
+- **Cartas buscadas**: en el ÁLBUM toca una que te falte, o la estrella de
+  su ficha en el móvil (hasta 5). Al abrir un sobre sale ¡LA QUE BUSCABAS!
+  con confeti, se quita de la lista y avisa; en el mercado del set van
+  primero con estrella y A LA VENTA si alguien la vende; al pasar el día
+  avisa si la venden.
+- **Apertura un 20% más rápida** (velocidad base 1,2: entrada, rasgar,
+  revelado y resumen).
+- **Arreglos**: lo que desbloquea un sobre (fundas, tops) sale nada más
+  acabarlo, aunque sean dos (1/2, 2/2), sin esperar 25 s ni a otro sobre.
+  Los avisos de la mesa ya no salen en otras pantallas con flechas a cosas
+  que no están.
+
 ## v0.9.1 - 2026-10-26 - Atajos de la mesa, reportes de bugs y opciones
 
 - **Guardar un sobre sin abrir**: mientras cae o está en el tapete sin rasgar,
