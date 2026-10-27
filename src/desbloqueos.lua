@@ -16,6 +16,8 @@ local desbloqueos = {}
 
 -- avisos por enseñar (no se guardan: lo desbloqueado si)
 desbloqueos.avisos = {}
+-- avisos cortos (toasts) que main.lua manda al movil
+desbloqueos.toasts = {}
 
 local porId = {}
 for _, c in ipairs(cartas.lista or cartas) do porId[c.id] = c end
@@ -108,7 +110,18 @@ local VIGENTE = {
 }
 
 local function avisar(id)
-    table.insert(desbloqueos.avisos, { id = id, texto = datos[id].texto, apunta = datos[id].apunta, vigente = VIGENTE[id] })
+    local d = datos[id]
+    if d.toast then
+        table.insert(desbloqueos.toasts, d.toast)
+        return
+    end
+    table.insert(desbloqueos.avisos, { id = id, texto = d.texto, apunta = d.apunta, pose = d.pose,
+        inmediato = d.inmediato, vigente = VIGENTE[id] })
+end
+
+-- el siguiente toast (o nil)
+function desbloqueos.toast()
+    return table.remove(desbloqueos.toasts, 1)
 end
 
 -- abriendo un sobre (o con uno en el tapete) no se mira nada: el ultimo
@@ -121,20 +134,42 @@ end
 -- y con aire entre ellos (datos.espera)
 local pausa = 0
 
--- el aviso que toca enseñar ahora (o nil)
+-- avisos inmediatos ya vistos de la serie de ahora (para el 1/2, 2/2)
+local serie = 0
+
+-- el aviso que toca enseñar ahora (o nil). Los inmediatos (lo que acaba de
+-- desbloquear un sobre) salen al acabar el sobre, sin esperar
 function desbloqueos.siguiente()
-    if pausa > 0 or ocupado() then return nil end
+    if ocupado() then return nil end
     while desbloqueos.avisos[1] do
         local a = desbloqueos.avisos[1]
-        if not a.vigente or a.vigente() then return a end
+        if not a.vigente or a.vigente() then
+            if a.inmediato or pausa <= 0 then return a end
+            return nil
+        end
         table.remove(desbloqueos.avisos, 1)
     end
     return nil
 end
 
+-- posicion del aviso de ahora en su serie de inmediatos: n, total (total 1 si va solo)
+function desbloqueos.posicion()
+    local a = desbloqueos.avisos[1]
+    if not a or not a.inmediato then return 1, 1 end
+    local quedan = 0
+    for _, b in ipairs(desbloqueos.avisos) do
+        if not b.inmediato then break end
+        quedan = quedan + 1
+    end
+    return serie + 1, serie + quedan
+end
+
 -- se ha cerrado un aviso (o el tutorial): el siguiente espera un poco
 function desbloqueos.vale(segundos)
-    if segundos == nil then table.remove(desbloqueos.avisos, 1) end
+    if segundos == nil then
+        local a = table.remove(desbloqueos.avisos, 1)
+        serie = (a and a.inmediato and desbloqueos.avisos[1] and desbloqueos.avisos[1].inmediato) and serie + 1 or 0
+    end
     pausa = segundos or datos.espera
 end
 
@@ -145,7 +180,8 @@ function desbloqueos.update(dt)
     if d ~= vista then
         vista = d
         desbloqueos.avisos = {}
-        pausa = 0
+        desbloqueos.toasts = {}
+        pausa, serie = 0, 0
     end
     if d == nil or d.todo then return end
     if not ocupado() then pausa = math.max(0, pausa - dt) end

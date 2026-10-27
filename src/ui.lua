@@ -75,12 +75,30 @@ function ui.zonaEn(x, y, prefijo)
     end
 end
 
--- la ultima zona pintada cuyo id empieza por prefijo (para señalarla)
-function ui.rect(prefijo)
-    for i = #zonas, 1, -1 do
+-- la ultima zona pintada cuyo id empieza por prefijo (para señalarla);
+-- primero: la primera que se pinto (la de arriba de una lista)
+function ui.rect(prefijo, primero)
+    local desde, hasta, paso = #zonas, 1, -1
+    if primero then desde, hasta, paso = 1, #zonas, 1 end
+    for i = desde, hasta, paso do
         local z = zonas[i]
         if z.id:sub(1, #prefijo) == prefijo then return z end
     end
+end
+
+-- estrella de 7x7 (la carta que buscas); x, y: esquina de arriba a la izquierda
+local ESTRELLA = { "...#...", "..###..", "#######", ".#####.", "..###..", ".##.##.", ".#...#." }
+function ui.estrella(x, y, color, escala)
+    escala = escala or 1
+    lg.setColor(color or p.amarillo)
+    for fy, fila in ipairs(ESTRELLA) do
+        for fx = 1, 7 do
+            if fila:sub(fx, fx) == "#" then
+                lg.rectangle("fill", x + (fx - 1) * escala, y + (fy - 1) * escala, escala, escala)
+            end
+        end
+    end
+    lg.setColor(1, 1, 1)
 end
 
 -- valor que va suave hacia el objetivo, uno por id

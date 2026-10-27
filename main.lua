@@ -13,6 +13,7 @@ local nav = require "src.nav"
 local partida = require "src.partida"
 local dev = require "src.dev"
 local tutorial = require "src.tutorial"
+local guia = require "src.guia"
 local desbloqueos = require "src.desbloqueos"
 local apertura = require "src.apertura"
 local tienda = require "src.tienda"
@@ -134,6 +135,11 @@ local function bloqueado()
 end
 
 function nav.ir(nombre)
+    -- la primera vez que coges el movil en directo, la mascota avisa de que se corta
+    if nombre == "movil" and escena ~= "movil" and directo.activo()
+        and tutorial.avisarMovil(function() nav.ir("movil") end) then
+        return
+    end
     reporte.apuntar("ir " .. nombre)
     sonido.carga(0)
     if nombre == "menu" then sonido.musica(MUSICA_INTRO, 2) end
@@ -157,6 +163,7 @@ function nav.empezar()
     armario.reiniciar()
     directo.reiniciar()
     mesa.reiniciar()
+    tutorial.reiniciar()
     nav.ir("mesa")
 end
 
@@ -253,6 +260,17 @@ function love.update(dt)
         sonido.tocar("moneda")
         partida.guardar()
     end
+    -- lo que se desbloquea fuera de la mesa: aviso corto (y punto rojo, src/guia.lua)
+    if not transicion.activa() and escena ~= "menu" then
+        local nuevo = desbloqueos.toast()
+        if nuevo then movil.avisar(nuevo, p.lima) end
+    end
+    -- la carta que buscabas
+    local encontrada = table.remove(partida.encontradas, 1)
+    if encontrada then
+        movil.avisar("¡YA TIENES LA QUE BUSCABAS: " .. partida.carta(encontrada).nombre:upper() .. "!", p.amarillo)
+        partida.guardar()
+    end
     local caducado = table.remove(partida.encargosCaducados, 1)
     if caducado then movil.avisar("SE ACABÓ EL PLAZO DEL ENCARGO DE " .. caducado.nombre:upper(), p.naranja) end
     -- logros nuevos
@@ -279,7 +297,7 @@ function love.mousepressed(x, y, boton)
         return
     end
     -- clic derecho en la mesa: guarda el sobre que aun no se ha abierto
-    if boton == 2 and escena == "mesa" and not ui.modal and not ui.overlay then
+    if boton == 2 and escena == "mesa" and not ui.modal and not ui.overlay and not tutorial.bloquea() then
         mesa.cancelar()
         return
     end
@@ -297,13 +315,24 @@ function love.mousepressed(x, y, boton)
         if id then sonido.tocar("click") end
         return
     end
+    -- la mascota explicando algo: solo valen sus botones
+    if tutorial.bloquea() then
+        if id and id:match("^tut_") then
+            sonido.tocar("click")
+            tutorial.click(id, escena)
+        end
+        return
+    end
+    if id and id:match("^tut_") then
+        sonido.tocar("click")
+        tutorial.click(id, escena)
+        return
+    end
     -- en las listas del movil el click se resuelve al soltar (se puede arrastrar)
     if escena == "movil" and movil.presionar(id, mx, my) then return end
     if id then sonido.tocar("click") end
 
-    if id and id:match("^tut_") then
-        tutorial.click(id)
-    elseif id and id:match("^dev_") then
+    if id and id:match("^dev_") then
         dev.click(id)
     elseif id == "ir_dev" then
         dev.abierto = not dev.abierto
@@ -340,6 +369,7 @@ function love.mousemoved(x, y)
 end
 
 function love.wheelmoved(_, y)
+    if tutorial.bloquea() then return end
     if escena == "movil" then movil.rueda(y) end
 end
 
@@ -370,6 +400,11 @@ function love.keypressed(tecla)
     end
     if ui.modal or ui.overlay then
         if tecla == "escape" then ui.modal, ui.overlay = nil, nil end
+        return
+    end
+    -- con la mascota explicando, ESC la cierra y lo demas espera
+    if tutorial.bloquea() then
+        if tecla == "escape" then tutorial.escape() end
         return
     end
     if tecla == "f1" then
@@ -433,7 +468,7 @@ local function dibujarBarra()
         local q = quieto and id ~= "ir_dev"
         if riel then
             local rw = -4 - izq
-            local rh = id == "ir_dev" and 22 or 56
+            local rh = (id == "ir_dev" or id == "tut_ayuda") and 22 or 56
             ui.boton(id, texto, izq + 2, ry, rw - 2, rh, color, true, q)
             ry = ry + rh + 6
             return
@@ -450,6 +485,16 @@ local function dibujarBarra()
         if ui.encima == "ir_movil" and directo.activo() then
             ui.tooltip("Se acaba el directo", p.rojo, { { "El móvil es el que graba" } })
         end
+        -- puntos rojos: hay algo nuevo sin mirar
+        for _, id in ipairs({ "ir_tienda", "ir_movil" }) do
+            local z = guia.punto(id) and ui.rect(id)
+            if z then guia.dibujarPunto(z.x + z.w - 2, z.y + 2) end
+        end
+    end
+    -- volver a ver la explicacion de esta pantalla (o app)
+    if tutorial.hayAyuda(escena) then
+        boton("tut_ayuda", "?", 14, p.morado)
+        if ui.encima == "tut_ayuda" then ui.tooltip("Ayuda", p.morado, { { "Te explico esta pantalla" } }) end
     end
     boton("ir_dev", "DEV", 24, dev.abierto and p.naranja or p.grisosc)
 
