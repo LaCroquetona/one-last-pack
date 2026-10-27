@@ -78,6 +78,9 @@ function partida.nueva()
     partida.sequia = {}          -- sobres seguidos sin holo, por tipo (la piedad)
     partida.tiradas = {}         -- sobres que se guardaron sin abrir: ya tienen sus cartas
     partida.pistas = {}          -- bocadillos de la mesa que ya se han visto
+    partida.guia = { visto = {} } -- explicaciones ya vistas (src/guia.lua)
+    partida.buscadas = {}        -- cartas que buscas: id = true
+    partida.encontradas = {}     -- buscadas que acaban de salir (main.lua avisa)
     for tipo, n in pairs(sobres.inicio.sobres) do
         partida.guardados[tipo] = n
         partida.guardados1[tipo] = n
@@ -227,8 +230,39 @@ function partida.revisarPremios(set, avisar)
     end
 end
 
+-- cartas que buscas (se marcan en el album o en la ficha del movil)
+partida.MAX_BUSCADAS = 5
+
+function partida.buscada(id)
+    return partida.buscadas[id] == true
+end
+
+-- las buscadas, en orden fijo
+function partida.listaBuscadas()
+    local ids = {}
+    for id in pairs(partida.buscadas) do table.insert(ids, id) end
+    table.sort(ids)
+    return ids
+end
+
+-- marca o desmarca; devuelve como queda, o nil si ya buscas el maximo
+function partida.buscar(id)
+    if partida.buscadas[id] then
+        partida.buscadas[id] = nil
+        return false
+    end
+    if #partida.listaBuscadas() >= partida.MAX_BUSCADAS then return nil end
+    partida.buscadas[id] = true
+    return true
+end
+
 -- true si era la primera copia, para el aviso de NUEVA; y la copia
 function partida.anadir(id, primera)
+    -- la que buscabas: se quita de la lista y se avisa
+    if partida.buscadas[id] then
+        partida.buscadas[id] = nil
+        table.insert(partida.encontradas, id)
+    end
     local l = partida.inv[id]
     local nueva = l == nil
     if nueva then
@@ -1117,7 +1151,7 @@ function partida.guardar()
 end
 
 local CAMPOS = { "dinero", "abiertos", "inv", "uid", "guardados", "guardados1", "anuncios",
-    "orden", "mesa", "seguidas", "opciones", "fundasLibres", "cartera", "premios", "canal", "mejoras", "encargos", "ofertasEncargo", "cajas", "cajas1", "cajaAbierta", "topsLibres", "apartados", "vendidos", "logros", "tutorial", "desbloqueos", "sequia", "tiradas", "pistas" }
+    "orden", "mesa", "seguidas", "opciones", "fundasLibres", "cartera", "premios", "canal", "mejoras", "encargos", "ofertasEncargo", "cajas", "cajas1", "cajaAbierta", "topsLibres", "apartados", "vendidos", "logros", "tutorial", "desbloqueos", "sequia", "tiradas", "pistas", "guia", "buscadas" }
 
 -- la partida como se guarda (tambien para los reportes de bugs)
 function partida.texto()
@@ -1257,6 +1291,10 @@ function partida.cargar()
         for _, s in ipairs(sets.lista) do partida.revisarPremios(s.id, false) end
     end
     partida.encargosHechos, partida.encargosCaducados = {}, {}
+    partida.encontradas = {}
+    -- partidas de antes de la guia (v0.9.1 o antes): con todo abierto ya saben
+    -- jugar; si no, se les explica lo que tengan al entrar en cada sitio
+    if datos.guia == nil and (datos.desbloqueos == nil or datos.desbloqueos.todo) then partida.guia = { todo = true } end
     -- partidas de antes del tutorial: ya saben jugar
     if datos.tutorial == nil then partida.tutorial = false end
     -- partidas de antes de los desbloqueos (v0.8.2 o antes): todo abierto, y

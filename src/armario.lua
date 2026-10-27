@@ -278,8 +278,14 @@ local function dibujarPagina(num, x, y)
                 if ui.encima == id then tooltipCarta(def) end
             else
                 carta.hueco(def, cx, cy, 2)
-                -- la que falta: que es y lo que cuesta en el mercado
+                -- la que falta: que es y lo que cuesta en el mercado; tocandola se busca
                 local id = "f" .. def.id
+                local buscada = partida.buscada(def.id)
+                if buscada then
+                    lg.setColor(p.amarillo)
+                    lg.rectangle("line", cx - CW + 0.5, cy - CH + 0.5, CW * 2 - 1, CH * 2 - 1)
+                    ui.estrella(cx - 7, cy - 7, p.amarillo, 2)
+                end
                 ui.zona(id, cx - CW, cy - CH, CW * 2, CH * 2)
                 if ui.encima == id then
                     local r = rarezas[def.rareza]
@@ -287,6 +293,7 @@ local function dibujarPagina(num, x, y)
                     ui.tooltip("TE FALTA: " .. def.nombre:upper(), r.color, {
                         { r.nombre .. (def.chase and "  -  CHASE" or ""), r.color },
                         { (normal and "Normal " or "1ª edición ") .. ui.dinero(mercado.valor(def.id, not normal)) },
+                        { buscada and "La buscas: toca para quitarla" or "Toca para buscarla", p.amarillo },
                     })
                 end
             end
@@ -489,6 +496,11 @@ local function panelAlbum()
     ui.boton("pagAnt", "<", 12, 118, 50, 14, p.azul, pliego() > 1)
     ui.boton("pagSig", ">", 68, 118, 50, 14, p.azul, pliego() < totalPliegos())
     ui.boton("album_faltan", soloFaltan and "VER TODAS" or "VER LAS QUE FALTAN", 12, 134, 106, 10, soloFaltan and p.naranja or p.grisosc)
+    local nb = #partida.listaBuscadas()
+    if nb > 0 then
+        ui.estrella(14, 287, p.amarillo)
+        fuentes.texto("BUSCAS " .. nb .. " DE " .. partida.MAX_BUSCADAS, 24, 288, 1, p.amarillo)
+    end
 
     local y = 146
     for _, r in ipairs(rarezas.lista) do
@@ -965,6 +977,18 @@ function armario.click(id)
         cambiarPliego(-1)
     elseif id == "pagSig" then
         cambiarPliego(1)
+    elseif id:match("^f%d") then
+        -- buscar (o dejar de buscar) una carta que falta
+        local cid = tonumber(id:sub(2))
+        local queda = partida.buscar(cid)
+        if queda == nil then
+            fx.texto(ui.mx, ui.my - 10, "YA BUSCAS " .. partida.MAX_BUSCADAS, p.naranja)
+            sonido.tocar("giro", 0.7)
+        else
+            fx.texto(ui.mx, ui.my - 10, queda and "¡A BUSCARLA!" or "YA NO LA BUSCAS", queda and p.amarillo or p.grisclaro)
+            sonido.tocar(queda and "nueva" or "giro")
+            partida.guardar()
+        end
     elseif id:match("^[ca]%d") then
         armario.seleccionar(tonumber(id:sub(2)))
         if modo == "album" then modo = "copias" end

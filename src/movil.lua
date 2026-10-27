@@ -18,6 +18,7 @@ local desbloqueos = require "src.desbloqueos"
 local ui = require "src.ui"
 local nav = require "src.nav"
 local vendedores = require "src.vendedores"
+local guia = require "src.guia"
 local logros = require "src.logros"
 
 local lg = love.graphics
@@ -110,6 +111,13 @@ function movil.pasarDia()
         notificar(noticias[i].texto, colorTono(noticias[i]))
     end
     if despues > antes then notificar((despues - antes) .. " OFERTAS NUEVAS EN VENTAS", p.amarillo) end
+    local avisadas = 0
+    for _, id in ipairs(partida.listaBuscadas()) do
+        if avisadas < 2 and movil.laVenden(id) then
+            notificar("HOY VENDEN UNA QUE BUSCAS: " .. mercado.carta(id).nombre:upper(), p.amarillo)
+            avisadas = avisadas + 1
+        end
+    end
     if #noticias == 0 and despues <= antes then sonido.tocar("giro") end
 end
 
@@ -336,12 +344,19 @@ local function filaCarta(id, x, y, w, idZona, primera, tenue)
     end
     carta.gema(def.rareza, x + 7, y + 8)
     fuentes.texto(def.nombre, x + 15, y + 3, 1, tenue and p.gris or r.color)
+    -- la que buscas: estrella y, si alguien la vende hoy, se dice
+    local buscada = partida.buscada(id)
+    if buscada then ui.estrella(x + 18 + fuentes.ancho(def.nombre), y + 2, p.amarillo) end
     local sub = sets[def.set].codigo
     local n = partida.copias(id)
     if n > 0 then sub = sub .. "  X" .. n end
     if primera then sub = sub .. "  1ª ED" end
     if def.chase then sub = sub .. "  CHASE" end
     fuentes.texto(sub, x + 15, y + 11, 1, p.gris)
+    if buscada and movil.laVenden(id) then
+        fuentes.texto("A LA VENTA", x + 19 + fuentes.ancho(sub), y + 11, 1, p.lima)
+        sub = sub .. "  A LA VENTA"
+    end
     local _, h = mercado.historial(id, primera)
     local precio = ui.dinero(mercado.valor(id, primera))
     local gx = x + w - 4 - math.max(fuentes.ancho(precio), 28) - 40
@@ -394,6 +409,8 @@ local function icono(a, cx, cy)
         lg.rectangle("fill", x + 26 - w + 4, y - 3, w, 9, 4, 4)
         fuentes.texto(t, x + 26 - w + 4, y - 1, 1, p.blanco, "center", w)
     end
+    -- app nueva sin abrir: punto rojo a la izquierda (a la derecha va el numero)
+    if guia.puntoApp(a.id) then guia.dibujarPunto(x + 1, y + 1) end
     ui.zona(id, x - 4, y - 4, 34, 46)
 end
 
@@ -667,6 +684,8 @@ local function seccionCartas(s, x, y, w)
     local lista = {}
     for _, def in ipairs(mercado.cartasDe(s.id)) do table.insert(lista, def) end
     table.sort(lista, function(a, b)
+        local ba, bb = partida.buscada(a.id), partida.buscada(b.id)
+        if ba ~= bb then return ba end
         local va, vb = mercado.valorExacto(a.id), mercado.valorExacto(b.id)
         if va ~= vb then return va > vb end
         return a.id < b.id
@@ -744,7 +763,17 @@ local function appFicha()
     fuentes.texto(def.nombre, x, y, 2, r.color)
     local datos = r.nombre:upper() .. "  " .. sets[def.set].codigo .. " #" .. def.num .. "/" .. #mercado.cartasDe(def.set)
     fuentes.texto(datos, x, y + 14, 1, p.grisclaro)
-    if def.chase then chip("CHASE", x + w - 34, y + 1, p.naranja) end
+    -- la estrella: marcarla como buscada
+    local buscada = partida.buscada(def.id)
+    local enc = ui.encima == "m_buscar"
+    ui.caja(x + w - 15, y, 15, 13, buscada and p.naranja or (enc and p.gris or p.grisosc))
+    ui.estrella(x + w - 11, y + 3, buscada and p.amarillo or p.grisclaro)
+    ui.zona("m_buscar", x + w - 15, y, 15, 13)
+    if enc then
+        ui.tooltip(buscada and "La buscas" or "Buscar esta carta", p.amarillo,
+            { { buscada and "Toca para dejar de buscarla" or "Te aviso si sale o si alguien la vende" } })
+    end
+    if def.chase then chip("CHASE", x + w - 52, y + 1, p.naranja) end
     y = y + 26
 
     local cambio = mercado.cambio(def.id, 7, primera)
@@ -1392,6 +1421,23 @@ function movil.update(dt)
     if envio.t > 1.9 then terminarEnvio() end
 end
 
+-- la app abierta ("inicio" en la pantalla de inicio)
+function movil.appActual()
+    return app
+end
+
+-- quieto: ni sacandolo, ni guardandolo, ni abriendo una app, ni enviando
+function movil.quieto()
+    return not (envio or abriendo or mano.alAcabar or (mano.entrando and mano.t < SACAR))
+end
+
+-- algun vendedor tiene hoy esta carta (de cualquier edicion)
+function movil.laVenden(id)
+    local def = mercado.carta(id)
+    if #vendedores.deCarta(id, true) > 0 then return true end
+    return mercado.hayNormales(def.set) and #vendedores.deCarta(id, false) > 0
+end
+
 function movil.ocupado()
     return envio ~= nil or mano.alAcabar ~= nil
 end
@@ -1555,6 +1601,14 @@ function movil.click(id)
         ir("set")
     elseif id == "m_ed0" or id == "m_ed1" then
         fichaPrimera = id == "m_ed1"
+    elseif id == "m_buscar" then
+        local antes = partida.buscada(fichaId)
+        if partida.buscar(fichaId) == nil then
+            notificar("YA BUSCAS " .. partida.MAX_BUSCADAS .. ": QUITA ALGUNA", p.naranja)
+        else
+            sonido.tocar(antes and "giro" or "nueva")
+            partida.guardar()
+        end
     elseif id == "m_seguir" then
         partida.seguir(fichaId)
         partida.guardar()
