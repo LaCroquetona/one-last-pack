@@ -1,0 +1,13 @@
+# builds: van a las Releases
+builds/
+*.apk
+*.zip
+*.love
+*.idsig
+
+# clave de firma de la APK (sin ella no se actualiza la app)
+herramientas/clave/
+
+# reportes de bugs y cosas de Python
+reportes/
+__pycache__/
