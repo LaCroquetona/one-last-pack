@@ -1,0 +1,30 @@
+name: Bug
+description: Algo que no funciona como debería
+labels: [bug]
+body:
+  - type: textarea
+    id: que
+    attributes:
+      label: Qué pasa
+      description: Qué has hecho y qué ha salido mal.
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: Qué debería pasar
+  - type: input
+    id: version
+    attributes:
+      label: Versión
+      placeholder: v0.9.2
+  - type: dropdown
+    id: donde
+    attributes:
+      label: Dónde
+      options: [PC, Android]
+  - type: textarea
+    id: reporte
+    attributes:
+      label: Reporte del juego
+      description: Si lo hay, el reporte_FECHA.txt que guarda REPORTAR BUG.
