@@ -257,7 +257,8 @@ function partida.buscar(id)
 end
 
 -- true si era la primera copia, para el aviso de NUEVA; y la copia
-function partida.anadir(id, primera)
+-- deSobre: sale de un sobre tuyo (cuenta para los encargos de rareza)
+function partida.anadir(id, primera, deSobre)
     -- la que buscabas: se quita de la lista y se avisa
     if partida.buscadas[id] then
         partida.buscadas[id] = nil
@@ -292,6 +293,7 @@ function partida.anadir(id, primera)
     end
     -- solo una carta que no tenias (o tu primera 1ª edicion de ella) puede dar premio
     if nueva or primeraP then partida.revisarPremios(porId[id].set) end
+    if deSobre then partida.avanzarEncargo("rareza", porId[id].rareza) end
     tocar()
     return nueva, c
 end
@@ -327,6 +329,7 @@ function partida.enfundarCopia(c)
     if c.f or partida.fundasLibres <= 0 then return false end
     partida.fundasLibres = partida.fundasLibres - 1
     c.f = true
+    partida.avanzarEncargo("enfundar", nil, c.u)
     tocar()
     return true
 end
@@ -340,12 +343,13 @@ function partida.desenfundarCopia(c)
     return true
 end
 
--- top loader: va encima de la funda (si no tiene, se le pone una)
+-- top loader: va encima de la funda. Sin funda tambien se puede, pero la
+-- carta se puede rayar (quien lo pone avisa)
 function partida.ponerTop(c)
     if c.t or partida.topsLibres <= 0 then return false end
-    if not c.f and not partida.enfundarCopia(c) then return false end
     partida.topsLibres = partida.topsLibres - 1
     c.t = true
+    partida.avanzarEncargo("top", nil, c.u)
     tocar()
     return true
 end
@@ -808,6 +812,20 @@ function partida.efecto(id)
     return m.valores[partida.nivelMejora(id)] or m.nada
 end
 
+-- velocidades de apertura que puedes elegir en la mesa (la mejora MANOS RAPIDAS)
+function partida.velocidades()
+    local vs = { 0.75, 1 }
+    local m = mejoraPorId.velocidad
+    for k = 1, partida.nivelMejora("velocidad") do table.insert(vs, m.valores[k]) end
+    return vs
+end
+
+-- la velocidad elegida, sin pasar de la que da la mejora
+function partida.velocidad()
+    local v = partida.opciones.velocidad or 1
+    return math.min(v, partida.efecto("velocidad"))
+end
+
 function partida.maxAnuncios()
     return datosMercado.anuncios.maximo + partida.efecto("anuncios")
 end
@@ -824,6 +842,8 @@ function partida.comprarMejora(m)
     if not coste or partida.dinero < coste then return false end
     partida.dinero = partida.dinero - coste
     partida.mejoras[m.id] = partida.nivelMejora(m.id) + 1
+    -- la velocidad nueva se pone sola (en la mesa se puede bajar)
+    if m.id == "velocidad" then partida.opciones.velocidad = partida.efecto("velocidad") end
     partida.aplicarSuerte()
     tocar()
     return coste
@@ -835,6 +855,59 @@ local function entre(r)
     return r[1] + love.math.random() * (r[2] - r[1])
 end
 
+local function alAzar(pesos)
+    local total = 0
+    for _, w in pairs(pesos) do total = total + (type(w) == "table" and w.peso or w) end
+    local r = love.math.random() * total
+    local ultimo
+    for k, w in pairs(pesos) do
+        r = r - (type(w) == "table" and w.peso or w)
+        ultimo = k
+        if r <= 0 then return k end
+    end
+    return ultimo
+end
+
+-- cartas de una rareza que trae de media un sobre
+local function mediaRareza(tipo, rareza)
+    local media = 0
+    for _, h in ipairs(tipo.huecos) do
+        local tot = 0
+        for _, w in pairs(h.rarezas) do tot = tot + w end
+        media = media + (h.rarezas[rareza] or 0) / tot * h.cantidad
+    end
+    return media
+end
+
+-- enfundar, poner tops o sacar cartas de una rareza
+local function encargoEspecial(clase, tipos)
+    local E = datosEncargos.movil
+    local nombres = datosMercado.compradores
+    local e = { nombre = nombres[love.math.random(#nombres)], clase = clase, hechos = 0, espera = E.diasOferta }
+    if clase == "rareza" then
+        local r = alAzar(E.rareza)
+        local d = E.rareza[r]
+        e.rareza = r
+        e.n = love.math.random(d.n[1], d.n[2])
+        e.dias = love.math.random(d.dias[1], d.dias[2])
+        -- sobres que hacen falta de media, al precio medio de los sets que hay
+        local media, precio = 0, 0
+        for _, t in ipairs(tipos) do
+            media = media + mediaRareza(t, r) / #tipos
+            precio = precio + t.precio / #tipos
+        end
+        e.pago = e.n / math.max(media, 0.001) * precio * entre(E.pago)
+    else
+        local d = E[clase]
+        e.n = love.math.random(d.n[1], d.n[2])
+        e.dias = love.math.random(E.dias[1], E.dias[2])
+        e.pago = e.n * d.pagoPor
+        e.vistas = {}
+    end
+    e.pago = math.max(50, math.floor(e.pago / 10 + 0.5) * 10)
+    table.insert(partida.ofertasEncargo, e)
+end
+
 local function nuevoEncargo()
     local E = datosEncargos.movil
     local tipos = {}
@@ -842,6 +915,8 @@ local function nuevoEncargo()
         if mercado.salido(t.set) then table.insert(tipos, t) end
     end
     if #tipos == 0 then return end
+    local clase = alAzar(E.clases)
+    if clase ~= "abrir" then return encargoEspecial(clase, tipos) end
     local t = tipos[love.math.random(#tipos)]
     local n = love.math.random(E.sobres[1], E.sobres[2])
     local primera = love.math.random() < E.primera
@@ -899,7 +974,7 @@ function partida.encargoSobre(tipoId, primera)
     local hechos = {}
     for i = #partida.encargos, 1, -1 do
         local e = partida.encargos[i]
-        if e.tipo == tipoId and (primera or not e.primera) then
+        if (e.clase or "abrir") == "abrir" and e.tipo == tipoId and (primera or not e.primera) then
             e.hechos = e.hechos + 1
             if e.hechos >= e.n then
                 table.remove(partida.encargos, i)
@@ -912,6 +987,26 @@ function partida.encargoSobre(tipoId, primera)
     end
     if #hechos > 0 then tocar() end
     return hechos
+end
+
+-- enfundar, poner un top o sacar una carta de una rareza: avanza el primer
+-- encargo que lo pide (u: la copia, para no contar dos veces la misma)
+function partida.avanzarEncargo(clase, rareza, u)
+    for i, e in ipairs(partida.encargos) do
+        if e.clase == clase and (not e.rareza or e.rareza == rareza) then
+            if u and e.vistas then
+                if e.vistas[u] then return end
+                e.vistas[u] = true
+            end
+            e.hechos = e.hechos + 1
+            if e.hechos >= e.n then
+                table.remove(partida.encargos, i)
+                partida.dinero = partida.dinero + e.pago
+                table.insert(partida.encargosHechos, e)
+            end
+            return
+        end
+    end
 end
 
 -- anuncios del movil
