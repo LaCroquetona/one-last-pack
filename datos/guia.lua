@@ -27,19 +27,29 @@ return {
 
     -- la primera vez que haces un directo de venta (en la mesa)
     venta = { titulo = "DIRECTO DE VENTA", requiere = "venta", bloquea = false, pasos = {
-        { texto = "EN ESTE DIRECTO EL CHAT TE COMPRA SOBRES Y LOS ABRES PARA ELLOS EN DIRECTO. LOS PEDIDOS VAN SALIENDO EN EL MÓVIL DEL TRÍPODE.",
+        { texto = "AQUÍ NO ABRES PARA TI: EL CHAT TE COMPRA LOS SOBRES QUE TIENES GUARDADOS. CADA PEDIDO SALE EN EL MÓVIL DEL TRÍPODE: QUÉ SET QUIERE, CUÁNTO PAGA Y CUÁNTO ESPERA.",
           apunta = "dir_vender", pose = "saludo" },
-        { texto = "CON VENDIENDO, EL SOBRE QUE ABRES ES DEL QUE LO HA COMPRADO. CON PARA MÍ, ES TUYO. CUANTO MÁS HYPE, MÁS COMPRAN Y MÁS PAGAN.",
+        { texto = "PARA VENDÉRSELO, ABRE UN SOBRE DE ESE SET EN EL TAPETE: COBRAS AL MOMENTO Y LAS CARTAS SON SUYAS. SI TARDAS MUCHO, SE CANSA Y SE VA.",
+          pose = "pulgar" },
+        { texto = "¿QUIERES ABRIR UNO PARA TI? TOCA VENDIENDO Y PASA A PARA MÍ: LO QUE ABRES ES TUYO Y LOS PEDIDOS ESPERAN SIN CORRER EL TIEMPO.",
+          apunta = "dir_vender", pose = "piensa" },
+        { texto = "CUANTO MÁS ABRES Y MEJOR SALE, MÁS HYPE (LA RAYITA NARANJA): LLEGAN MÁS COMPRADORES Y PAGAN MÁS.",
           apunta = "dir_vender", pose = "pulgar" },
     } },
 
     armario = { titulo = "EL ARMARIO", pasos = {
         { texto = "ESTE ES TU ARMARIO: AQUÍ VA TODO LO QUE SACAS. ARRIBA ELIGES EL SET.",
           apunta = "set_", pose = "saludo" },
-        { texto = "COPIAS: UNA A UNA. RAREZA: POR GRUPOS. ÁLBUM: LO QUE LLEVAS Y LO QUE TE FALTA. SELLADO: LO QUE NO QUIERES ABRIR.",
+        { texto = "COPIAS: TUS CARTAS UNA A UNA, CON SUS REPETIDAS. TOCA UNA PARA VERLA, ENFUNDARLA O VENDERLA.",
+          apunta = "modo_copias", pose = "saludo" },
+        { texto = "RAREZA: LAS MISMAS CARTAS POR GRUPOS. VIENE BIEN PARA VENDER TODAS LAS COMUNES DE GOLPE.",
+          apunta = "modo_rareza", pose = "piensa" },
+        { texto = "ÁLBUM: LO QUE LLEVAS DEL SET, LO QUE TE FALTA Y LOS PREMIOS POR IR COMPLETÁNDOLO.",
           apunta = "modo_album", pose = "piensa" },
         { texto = "EN EL ÁLBUM, TOCA UNA CARTA QUE TE FALTE Y LA MARCAS COMO BUSCADA: TE AVISO CUANDO SALGA O CUANDO ALGUIEN LA VENDA.",
-          apunta = "modo_album", pose = "piensa" },
+          apunta = "modo_album", pose = "pulgar" },
+        { texto = "SELLADO: LOS SOBRES Y CAJAS QUE GUARDAS SIN ABRIR. DE AQUÍ LOS MANDAS A LA MESA O LOS DEJAS PARA REVENDERLOS.",
+          apunta = "modo_sellado", pose = "piensa" },
         { texto = "PARA VENDER, TOCA UNA CARTA Y USA LA BANDEJA, O VENDER EN LOTE PARA MUCHAS. LO QUE VALE MUCHO, MEJOR POR EL MÓVIL: PAGAN MÁS.",
           apunta = "venderLote", pose = "pulgar" },
     } },
@@ -93,7 +103,7 @@ return {
           pose = "piensa" },
     } },
     app_encargos = { titulo = "ENCARGOS", pasos = {
-        { texto = "GENTE QUE TE PAGA POR ABRIR SOBRES CONCRETOS EN UNOS DÍAS. ¡Y LAS CARTAS SON PARA TI!",
+        { texto = "GENTE QUE TE PAGA POR HACER ALGO EN UNOS DÍAS: ABRIR SOBRES DE UN SET, ENFUNDAR CARTAS O SACAR CARTAS DE UNA RAREZA. ¡Y LAS CARTAS SON PARA TI!",
           pose = "saludo" },
         { texto = "ACEPTA LOS QUE TE CUADREN: SI SE ACABA EL PLAZO, NO COBRAS. COMO MUCHO LLEVAS 3 A LA VEZ.",
           pose = "piensa" },
@@ -111,7 +121,7 @@ return {
 
     -- la primera vez que coges el movil en directo
     movilDirecto = { titulo = "¡OJO!", pasos = {
-        { texto = "¡AY, SE ME OLVIDABA! SI COGES EL MÓVIL SE CORTA EL DIRECTO: ES EL QUE GRABA. MÁS ADELANTE PODRÁS COMPRARTE UNA CÁMARA.",
+        { texto = "¡QUIETO! EL MÓVIL ES EL QUE ESTÁ GRABANDO: SI LO COGES, SE CORTA EL DIRECTO Y SE ACABAN LAS PROPINAS. LA TIENDA Y EL ARMARIO SÍ PUEDES MIRARLOS SIN CORTAR.",
           pose = "piensa" },
     } },
 

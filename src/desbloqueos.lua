@@ -97,16 +97,21 @@ local CUANDO = {
     mejoras = function() return partida.dinero >= datos.mejoras.dinero end,
     venta = function() return partida.canal.seguidores >= datosDirecto.venta.desbloqueo end,
     noticias = function() return set2 and calendario.conocido(set2, mercado.dia()) end,
-    cajas = function() return set2 and calendario.salido(set2, mercado.dia()) end,
-    tienda = function() return partida.abiertos > 0 and nadaQueAbrir() and not sinDinero() end,
+    cajas = function() return partida.abiertos >= datos.cajas.abiertos end,
+    tienda = function() return partida.abiertos > 0 and nadaQueAbrir() and not sinDinero() and not tiendaVacia() end,
     dia = function() return partida.abiertos >= datos.dia.abiertos or (partida.abiertos > 0 and tiendaVacia()) end,
 }
 
 -- los avisos que dependen de como estas ahora: si ya no es asi al ir a
 -- enseñarlos (has comprado, te queda algo por abrir...), no salen
+local function sinSobresEnTienda()
+    return partida.abiertos > 0 and nadaQueAbrir() and tiendaVacia() and desbloqueos.app("mercado")
+end
+
 local VIGENTE = {
     sinDinero = sinDinero,
     tienda = function() return nadaQueAbrir() and not sinDinero() end,
+    mercadoSobres = function() return nadaQueAbrir() end,
 }
 
 local function avisar(id)
@@ -189,13 +194,20 @@ function desbloqueos.update(dt)
     if reloj < 0.5 or ocupado() then return end
     reloj = 0
     for _, id in ipairs(datos.orden) do
-        if id == "sinDinero" then
+        if id == "sinDinero" or id == "mercadoSobres" then
             -- una vez al dia como mucho
-            if sinDinero() and d.sinDinero ~= mercado.dia() then
-                d.sinDinero = mercado.dia()
+            local toca = id == "sinDinero" and sinDinero() or id == "mercadoSobres" and sinSobresEnTienda()
+            if toca and d[id] ~= mercado.dia() then
+                d[id] = mercado.dia()
                 avisar(id)
                 partida.guardar()
             end
+        elseif id == "fundas" and not d.fundas and not d.tops and CUANDO.tops() then
+            -- full art antes que ninguna rara: un aviso para las dos cosas
+            d.fundas, d.tops = true, true
+            partida.topsLibres = partida.topsLibres + datos.tops.tops
+            avisar("fundasTops")
+            partida.guardar()
         elseif not d[id] and CUANDO[id]() then
             d[id] = true
             if datos[id].tops then partida.topsLibres = partida.topsLibres + datos[id].tops end
