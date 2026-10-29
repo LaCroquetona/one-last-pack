@@ -8,6 +8,7 @@ return {
         { parte = 0.25, sobres = 2 },
         { parte = 0.5,  sobres = 3 },
         { parte = 0.75, sobres = 4 },
+        { parte = 0.9,  sobres = 5 },
         { parte = 1,    sobres = 8 },
     },
 }

@@ -254,9 +254,13 @@ function tienda.dibujar()
         y = lineaPesos(hueco.rarezas, PANEL_X + 18, y + 9, PANEL_X + PANEL_W - 10) + 13
     end
     y = y + 2
-    fuentes.texto("GOD PACK: 1 DE CADA " .. math.floor(1 / tipo.godpack + 0.5) .. ", TODO EL SOBRE CON PROBABILIDADES", PANEL_X + 10, y, 1, p.amarillo)
+    -- con el iman de god packs ya aplicado
+    local iman = partida.efecto("godpack")
+    fuentes.texto("GOD PACK: 1 DE CADA " .. math.floor(1 / (tipo.godpack * iman) + 0.5) .. ", TODO EL SOBRE CON PROBABILIDADES", PANEL_X + 10, y, 1, p.amarillo)
     fuentes.texto("DE RARA O MEJOR", PANEL_X + 10, y + 8, 1, p.amarillo)
-    fuentes.texto("PIEDAD: " .. tipo.piedad .. " SOBRES SIN HOLO Y EL SIGUIENTE LA TRAE SEGURO", PANEL_X + 10, y + 20, 1, p.violeta)
+    if iman > 1 then
+        fuentes.texto("CON TU IMÁN DE GOD PACKS (SIN ÉL, 1 DE CADA " .. math.floor(1 / tipo.godpack + 0.5) .. ")", PANEL_X + 10, y + 18, 1, p.lima)
+    end
     if salido then
         fuentes.texto(ui.tirada(mercado.tirada(tipo.set)), PANEL_X + 10, y + 32, 1, p.grisclaro)
         if ui.encima == "info_tirada" then
@@ -297,7 +301,8 @@ function tienda.dibujar()
     if sinSalida() then
         ui.boton("rescate", "SOBRE DE RESCATE GRATIS", PANEL_X, fila, 208, 16, p.naranja)
     elseif precio and mercado.stock(tipo) == 0 then
-        aviso = { "HOY NO QUEDAN MÁS: MAÑANA LLEGAN MÁS SOBRES", p.naranja }
+        aviso = { desbloqueos.app("mercado") and "HOY NO QUEDAN: MAÑANA LLEGAN MÁS, O MIRA EN EL MERCADO DEL MÓVIL"
+            or "HOY NO QUEDAN MÁS: MAÑANA LLEGAN MÁS SOBRES", p.naranja }
     elseif not precio and salido then
         aviso = { "YA NO SE IMPRIME: SOLO SE CONSIGUE DE REVENTA", p.grisclaro }
     elseif precio and partida.dinero < precio and guardados == 0 then
