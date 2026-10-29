@@ -85,7 +85,7 @@ return {
         max = 3, segundos = 90,
         margen = { 1.0, 1.06 }, margenPorEspectador = 0.0015, margenMax = 0.05,
         -- hace falta tener estos seguidores para hacer directos de venta
-        desbloqueo = 20,
+        desbloqueo = 50,
         -- el primer comprador llega pronto (segundos) si tienes sobres
         primero = 10,
         -- hype: lo que abres en directo (tuyo o vendido) da ganas de comprar.
@@ -100,12 +100,14 @@ return {
                               "yo compro un {s}", "{s} para el menda", "me llevo un {s} bro", "pago un {s} pa ver que sale", "un {s} y que salga la chase" },
                    bien = { "LETS GOOO QUE ES MIO", "NO PUEDE SER MI CARTAAA", "GOAT GOAT GOAT", "vale esto ya lo pago", "MADRE MIA QUE SUERTE", "te compro otro ya" },
                    mal = { "bueno otra vez sera", "L tremenda", "todo bulk bro", "mi cartera llora", "ni una rara jajaja", "el siguiente sale fijo" },
-                   caducada = { "bueno me voy que tardas", "se me ha quitado la gana", "otro dia lo compro" } },
+                   caducada = { "bueno me voy que tardas", "se me ha quitado la gana", "otro dia lo compro" },
+                   rechazada = { "vale vale no me lo vendas", "me has hecho la cobra", "pues me voy a otro canal" } },
             en = { compra = { "ill buy a {s}", "SELL ME A {s}", "one {s} for me pls", "open a {s} for me", "taking a {s}",
                               "i want a {s}", "{s} please", "ill pay for a {s}", "one {s} lets go", "{s} for me bro" },
                    bien = { "LETS GOOO ITS MINE", "NO WAY MY CARD", "GOATED PULL", "worth every cent", "INSANE LUCK", "buying another one" },
                    mal = { "unlucky", "massive L", "all bulk bro", "my wallet is crying", "not even a rare lol", "next one hits for sure" },
-                   caducada = { "too slow im out", "nvm", "maybe next stream" } },
+                   caducada = { "too slow im out", "nvm", "maybe next stream" },
+                   rechazada = { "ok dont sell it then", "rejected lol", "fine ill go elsewhere" } },
         },
     },
 

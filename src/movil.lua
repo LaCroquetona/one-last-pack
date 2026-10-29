@@ -899,6 +899,7 @@ local GRUPOS = {
     { "venta", "VENTA", "PARA LO QUE VENDES POR EL MÓVIL" },
     { "directo", "DIRECTO", "PARA TUS DIRECTOS EN LA MESA" },
     { "tienda", "TIENDA", "LO QUE COMPRAS Y CÓMO TE LLEGA" },
+    { "mesa", "MESA", "PARA CUANDO ABRES SOBRES" },
 }
 
 local function decimal(v)
@@ -962,19 +963,42 @@ end
 
 -- encargos: gente que te paga por abrir sobres concretos
 
-local function filaEncargo(e, x, y, w, oferta, i)
+-- lo que pide cada clase de encargo, y su icono
+local function queEncargo(e)
+    if e.clase == "enfundar" then
+        return "ENFUNDA " .. e.n .. (e.n == 1 and " CARTA" or " CARTAS"), p.grisclaro, p.cian
+    elseif e.clase == "top" then
+        return "PON TOP LOADER A " .. e.n .. (e.n == 1 and " CARTA" or " CARTAS"), p.grisclaro, p.celeste
+    elseif e.clase == "rareza" then
+        local r = rarezas[e.rareza]
+        local nombre = r.nombre:upper() .. (e.n == 1 and "" or (r.nombre:sub(-1) == "n" and "ES" or "S"))
+        return "SACA " .. e.n .. " " .. nombre .. " DE TUS SOBRES", r.color, r.color
+    end
     local tipo = sobres[e.tipo]
+    return "ABRE " .. e.n .. (e.n == 1 and " SOBRE " or " SOBRES ") .. sets[tipo.set].codigo .. (e.primera and " DE 1ª ED" or ""),
+        e.primera and p.amarillo or p.grisclaro
+end
+
+local function filaEncargo(e, x, y, w, oferta, i)
     local alto = oferta and 44 or 34
     lg.setColor(oferta and p.azulosc or p.grisosc)
     lg.rectangle("fill", x, y, w, alto - 2)
-    lg.setColor(tipo.colores.base)
-    lg.rectangle("fill", x + 4, y + 4, 8, 11)
-    lg.setColor(tipo.colores.rayas)
-    lg.rectangle("fill", x + 4, y + 8, 8, 3)
+    local que, color, marca = queEncargo(e)
+    if marca then
+        lg.setColor(p.negro)
+        lg.rectangle("fill", x + 4, y + 4, 8, 11)
+        lg.setColor(marca)
+        lg.rectangle("fill", x + 5, y + 5, 6, 9)
+    else
+        local tipo = sobres[e.tipo]
+        lg.setColor(tipo.colores.base)
+        lg.rectangle("fill", x + 4, y + 4, 8, 11)
+        lg.setColor(tipo.colores.rayas)
+        lg.rectangle("fill", x + 4, y + 8, 8, 3)
+    end
     fuentes.texto(e.nombre:upper(), x + 16, y + 4, 1, p.blanco)
     fuentes.texto("+" .. ui.dinero(e.pago), x, y + 4, 1, p.lima, "right", w - 4)
-    local que = "ABRE " .. e.n .. (e.n == 1 and " SOBRE " or " SOBRES ") .. sets[tipo.set].codigo .. (e.primera and " DE 1ª ED" or "")
-    fuentes.texto(que, x + 16, y + 13, 1, e.primera and p.amarillo or p.grisclaro)
+    fuentes.texto(que, x + 16, y + 13, 1, color)
     if oferta then
         fuentes.texto("PLAZO " .. e.dias .. " DÍAS", x + 16, y + 22, 1, p.gris)
         ui.boton("m_enc_si" .. i, "ACEPTAR", x + w - 96, y + 26, 46, 12, p.verde, #partida.encargos < 3)
@@ -1005,7 +1029,7 @@ local function appEncargos()
         y = y + 34
     end
     for i, e in ipairs(partida.ofertasEncargo) do y = filaEncargo(e, x, y, w, true, i) end
-    fuentes.texto("TE PAGAN POR ABRIRLOS Y TE QUEDAS LAS CARTAS", x, y + 4, 1, p.gris, "center", w)
+    fuentes.texto("TE PAGAN Y TE QUEDAS LAS CARTAS", x, y + 4, 1, p.gris, "center", w)
     acabarLista(y + 16)
 end
 
@@ -1232,7 +1256,10 @@ local function ladoDerecho()
     local def = partida.carta(a.id)
     local r = rarezas[def.rareza]
     local cx, cy = 545, 92
-    carta.dibujar(def, cx, cy, 2, 2, 0, true, ui.hoverCarta("verCarta", cx, cy, 72, 100), partida.enfundadas(a.id) > 0, { primera = a.primera })
+    -- la copia que se vende, con su funda y su top
+    local c = partida.copia(a.id, a.u)
+    local funda = c and c.f or (not c and partida.enfundadas(a.id) > 0)
+    carta.dibujar(def, cx, cy, 2, 2, 0, true, ui.hoverCarta("verCarta", cx, cy, 72, 100), funda, { primera = a.primera, top = c and c.t })
     ui.zona("verCarta", cx - 36, cy - 50, 72, 100)
     fuentes.texto(def.nombre, 450, 148, 2, p.blanco, "center", 190)
     fuentes.texto(r.nombre .. (a.primera and "  1ª EDICIÓN" or ""), 450, 162, 1, r.color, "center", 190)

@@ -503,7 +503,7 @@ function carta.pila(defs, x, y, escala, total, h, enFunda, extra)
         carta.dibujar(def, cx, cy, escala, escala, giro, true, nil, false, { quieta = true, primera = ediciones and ediciones[i + 1] })
     end
     if ediciones then
-        extra = { primera = ediciones[1] }
+        extra = { primera = ediciones[1], top = extra.top }
     end
     carta.dibujar(defs[1], x, y, escala, escala, 0, true, h, enFunda, extra)
     if total > 1 then

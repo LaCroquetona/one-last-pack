@@ -54,8 +54,8 @@ function fx.explosion(x, y, color, cantidad, fuerza)
 end
 
 -- texto que sube y se desvanece (+$20, -$120...)
-function fx.texto(x, y, cad, color)
-    table.insert(textos, { x = x, y = y, cad = cad, color = color, vida = 1.2 })
+function fx.texto(x, y, cad, color, vida)
+    table.insert(textos, { x = x, y = y, cad = cad, color = color, vida = vida or 1.2 })
 end
 
 -- estrellitas de 4 puntas que brillan un momento y se apagan

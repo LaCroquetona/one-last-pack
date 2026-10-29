@@ -795,7 +795,8 @@ end
 local avisoSinDirecto = 0
 -- a quien aun no ha hecho casi directos se le recuerda que existen
 function directo.sugerir()
-    return not d and partida.canal.directos < datos.avisarHasta
+    -- con el tutorial ya lo señala la mascota
+    return not d and partida.canal.directos < datos.avisarHasta and not partida.tutorial
 end
 
 function directo.avisarSinDirecto()
@@ -810,14 +811,15 @@ local function botonEmpezar(x, by, w)
     local aviso = avisoSinDirecto > 0
     local pulso = 0.75 + math.sin(t * 5) * 0.25
     local temblor = aviso and math.floor(math.sin(t * 40) * 2 + 0.5) or 0
-    fx.aura(x + w / 2, by + 11, p.rojo, 70, (aviso and 0.5 or 0.28) * pulso)
+    local tutorial = partida.tutorial
+    if not tutorial then fx.aura(x + w / 2, by + 11, p.rojo, 70, (aviso and 0.5 or 0.28) * pulso) end
     ui.boton("dir_empezar", "EMPEZAR DIRECTO", x + temblor, by, w, 22,
         { p.rojo[1] * (0.8 + pulso * 0.3), p.rojo[2] * pulso, p.rojo[3] * pulso }, not editando)
     if math.floor(t * 2) % 2 == 0 then
         lg.setColor(p.blanco)
         lg.circle("fill", x + temblor + 10, by + 10, 3)
     end
-    if editando then return end
+    if editando or tutorial then return end
     -- bocadillo que bota
     local texto = aviso and "¡ESTÁS SIN DIRECTO!" or "¡GANA PROPINAS!"
     local bw = fuentes.ancho(texto) + 10
@@ -931,13 +933,16 @@ local function dibujarChat(x, y, w, h)
         elseif not d.vendiendo then
             fuentes.texto("PARADO", x + 60, y + 35, 1, p.naranja)
         end
+        -- con la mejora LISTA NEGRA, cada compra se puede rechazar con la X
+        local rechazar = partida.efecto("rechazar") >= 1
         for i, pd in ipairs(d.pedidos) do
             local fy = y + 25 + i * 10
             local parpadeo = pd.t < 20 and math.floor(pd.t * 3) % 2 == 0
             fuentes.texto(pd.codigo, x + 6, fy, 1, p.amarillo)
             fuentes.texto(ui.dinero(directo.precioPedido(pd)), x + 24, fy, 1, p.lima)
             fuentes.texto(string.format("%d:%02d", math.floor(pd.t / 60), math.floor(pd.t % 60)), x, fy, 1,
-                parpadeo and p.rojo or p.blanco, "right", w - 8)
+                parpadeo and p.rojo or p.blanco, "right", w - (rechazar and 20 or 8))
+            if rechazar then ui.boton("dir_rechazar_" .. i, "X", x + w - 15, fy - 2, 11, 9, p.rojo) end
         end
         tope = y + 25 + alto
     end
@@ -1043,6 +1048,13 @@ function directo.click(id)
         partida.guardar()
     elseif id == "dir_vender" then
         if d then d.vendiendo = not d.vendiendo end
+    elseif id:match("^dir_rechazar_") then
+        local pe = d and table.remove(d.pedidos, tonumber(id:sub(14)))
+        if pe then
+            table.insert(cola, { t = 0, nombre = pe.nombre, color = pe.color,
+                                 texto = azar(V.textos[partida.canal.idioma].rechazada) })
+            sonido.tocar("latido")
+        end
     elseif id:match("^dir_tipo_") then
         tipoElegido = id:sub(10)
     else

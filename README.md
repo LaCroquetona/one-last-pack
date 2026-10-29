@@ -16,7 +16,7 @@ Hecho en Lua con LÖVE, a 640x360 en pixel art. Funciona en PC y en Android. El 
 - 8 sets con su elemento (de 50 a 80 cartas cada uno), seis rarezas, chase, god packs y piedad. Las cartas se generan por código: un bicho, su fondo y su acabado según la rareza.
 - Apertura con suspense: mantener para rasgar y revelar de peor a mejor.
 - Mesa con física de péndulo al arrastrar sobres, cajas, fundas y cartas.
-- Directos: espectadores, seguidores, propinas, peticiones del chat (en español o inglés) y directos de venta de sobres.
+- Directos: espectadores, seguidores, propinas, peticiones del chat (en español o inglés) y directos de venta de sobres, en los que puedes rechazar compras.
 - Mercado que se mueve por días, con memoria: rachas, noticias, burbujas, crashes, 1ª edición con precio propio, reimpresiones y vintage.
 - Móvil del juego con sus apps: cartera, mercado con vendedores de segunda mano, ventas, noticias, calendario, encargos, mejoras y logros.
 - Cajas selladas, fundas y top loaders, colección sellada, premios por completar sets y cartas buscadas.
@@ -45,7 +45,8 @@ En PC se juega con ratón; en Android, igual pero tocando.
 - TAB: cambiar entre tienda, mesa, armario y móvil.
 - Mesa: arrastra un sobre de la caja al tapete y mantén pulsado para rasgarlo. Click o espacio revela la siguiente carta.
 - Espacio en la mesa: recoger y abrir el siguiente sobre.
-- Fundas y tops: se arrastran de la caja a una carta cuando el sobre ya está abierto.
+- Fundas y tops: se arrastran de la caja a una carta cuando el sobre ya está abierto. Un top sin funda también se puede poner, pero la carta se puede rayar.
+- Velocidad de apertura: con la mejora MANOS RÁPIDAS, el botón >> de arriba a la izquierda del tapete la cambia (también en plena apertura).
 - Guardar un sobre sin abrir: botón GUARDAR, arrastrarlo a la caja, ESC o clic derecho.
 - Cajas: se arrastran al tapete para abrirlas. Tocando una cerrada sale SACAR SOBRES.
 - Directo: en la mesa, ponle nombre al canal y dale a EMPEZAR DIRECTO. Ir al móvil o pasar el día lo corta.

@@ -10,6 +10,41 @@ fase 3 = v0.7.2-0.7.4, fase 4 = v0.8.0-0.8.2. Desde la v0.9.0 ya no hay
 fases: se sigue el roadmap. La v0.9.0 se preparó como v0.8.3 y salió con
 otro número.
 
+## v0.9.3 - 2026-10-27 - Encargos nuevos, velocidad de apertura y arreglos
+
+- **Encargos nuevos**: además de abrir sobres de un set, ahora piden enfundar
+  cartas, ponerles top loader o sacar cartas de una rareza (menos cuanto más
+  rara: muchas comunes, una secreta, con más plazo). Los de rareza solo
+  cuentan lo que sale de tus sobres desde que lo aceptas, y enfundar la misma
+  carta dos veces no cuenta doble.
+- **Mejora MANOS RÁPIDAS** (pestaña nueva MESA en MEJORAS, 6 niveles): abres
+  más rápido. En la mesa, el botón >> de arriba a la izquierda cambia la
+  velocidad de X0,75 a la que tengas, también en plena apertura.
+- **Mejora LISTA NEGRA** (DIRECTO, una sola compra): en la venta de sobres en
+  directo cada compra tiene una X para rechazarla.
+- **PROVEEDOR** sube de golpe: +3, +5, +8, +12, +16, +20, +25 y +30 sobres al
+  día, en vez de uno en uno.
+- **Cajas**: ya no salen con el S2; aparecen solas al abrir 30 sobres y la
+  mascota avisa de que ha llegado algo nuevo a la tienda.
+- **Directo de venta** desde 50 seguidores (antes 20) y explicado en 4 pasos
+  más claros.
+- **Top loader sin funda**: ya no pone funda sola. Te deja, pero avisa de que
+  la carta se puede rayar.
+- **Premio nuevo al 90% del set** (+5 sobres), para que entre el 75% y el
+  100% también caiga algo.
+- **Tienda**: el god pack sale ya con el imán aplicado (y sin él entre
+  paréntesis); la piedad ya no se enseña. Si no quedan sobres, recuerda que
+  hay en el mercado del móvil.
+- **Tutorial**: en el paso del directo ya no salen a la vez el bocadillo de
+  ¡GANA PROPINAS! y la flecha. Si sale una full art antes que ninguna rara, un
+  solo aviso explica fundas y tops. Al quedarte sin sobres el aviso de la
+  tienda sale al momento, y si la tienda está vacía te manda al mercado. El
+  armario se explica pestaña por pestaña y el aviso de coger el móvil en
+  directo está reescrito.
+- **Arreglos**: una carta con funda y top salía solo con funda en el armario
+  y sin top en VENTAS. La carta grande del armario se salía del panel y
+  tapaba su nombre. Fuera el "BUSCAS X DE 5" del álbum.
+
 ## v0.9.2 - 2026-10-27 - Tutorial con mascota y cartas buscadas
 
 - **Mascota**: una croqueta trajeada (provisional, 3 poses) explica todo con

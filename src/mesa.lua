@@ -374,6 +374,13 @@ local function dibujarTapete()
         fuentes.texto(cad, T.x + 10, T.y + 10, 1, tiene >= total and p.amarillo or { 1, 1, 1, 0.55 })
     end
 
+    -- velocidad de apertura (con la mejora MANOS RAPIDAS); se cambia en cualquier momento
+    if partida.nivelMejora("velocidad") > 0 then
+        local v = partida.velocidad()
+        local cad = "X" .. (string.format("%.2f", v):gsub("0+$", ""):gsub("%.$", ""):gsub("%.", ","))
+        ui.boton("mesa_velocidad", ">> " .. cad, T.x + 6, T.y + 20, 38, 12, v > 1 and p.naranja or p.grisosc)
+    end
+
     -- mientras se abre una caja no hay pistas: la caja es la protagonista
     if not animCaja and not apertura.activa() and #partida.mesa > 0 then
         -- con cartas en la mesa, la pista va abajo y pequeña
@@ -777,6 +784,18 @@ end
 function mesa.presionar(id, x, y)
     pulsadoEnTapete = false
     pulsoSobre = nil
+    if id == "mesa_velocidad" then
+        -- la siguiente velocidad (tras la mas rapida, vuelve a la mas lenta)
+        local lista, ahora = partida.velocidades(), partida.velocidad()
+        local sig = lista[1]
+        for _, v in ipairs(lista) do
+            if v > ahora + 0.001 then sig = v break end
+        end
+        partida.opciones.velocidad = sig
+        sonido.tocar("encima", 0.8 + sig * 0.3)
+        partida.guardar()
+        return true
+    end
     if id ~= "mesa_sacar" then chipCaja = nil end
     if id == "mesa_cancelar" then return mesa.cancelar() or true end
     if id == "mesa_recoger" then
@@ -875,6 +894,14 @@ local function enfundarCopia(c, x, y)
     return false
 end
 
+-- top loader sin funda: se deja, pero se avisa de que se puede rayar
+local function avisoRayar(c, x, y)
+    if c.f then return end
+    sonido.tocar("latido")
+    fx.texto(x, y - 18, "¡OJO! SIN FUNDA SE PUEDE RAYAR", p.naranja, 2.5)
+    fx.texto(x, y - 6, "MEJOR PONLE FUNDA PRIMERO", p.grisclaro, 2.5)
+end
+
 local function ponerTopCopia(c, x, y)
     if c.t then return false end
     if partida.topsLibres <= 0 then
@@ -882,12 +909,9 @@ local function ponerTopCopia(c, x, y)
         fx.texto(x, y - 10, "SIN TOP LOADERS: CÓMPRALOS EN LA TIENDA", p.rojo)
         return false
     end
-    if not c.f and partida.fundasLibres <= 0 then
-        sinFundas(x, y)
-        return false
-    end
     if partida.ponerTop(c) then
         brilloFunda(x, y)
+        avisoRayar(c, x, y)
         return true
     end
     return false
@@ -999,6 +1023,7 @@ function mesa.click(id)
         elseif partida.ponerTop(c) then
             s.brillo = 1
             brilloFunda(ui.mx, ui.my)
+            avisoRayar(c, ui.mx, ui.my)
         end
         partida.guardar()
     elseif id == "mesa_vender" then

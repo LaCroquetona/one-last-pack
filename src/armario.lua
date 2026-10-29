@@ -81,9 +81,17 @@ local function enFunda(id)
     return partida.enfundadas(id) > 0
 end
 
+-- alguna copia con top loader
+local function conTop(id)
+    for _, c in ipairs(partida.lista(id)) do
+        if c.t then return true end
+    end
+    return false
+end
+
 -- sello de 1ª edicion si tienes alguna copia que lo sea
 local function extraCarta(id)
-    return { primera = partida.deEdicion(id, true) > 0 }
+    return { primera = partida.deEdicion(id, true) > 0, top = conTop(id) }
 end
 
 -- edicion de cada copia del monton, las de 1ª arriba
@@ -93,7 +101,7 @@ local function edicionesPila(id)
         if i > 4 then break end
         lista[i] = c.p or false
     end
-    return { ediciones = lista }
+    return { ediciones = lista, top = conTop(id) }
 end
 
 local function hayNormales(def)
@@ -431,15 +439,18 @@ local function panelSeleccion()
     local def = partida.carta(id)
     local r = rarezas[def.rareza]
     local c = copiaVista(id)
-    carta.dibujar(def, 65, 144, 2, 2, 0, true, ui.hoverCarta("sel", 65, 144, CW * 2, CH * 2), c.f, { primera = c.p, top = c.t })
-    ui.zona("sel", 65 - CW, 144 - CH, CW * 2, CH * 2)
+    -- a 5/3: con la pantalla a x3 sigue siendo pixel exacto, y con funda y top
+    -- cabe en el panel sin tapar el nombre
+    local e = 5 / 3
+    carta.dibujar(def, 65, 150, e, e, 0, true, ui.hoverCarta("sel", 65, 150, CW * e, CH * e), c.f, { primera = c.p, top = c.t })
+    ui.zona("sel", 65 - CW * e / 2, 150 - CH * e / 2, CW * e, CH * e)
 
-    fuentes.texto(def.nombre, 6, 198, 1, p.blanco, "center", 118)
-    fuentes.texto(r.nombre .. (def.chase and " - CHASE" or ""), 6, 206, 1, r.color, "center", 118)
+    fuentes.texto(def.nombre, 6, 202, 1, p.blanco, "center", 118)
+    fuentes.texto(r.nombre .. (def.chase and " - CHASE" or ""), 6, 210, 1, r.color, "center", 118)
     local n, p1 = partida.copias(id), partida.deEdicion(id, true)
-    fuentes.texto("COPIAS " .. n, 12, 216, 1, p.grisclaro)
-    if p1 > 0 then fuentes.texto("1ª ED " .. p1, 12, 216, 1, p.amarillo, "right", 106) end
-    local y = 226
+    fuentes.texto("COPIAS " .. n, 12, 220, 1, p.grisclaro)
+    if p1 > 0 then fuentes.texto("1ª ED " .. p1, 12, 220, 1, p.amarillo, "right", 106) end
+    local y = 230
     if hayNormales(def) then
         lineaValor(def, false, y)
         y = y + 9
@@ -447,9 +458,9 @@ local function panelSeleccion()
     lineaValor(def, true, y)
 
     if not bandejaAbierta() then
-        ui.boton("verCopias", "VER COPIAS", 12, 262, 106, 13, p.azul)
+        ui.boton("verCopias", "VER COPIAS", 12, 264, 106, 12, p.azul)
     end
-    ui.boton("ficha", "FICHA EN EL MÓVIL", 12, 277, 106, 12, p.morado)
+    ui.boton("ficha", "FICHA EN EL MÓVIL", 12, 278, 106, 12, p.morado)
 end
 
 local function panelFundas()
@@ -496,11 +507,6 @@ local function panelAlbum()
     ui.boton("pagAnt", "<", 12, 118, 50, 14, p.azul, pliego() > 1)
     ui.boton("pagSig", ">", 68, 118, 50, 14, p.azul, pliego() < totalPliegos())
     ui.boton("album_faltan", soloFaltan and "VER TODAS" or "VER LAS QUE FALTAN", 12, 134, 106, 10, soloFaltan and p.naranja or p.grisosc)
-    local nb = #partida.listaBuscadas()
-    if nb > 0 then
-        ui.estrella(14, 287, p.amarillo)
-        fuentes.texto("BUSCAS " .. nb .. " DE " .. partida.MAX_BUSCADAS, 24, 288, 1, p.amarillo)
-    end
 
     local y = 146
     for _, r in ipairs(rarezas.lista) do
@@ -807,11 +813,19 @@ local function publicarElegidas()
 end
 
 local function topElegidas()
-    local hecho = false
+    local hecho, sinFunda = false, false
     for _, c in ipairs(elegidasQue()) do
-        if not c.t then hecho = partida.ponerTop(c) or hecho end
+        if not c.t and partida.ponerTop(c) then
+            hecho = true
+            sinFunda = sinFunda or not c.f
+        end
     end
     if hecho then brilloFunda() end
+    if sinFunda then
+        sonido.tocar("latido")
+        fx.texto(ui.mx, ui.my - 18, "¡OJO! SIN FUNDA SE PUEDE RAYAR", p.naranja, 2.5)
+        fx.texto(ui.mx, ui.my - 6, "MEJOR PONLE FUNDA PRIMERO", p.grisclaro, 2.5)
+    end
 end
 
 local function enfundarElegidas(poner)

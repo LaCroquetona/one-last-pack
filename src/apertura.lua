@@ -28,7 +28,7 @@ local RANURA_Y = 318
 local GIRO = 0.2
 local DURACION_ENTRADA = 0.45
 -- velocidad base de toda la apertura (entrada, rasgar, revelar y resumen);
--- una mejora de velocidad la multiplicaria
+-- la mejora MANOS RAPIDAS la multiplica (partida.velocidad)
 local VELOCIDAD = 1.2
 
 local estado, t
@@ -109,7 +109,7 @@ function apertura.empezar(tipo, primera, desde)
     if dev.saltar then
         for i, c in ipairs(mano) do
             c.boca = true
-            if not paraOtro then c.nueva, c.copia = partida.anadir(c.def.id, primera) end
+            if not paraOtro then c.nueva, c.copia = partida.anadir(c.def.id, primera, true) end
             c.x, c.y, c.escala = ranuraX(i), RANURA_Y, MINI
         end
         sonido.tocar(mejor.id)
@@ -137,7 +137,7 @@ function apertura.lote(n)
         if gp then godpacks = godpacks + 1 end
         partida.encargoSobre(tipo.id, primera)
         for _, def in ipairs(defs) do
-            if partida.anadir(def.id, primera) then nuevas[def.id] = true end
+            if partida.anadir(def.id, primera, true) then nuevas[def.id] = true end
             if not cuenta[def.id] then
                 cuenta[def.id] = 0
                 table.insert(orden, def)
@@ -246,7 +246,7 @@ local function impacto(c, r)
         fx.texto(c.x, c.y - 70, "¡LA QUE BUSCABAS!", p.amarillo)
         fx.confeti(c.x, c.y - 40, 30, 120)
     end
-    if not paraOtro then c.nueva, c.copia = partida.anadir(c.def.id, primeraActual) end
+    if not paraOtro then c.nueva, c.copia = partida.anadir(c.def.id, primeraActual, true) end
     c.precio = mercado.valor(c.def.id, primeraActual)
     c.nivelPrecio = nivelPrecio(c.precio)
     c.tPrecio, c.tic, c.contado = 0, 0, false
@@ -371,7 +371,7 @@ function apertura.update(dt, mantenido)
         pulsado = false
         return
     end
-    dt = dt * dev.velocidad * VELOCIDAD
+    dt = dt * dev.velocidad * VELOCIDAD * partida.velocidad()
     t = t + dt
 
     if estado == "entrando" then

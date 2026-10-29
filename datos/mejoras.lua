@@ -35,6 +35,8 @@ return {
       valores = niveles(1.12, 0.12, 10), nada = 1, formato = "veces", coste = 300, multiplica = 1.5 },
     { id = "aro", grupo = "directo", nombre = "ARO DE LUZ", texto = "Las peticiones pagan más y en la venta de sobres el chat paga más margen",
       valores = niveles(1.12, 0.12, 10), nada = 1, formato = "veces", coste = 300, multiplica = 1.5 },
+    { id = "rechazar", grupo = "directo", nombre = "LISTA NEGRA", texto = "En la venta de sobres en directo puedes rechazar una compra concreta (con la X)",
+      valores = { 1 }, nada = 0, formato = "nombres", nombres = { [0] = "NO", "SÍ" }, coste = 1500, multiplica = 1 },
     { id = "perfil", grupo = "directo", nombre = "TIENDA EN EL PERFIL", texto = "En la venta de sobres en directo llegan más compradores",
       valores = niveles(1.08, 0.08, 10), nada = 1, formato = "veces", coste = 600, multiplica = 1.55 },
 
@@ -42,7 +44,11 @@ return {
     { id = "mayorista", grupo = "tienda", nombre = "MAYORISTA", texto = "Sobres y cajas de la tienda más baratos",
       valores = niveles(0.008, 0.008, 10), nada = 0, formato = "rebaja", coste = 800, multiplica = 1.6 },
     { id = "proveedor", grupo = "tienda", nombre = "PROVEEDOR", texto = "Llegan más sobres de cada set a la tienda cada día",
-      valores = niveles(1, 1, 8), nada = 0, formato = "stock", coste = 500, multiplica = 1.6 },
+      valores = { 3, 5, 8, 12, 16, 20, 25, 30 }, nada = 0, formato = "stock", coste = 500, multiplica = 1.6 },
     { id = "autofundas", grupo = "tienda", nombre = "SERVICIO DE FUNDAS", texto = "Las cartas buenas te llegan protegidas solas (eliges la rareza en el armario)",
       valores = { 1, 2 }, nada = 0, formato = "nombres", nombres = { [0] = "NO", "FUNDAS", "FUNDAS Y TOPS" }, coste = 800, multiplica = 3 },
+
+    -- MESA
+    { id = "velocidad", grupo = "mesa", nombre = "MANOS RÁPIDAS", texto = "Abres los sobres más rápido (lo cambias en la mesa con el botón de la velocidad)",
+      valores = { 1.25, 1.5, 1.75, 2, 2.5, 3 }, nada = 1, formato = "veces", coste = 400, multiplica = 1.6 },
 }
