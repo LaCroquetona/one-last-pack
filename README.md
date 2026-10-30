@@ -68,7 +68,8 @@ herramientas/   pruebas automáticas, bots de economía, simulador de mercado y 
 
 Casi todo lo que se ajusta está en `datos/`, separado del código:
 
-- `datos/cartas.lua`: todas las cartas, una línea por carta.
+- `datos/cartas.lua`: todas las cartas, una línea por carta. Las de fuera de set (ALT, SILVER y GOLDEN) salen solas de las marcadas.
+- `datos/variantes.lua`: las cartas de fuera de set: nombre, color, brillo y suspense.
 - `datos/sets.lua`: los sets y lo que vale cada rareza en cada uno.
 - `datos/sobres.lua`: precio, huecos y probabilidades de cada sobre, god pack, piedad, cajas y con qué se empieza.
 - `datos/calendario.lua`: cada cuánto sale un set, cuánto dura su tirada y sus reimpresiones.
@@ -81,6 +82,7 @@ Casi todo lo que se ajusta está en `datos/`, separado del código:
 En `src/`:
 
 - `mesa.lua`, `apertura.lua`, `caja.lua` y `encima.lua`: la mesa, abrir sobres, las cajas y lo que se pinta a resolución real (lo que se arrastra).
+- `muebles.lua`: estanterías, baldas, ganchos, blísteres y álbumes en 3D, con la misma perspectiva que la caja (tienda, mesa y armario).
 - `directo.lua` y `emojis.lua`: el directo y su chat.
 - `movil.lua`, `grafica.lua` y `vendedores.lua`: el móvil con todas sus apps.
 - `tienda.lua`, `armario.lua`, `menu.lua`, `opciones.lua`, `reporte.lua` y `errores.lua`: el resto de pantallas.

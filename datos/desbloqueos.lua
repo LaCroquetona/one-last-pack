@@ -39,9 +39,10 @@ return {
     -- sin nada que abrir y la tienda vacia (una vez al dia como mucho)
     mercadoSobres = { texto = "EN LA TIENDA NO QUEDAN SOBRES, PERO EN EL MERCADO DEL MÓVIL LA GENTE VENDE LOS SUYOS. ¡ÉCHALE UN OJO!",
                       apunta = "ir_movil", inmediato = true, pose = "piensa" },
-    -- tras estos sobres abiertos, o al vaciar la tienda
-    dia = { texto = "CUANDO QUIERAS, PASA EL DÍA DESDE EL MÓVIL: LLEGAN SOBRES A LA TIENDA Y LOS PRECIOS SE MUEVEN.",
-            apunta = "ir_movil", abiertos = 15, pose = "piensa" },
+    -- tras estos sobres abiertos, sin nada que abrir y con la tienda acabada
+    -- (vacia o sin dinero)
+    dia = { texto = "¿NADA MÁS QUE ABRIR? PASA EL DÍA DESDE EL MÓVIL: LLEGAN SOBRES A LA TIENDA Y LOS PRECIOS SE MUEVEN.",
+            apunta = "ir_movil", abiertos = 1, pose = "piensa" },
     -- sale como mucho una vez al dia
     sinDinero = { texto = "SIN DINERO PARA SOBRES. VENDE ALGUNA CARTA: EN LA MESA, EN EL ARMARIO O EN EL MÓVIL, QUE ES DONDE MÁS PAGAN.",
                   apunta = "ir_movil", pose = "piensa" },

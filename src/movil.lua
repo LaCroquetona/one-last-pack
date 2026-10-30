@@ -114,7 +114,7 @@ function movil.pasarDia()
     local avisadas = 0
     for _, id in ipairs(partida.listaBuscadas()) do
         if avisadas < 2 and movil.laVenden(id) then
-            notificar("HOY VENDEN UNA QUE BUSCAS: " .. mercado.carta(id).nombre:upper(), p.amarillo)
+            notificar("HOY VENDEN UNA QUE BUSCAS: " .. rarezas.nombre(mercado.carta(id)):upper(), p.amarillo)
             avisadas = avisadas + 1
         end
     end
@@ -336,17 +336,18 @@ end
 -- fila de una carta en una lista: gema, nombre, linea y precio
 local function filaCarta(id, x, y, w, idZona, primera, tenue)
     local def = mercado.carta(id)
-    local r = rarezas[def.rareza]
+    local r = rarezas.de(def)
+    local nombre = rarezas.nombre(def)
     local encima = ui.encima == idZona
     if encima then
         lg.setColor(1, 1, 1, 0.06)
         lg.rectangle("fill", x, y, w, 18)
     end
     carta.gema(def.rareza, x + 7, y + 8)
-    fuentes.texto(def.nombre, x + 15, y + 3, 1, tenue and p.gris or r.color)
+    fuentes.texto(nombre, x + 15, y + 3, 1, tenue and p.gris or r.color)
     -- la que buscas: estrella y, si alguien la vende hoy, se dice
     local buscada = partida.buscada(id)
-    if buscada then ui.estrella(x + 18 + fuentes.ancho(def.nombre), y + 2, p.amarillo) end
+    if buscada then ui.estrella(x + 18 + fuentes.ancho(nombre), y + 2, p.amarillo) end
     local sub = sets[def.set].codigo
     local n = partida.copias(id)
     if n > 0 then sub = sub .. "  X" .. n end
@@ -360,7 +361,7 @@ local function filaCarta(id, x, y, w, idZona, primera, tenue)
     local _, h = mercado.historial(id, primera)
     local precio = ui.dinero(mercado.valor(id, primera))
     local gx = x + w - 4 - math.max(fuentes.ancho(precio), 28) - 40
-    if h and gx > x + 19 + math.max(fuentes.ancho(def.nombre), fuentes.ancho(sub)) then grafica.mini(h, gx, y + 4, 36, 10) end
+    if h and gx > x + 19 + math.max(fuentes.ancho(nombre), fuentes.ancho(sub)) then grafica.mini(h, gx, y + 4, 36, 10) end
     local cambio = mercado.cambio(id, 7, primera)
     fuentes.texto(precio, x, y + 3, 1, p.amarillo, "right", w - 4)
     fuentes.texto(ui.porcentaje(cambio), x, y + 11, 1, ui.colorCambio(cambio), "right", w - 4)
@@ -753,15 +754,15 @@ end
 
 local function appFicha()
     local def = mercado.carta(fichaId)
-    local r = rarezas[def.rareza]
+    local r = rarezas.de(def)
     local x, w = CONT.x + 6, CONT.w - 12
     local y = empezarLista() + 4
     local normales = mercado.hayNormales(def.set)
     -- antes de la primera reimpresion todas las copias son de 1ª edicion
     local primera = not normales or fichaPrimera
 
-    fuentes.texto(def.nombre, x, y, 2, r.color)
-    local datos = r.nombre:upper() .. "  " .. sets[def.set].codigo .. " #" .. def.num .. "/" .. #mercado.cartasDe(def.set)
+    fuentes.texto(rarezas.nombre(def), x, y, 2, r.color)
+    local datos = r.nombre:upper() .. "  " .. sets[def.set].codigo .. " #" .. def.num .. "/" .. #mercado.baseDe(def.set)
     fuentes.texto(datos, x, y + 14, 1, p.grisclaro)
     -- la estrella: marcarla como buscada
     local buscada = partida.buscada(def.id)
@@ -857,14 +858,14 @@ local function appVentas()
         fuentes.texto("NO TIENES NADA PUBLICADO", x, y + 40, 1, p.grisclaro, "center", w)
         fuentes.texto("ELIGE UNA CARTA EN EL ARMARIO", x, y + 54, 1, p.gris, "center", w)
         fuentes.texto("O EN SU FICHA Y PULSA PUBLICAR", x, y + 62, 1, p.gris, "center", w)
-        ui.boton("ir_armario", "IR AL ARMARIO", x + 30, y + 80, w - 60, 14, p.azul)
+        ui.boton("m_ir_armario", "IR AL ARMARIO", x + 30, y + 80, w - 60, 14, p.azul)
         acabarLista(y + 100)
         return
     end
 
     for i, a in ipairs(partida.anuncios) do
         local def = partida.carta(a.id)
-        local r = rarezas[def.rareza]
+        local r = rarezas.de(def)
         local id = "anuncio" .. i
         local alto = 36
         local sel = elegido == i
@@ -875,7 +876,7 @@ local function appVentas()
             lg.rectangle("fill", x, y, w, alto - 2)
         end
         carta.gema(def.rareza, x + 8, y + 9)
-        fuentes.texto(def.nombre .. (a.primera and "  1ª ED" or ""), x + 16, y + 4, 1, r.color)
+        fuentes.texto(rarezas.nombre(def) .. (a.primera and "  1ª ED" or ""), x + 16, y + 4, 1, r.color)
         fuentes.texto("VALOR " .. ui.dinero(mercado.valor(a.id, a.primera)), x + 16, y + 13, 1, p.grisclaro)
         if #a.ofertas == 0 then
             fuentes.texto("ESPERANDO OFERTAS...", x + 16, y + 22, 1, p.gris)
@@ -1188,7 +1189,7 @@ end
 local function ladoIzquierdo()
     if app == "ficha" and fichaId then
         local def = mercado.carta(fichaId)
-        local r = rarezas[def.rareza]
+        local r = rarezas.de(def)
         local cx, cy = 98, 168
         local primera
         if mercado.hayNormales(def.set) then primera = fichaPrimera else primera = partida.deEdicion(def.id, true) > 0 end
@@ -1254,14 +1255,14 @@ local function ladoDerecho()
         return
     end
     local def = partida.carta(a.id)
-    local r = rarezas[def.rareza]
+    local r = rarezas.de(def)
     local cx, cy = 545, 92
     -- la copia que se vende, con su funda y su top
     local c = partida.copia(a.id, a.u)
     local funda = c and c.f or (not c and partida.enfundadas(a.id) > 0)
     carta.dibujar(def, cx, cy, 2, 2, 0, true, ui.hoverCarta("verCarta", cx, cy, 72, 100), funda, { primera = a.primera, top = c and c.t })
     ui.zona("verCarta", cx - 36, cy - 50, 72, 100)
-    fuentes.texto(def.nombre, 450, 148, 2, p.blanco, "center", 190)
+    fuentes.texto(rarezas.nombre(def), 450, 148, 2, p.blanco, "center", 190)
     fuentes.texto(r.nombre .. (a.primera and "  1ª EDICIÓN" or ""), 450, 162, 1, r.color, "center", 190)
     fuentes.texto("VALOR " .. ui.dinero(mercado.valor(a.id, a.primera)), 450, 172, 1, p.amarillo, "center", 190)
 
@@ -1573,6 +1574,8 @@ function movil.click(id)
         terminarEnvio()
     elseif id == "pasarDia" then
         nav.pasarDia()
+    elseif id == "m_ir_armario" then
+        nav.ir("armario")
     elseif id == "m_inicio" then
         inicio()
     elseif id == "m_atras" then
@@ -1652,7 +1655,7 @@ function movil.click(id)
         local pagado = o and vendedores.comprar(o)
         if pagado then
             sonido.tocar("moneda")
-            local que = o.cosa.que == "carta" and mercado.carta(o.cosa.id).nombre:upper() or textoCosa(o.cosa)
+            local que = o.cosa.que == "carta" and rarezas.nombre(mercado.carta(o.cosa.id)):upper() or textoCosa(o.cosa)
             notificar(que .. " DE " .. o.vendedor.nombre .. ": -" .. ui.dinero(pagado), p.amarillo)
         end
     elseif id:match("^m_comprar") then

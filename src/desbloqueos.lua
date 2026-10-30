@@ -99,7 +99,11 @@ local CUANDO = {
     noticias = function() return set2 and calendario.conocido(set2, mercado.dia()) end,
     cajas = function() return partida.abiertos >= datos.cajas.abiertos end,
     tienda = function() return partida.abiertos > 0 and nadaQueAbrir() and not sinDinero() and not tiendaVacia() end,
-    dia = function() return partida.abiertos >= datos.dia.abiertos or (partida.abiertos > 0 and tiendaVacia()) end,
+    -- cuando ya no te queda nada que abrir y has acabado con la tienda
+    -- (vacia o sin dinero para el sobre mas barato)
+    dia = function()
+        return partida.abiertos >= datos.dia.abiertos and nadaQueAbrir() and (tiendaVacia() or sinDinero())
+    end,
 }
 
 -- los avisos que dependen de como estas ahora: si ya no es asi al ir a
@@ -112,6 +116,7 @@ local VIGENTE = {
     sinDinero = sinDinero,
     tienda = function() return nadaQueAbrir() and not sinDinero() end,
     mercadoSobres = function() return nadaQueAbrir() end,
+    dia = function() return nadaQueAbrir() and (tiendaVacia() or sinDinero()) end,
 }
 
 local function avisar(id)

@@ -10,6 +10,64 @@ fase 3 = v0.7.2-0.7.4, fase 4 = v0.8.0-0.8.2. Desde la v0.9.0 ya no hay
 fases: se sigue el roadmap. La v0.9.0 se preparó como v0.8.3 y salió con
 otro número.
 
+## v0.9.5 - 2026-10-28 - Cartas de fuera de set y MASTER SET
+
+- **Fuera de set**: las secretas ya no cuentan para el 100% del álbum. Van
+  numeradas después de las del set (en el S1, la #79 y la #80) junto con
+  las cartas nuevas: un set se completa con sus cartas y pasa del 100% con
+  las de fuera (el S1 llega al 114%).
+- **ALT**: el mismo bicho con el dibujo de lado a lado y marco dorado. Las
+  tienen algunas holo (1-3 por set), algunas full art (1-2, siempre la
+  chase) y todas las secretas (con joyitas en las esquinas). La ALT de full
+  art lleva un fondo de rayos y el bicho grande sobre el suelo.
+- **SILVER y GOLDEN**: cada secreta tiene su SILVER (la chase, su GOLDEN):
+  una placa de metal grabada con el bicho en relieve en un medallón. Brillan
+  como metal cepillado y la GOLDEN lleva un aura que late.
+- **Apertura especial** de SILVER y GOLDEN: la pantalla se oscurece, los
+  latidos van cada vez más rápido y, al girarla, destello, explosión doble,
+  cámara lenta, ¡SILVER! o ¡¡GOLDEN!! y sonido propio. El chat se vuelve
+  loco como con un god pack. El resumen de varios sobres dice si ha salido
+  alguna.
+- **Álbum**: cuando sacas la primera de fuera de set aparece su página, con
+  los huecos en ? (no se ve qué carta falta). Con todo, el set entero y lo
+  de fuera, es **MASTER SET**: la página lleva marco dorado y el lomo del
+  álbum se vuelve dorado con su placa MASTER. En la pestaña RAREZA van
+  dentro de su rareza.
+- **Precios**: cada carta vale según lo difícil que es sacarla. Un sobre de
+  media vale como mucho el 80% de lo que cuesta (el S1, el 90%), así que el
+  resto de cartas valen algo menos que antes.
+- **God pack** más raro (en el S1, uno cada 20 cajas). La ficha de la tienda
+  dice cuánto sale de fuera de set por sobre y el god pack vuelve a decir
+  HOLO O MEJOR, que es lo que trae.
+- **Logros nuevos**: OTRO ARTE, PURO ORO y MASTER SET.
+- En la mesa, el % del set pasa de 100 con las de fuera y pone MASTER SET al
+  completarlo todo.
+- El panel DEV se desplaza (rueda o SUBIR/BAJAR) y ya se llega a todo.
+
+## v0.9.4 - 2026-10-28 - Tienda, mesa y álbumes en 3D
+
+- **Tienda nueva**: ahora es una estantería en 3D. Los sobres cuelgan de
+  ganchos (se zarandean al comprarlos), las fundas y los tops cuelgan en su
+  blíster y las cajas se apilan abajo. Cada mueble lleva 4 sets; con más
+  sets se pasa al de al lado con las flechas.
+- **Ficha del sobre**: qué puede salir en cada hueco, con una barra de
+  colores y el porcentaje de cada rareza. El god pack sale como "1 de cada
+  X", ya con el imán aplicado. Sin la piedad.
+- **Mesa**: arriba, una balda con las cajas cerradas apiladas por set;
+  debajo, un tablero con 6 ganchos de sobres (con más tipos salen flechas)
+  y las fundas y los tops. Los sobres cuelgan en una pila recta y, si te
+  queda alguno de 1ª edición, llevan una pegatina dorada; cuántos hay de
+  cada uno sale al pasar por encima.
+- **Álbumes**: una estantería con un álbum por set, el de 1ª edición arriba
+  y el de reimpresiones abajo (cada uno cuenta solo sus cartas). Se abre
+  tocándolo y se vuelve con A LA ESTANTERÍA o ESC.
+- **Arreglos**: el aviso de pasar el día ya solo sale cuando no te queda
+  nada por abrir y has acabado con la tienda. La X para rechazar compras
+  del directo de venta, redibujada. Los álbumes de arriba ya no se salen
+  del mueble ni parpadean al entrar por la derecha. Las flechas de sets del
+  armario y el ARMARIO de arriba ya no se elevan al pasar por otro botón, e
+  IR AL ARMARIO de VENTAS ya lleva al armario.
+
 ## v0.9.3 - 2026-10-27 - Encargos nuevos, velocidad de apertura y arreglos
 
 - **Encargos nuevos**: además de abrir sobres de un set, ahora piden enfundar
