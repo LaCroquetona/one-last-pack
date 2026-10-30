@@ -13,6 +13,16 @@ local function tieneRareza(partida, mercado, nivel, chase)
     return false
 end
 
+local function tieneVariante(partida, mercado, cual)
+    for id, l in pairs(partida.inv) do
+        if #l > 0 then
+            local def = mercado.carta(id)
+            if def and def.variante == cual then return true end
+        end
+    end
+    return false
+end
+
 return {
     { id = "sobre1", nombre = "EL PRIMERO", texto = "Abre tu primer sobre",
       si = function(pa) return pa.abiertos >= 1 end },
@@ -32,6 +42,17 @@ return {
           for _, s in ipairs(me.setsSalidos()) do
               local tienes, _, total = pa.progreso(s.id)
               if total > 0 and tienes >= total then return true end
+          end
+          return false
+      end },
+    { id = "alt", nombre = "OTRO ARTE", texto = "Consigue una carta ALT",
+      si = function(pa, me) return tieneVariante(pa, me, "alt") end },
+    { id = "golden", nombre = "PURO ORO", texto = "Consigue una GOLDEN",
+      si = function(pa, me) return tieneVariante(pa, me, "golden") end },
+    { id = "master", nombre = "MASTER SET", texto = "Completa un set y su fuera de set",
+      si = function(pa, me)
+          for _, s in ipairs(me.setsSalidos()) do
+              if pa.master(s.id) then return true end
           end
           return false
       end },

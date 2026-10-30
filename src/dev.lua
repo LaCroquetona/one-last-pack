@@ -14,6 +14,7 @@ local dev = {
     abierto = false,
     velocidad = 1,
     saltar = false,
+    scroll = 0,
 }
 
 local VELOCIDADES = { 1, 2, 4, 8 }
@@ -30,6 +31,9 @@ local function botones()
         { "dev_saltar", dev.saltar and "SALTAR ANIMACIÓN: SÍ" or "SALTAR ANIMACIÓN: NO", dev.saltar },
         { "dev_godpack", generador.forzar == "godpack" and "SIGUIENTE: GOD PACK (LISTO)" or "SIGUIENTE: GOD PACK", generador.forzar == "godpack" },
         { "dev_secreta", generador.forzar == "secreta" and "SIGUIENTE: SECRETA (LISTO)" or "SIGUIENTE: SECRETA", generador.forzar == "secreta" },
+        { "dev_alt", generador.forzar == "alt" and "SIGUIENTE: ALT (LISTO)" or "SIGUIENTE: ALT", generador.forzar == "alt" },
+        { "dev_silver", generador.forzar == "silver" and "SIGUIENTE: SILVER (LISTO)" or "SIGUIENTE: SILVER", generador.forzar == "silver" },
+        { "dev_golden", generador.forzar == "golden" and "SIGUIENTE: GOLDEN (LISTO)" or "SIGUIENTE: GOLDEN", generador.forzar == "golden" },
         { "MERCADO" },
         { "dev_dia", "PASAR DÍA" }, { "dev_dia7", "PASAR 7 DÍAS" },
         { "dev_dia16", "PASAR 16 DÍAS" }, { "dev_dia30", "PASAR 30 DÍAS" },
@@ -62,23 +66,30 @@ function dev.dibujar()
     local lista = botones()
     local alto = 16 + 30
     for _, b in ipairs(lista) do alto = alto + (b[2] and 13 or 11) end
-    ui.caja(X, Y, W, alto, p.negro)
+    alto = alto + 8 * #infoPantalla()
+    -- si no cabe, scroll con la rueda o con SUBIR/BAJAR
+    local MAX = 360 - Y - 4
+    local hayScroll = alto > MAX
+    dev.scroll = math.max(0, math.min(dev.scroll, hayScroll and alto - MAX + 16 or 0))
+    local fin = hayScroll and Y + MAX - 15 or Y + alto
+    local function cabe(yy, h) return yy >= Y + 12 and yy + h <= fin end
+    ui.caja(X, Y, W, math.min(alto, MAX), p.negro)
     local lg = love.graphics
     lg.setColor(p.naranja)
     lg.rectangle("fill", X + 1, Y + 1, W - 2, 10)
     fuentes.texto("HERRAMIENTAS DE DESARROLLADOR", X, Y + 3, 1, p.negro, "center", W)
-    local y = Y + 14
+    local y = Y + 14 - dev.scroll
     local col = 0
     for i, b in ipairs(lista) do
         if not b[2] then
             if col == 1 then y = y + 13 col = 0 end
-            fuentes.texto(b[1], X + 6, y + 3, 1, p.naranja)
+            if cabe(y, 10) then fuentes.texto(b[1], X + 6, y + 3, 1, p.naranja) end
             y = y + 11
         else
             -- los botones cortos van de dos en dos
             local corto = b[1]:match("^dev_dinero") or b[1]:match("^dev_sobres") or b[1]:match("^dev_dia")
             if corto then
-                ui.boton(b[1], b[2], X + 6 + col * 77, y, 75, 11, p.gris)
+                if cabe(y, 11) then ui.boton(b[1], b[2], X + 6 + col * 77, y, 75, 11, p.gris) end
                 col = col + 1
                 local siguiente = lista[i + 1]
                 local sigCorto = siguiente and siguiente[2] and (siguiente[1]:match("^dev_dinero") or siguiente[1]:match("^dev_sobres") or siguiente[1]:match("^dev_dia"))
@@ -87,14 +98,18 @@ function dev.dibujar()
                     col = 0
                 end
             else
-                ui.boton(b[1], b[2], X + 6, y, W - 12, 11, b[3] and p.verde or p.gris)
+                if cabe(y, 11) then ui.boton(b[1], b[2], X + 6, y, W - 12, 11, b[3] and p.verde or p.gris) end
                 y = y + 13
             end
         end
     end
-    fuentes.texto("PANTALLA", X + 6, y + 3, 1, p.naranja)
+    if cabe(y, 10) then fuentes.texto("PANTALLA", X + 6, y + 3, 1, p.naranja) end
     for i, l in ipairs(infoPantalla()) do
-        fuentes.texto(l, X + 6, y + 4 + i * 8, 1, p.grisclaro)
+        if cabe(y + 4 + i * 8, 6) then fuentes.texto(l, X + 6, y + 4 + i * 8, 1, p.grisclaro) end
+    end
+    if hayScroll then
+        ui.boton("dev_subir", "SUBIR", X + 6, fin + 2, 75, 11, p.azul, dev.scroll > 0)
+        ui.boton("dev_bajar", "BAJAR", X + 83, fin + 2, 75, 11, p.azul, dev.scroll < alto - MAX + 16)
     end
 end
 
@@ -132,10 +147,14 @@ function dev.click(id)
         end
     elseif id == "dev_saltar" then
         dev.saltar = not dev.saltar
+    elseif id == "dev_subir" or id == "dev_bajar" then
+        dev.scroll = dev.scroll + (id == "dev_subir" and -80 or 80)
+        return
     elseif id == "dev_godpack" then
         generador.forzar = generador.forzar ~= "godpack" and "godpack" or nil
-    elseif id == "dev_secreta" then
-        generador.forzar = generador.forzar ~= "secreta" and "secreta" or nil
+    elseif id == "dev_secreta" or id == "dev_alt" or id == "dev_silver" or id == "dev_golden" then
+        local que = id:sub(5)
+        generador.forzar = generador.forzar ~= que and que or nil
     elseif id == "dev_dia" then
         nav.pasarDia()
     elseif id:match("^dev_dia%d") then

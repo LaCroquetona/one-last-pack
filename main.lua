@@ -370,6 +370,10 @@ end
 
 function love.wheelmoved(_, y)
     if tutorial.bloquea() then return end
+    if dev.abierto and ui.mx >= 470 then
+        dev.scroll = dev.scroll - y * 24
+        return
+    end
     if escena == "movil" then movil.rueda(y) end
 end
 

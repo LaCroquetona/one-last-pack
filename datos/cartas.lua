@@ -8,7 +8,7 @@
 -- semilla = cualquier numero y cambia. Con sprite = "algo.png" (en sprites/)
 -- se usa ese dibujo en su lugar.
 -- Nombres de 7 letras como mucho, si no se salen de la carta.
-return {
+local lista = {
     -- Set 1: 80 cartas (las nuevas tienen id del 41 al 80)
     { id = 1,   set = "s1", num = 1,  nombre = "Brasa",   elemento = "fuego",  rareza = "comun" },
     { id = 2,   set = "s1", num = 2,  nombre = "Gota",    elemento = "agua",   rareza = "comun" },
@@ -76,16 +76,16 @@ return {
     { id = 71,  set = "s1", num = 64, nombre = "Tenebra", elemento = "sombra", rareza = "rara" },
     { id = 72,  set = "s1", num = 65, nombre = "Hornito", elemento = "fuego",  rareza = "rara" },
     { id = 73,  set = "s1", num = 66, nombre = "Brezo",   elemento = "planta", rareza = "rara" },
-    { id = 34,  set = "s1", num = 67, nombre = "Trueno",  elemento = "rayo",   rareza = "holo" },
+    { id = 34,  set = "s1", num = 67, nombre = "Trueno",  elemento = "rayo",   rareza = "holo", alt = true },
     { id = 35,  set = "s1", num = 68, nombre = "Ocaso",   elemento = "sombra", rareza = "holo" },
     { id = 36,  set = "s1", num = 69, nombre = "Volcán",  elemento = "fuego",  rareza = "holo" },
     { id = 37,  set = "s1", num = 70, nombre = "Abismo",  elemento = "agua",   rareza = "holo" },
-    { id = 74,  set = "s1", num = 71, nombre = "Salitre", elemento = "agua",   rareza = "holo" },
+    { id = 74,  set = "s1", num = 71, nombre = "Salitre", elemento = "agua",   rareza = "holo", alt = true },
     { id = 75,  set = "s1", num = 72, nombre = "Cátodo",  elemento = "rayo",   rareza = "holo" },
     { id = 76,  set = "s1", num = 73, nombre = "Mortaja", elemento = "sombra", rareza = "holo" },
-    { id = 77,  set = "s1", num = 74, nombre = "Brasita", elemento = "fuego",  rareza = "holo" },
-    { id = 38,  set = "s1", num = 75, nombre = "Bosque",  elemento = "planta", rareza = "fullart" },
-    { id = 39,  set = "s1", num = 76, nombre = "Eclipse", elemento = "sombra", rareza = "fullart", chase = true },
+    { id = 77,  set = "s1", num = 74, nombre = "Brasita", elemento = "fuego",  rareza = "holo", alt = true },
+    { id = 38,  set = "s1", num = 75, nombre = "Bosque",  elemento = "planta", rareza = "fullart", alt = true },
+    { id = 39,  set = "s1", num = 76, nombre = "Eclipse", elemento = "sombra", rareza = "fullart", chase = true, alt = true },
     { id = 78,  set = "s1", num = 77, nombre = "Raicita", elemento = "planta", rareza = "fullart" },
     { id = 79,  set = "s1", num = 78, nombre = "Rayote",  elemento = "rayo",   rareza = "fullart" },
     { id = 40,  set = "s1", num = 79, nombre = "Plasma",  elemento = "rayo",   rareza = "secreta", chase = true },
@@ -148,15 +148,15 @@ return {
     { id = 154, set = "s2", num = 54, nombre = "Bruja",   elemento = "sombra", rareza = "rara" },
     { id = 155, set = "s2", num = 55, nombre = "Yeti",    elemento = "hielo",  rareza = "rara" },
     { id = 156, set = "s2", num = 56, nombre = "Acero",   elemento = "metal",  rareza = "rara" },
-    { id = 157, set = "s2", num = 57, nombre = "Solano",  elemento = "fuego",  rareza = "holo" },
+    { id = 157, set = "s2", num = 57, nombre = "Solano",  elemento = "fuego",  rareza = "holo", alt = true },
     { id = 158, set = "s2", num = 58, nombre = "Náyade",  elemento = "agua",   rareza = "holo" },
     { id = 159, set = "s2", num = 59, nombre = "Ceiba",   elemento = "planta", rareza = "holo" },
-    { id = 160, set = "s2", num = 60, nombre = "Fusible", elemento = "rayo",   rareza = "holo" },
+    { id = 160, set = "s2", num = 60, nombre = "Fusible", elemento = "rayo",   rareza = "holo", alt = true },
     { id = 161, set = "s2", num = 61, nombre = "Ánima",   elemento = "sombra", rareza = "holo" },
     { id = 162, set = "s2", num = 62, nombre = "Polar",   elemento = "hielo",  rareza = "holo" },
-    { id = 163, set = "s2", num = 63, nombre = "Cromo",   elemento = "metal",  rareza = "holo" },
-    { id = 164, set = "s2", num = 64, nombre = "Fénix",   elemento = "fuego",  rareza = "fullart", chase = true },
-    { id = 165, set = "s2", num = 65, nombre = "Kraken",  elemento = "agua",   rareza = "fullart" },
+    { id = 163, set = "s2", num = 63, nombre = "Cromo",   elemento = "metal",  rareza = "holo", alt = true },
+    { id = 164, set = "s2", num = 64, nombre = "Fénix",   elemento = "fuego",  rareza = "fullart", chase = true, alt = true },
+    { id = 165, set = "s2", num = 65, nombre = "Kraken",  elemento = "agua",   rareza = "fullart", alt = true },
     { id = 166, set = "s2", num = 66, nombre = "Dríade",  elemento = "planta", rareza = "fullart" },
     { id = 167, set = "s2", num = 67, nombre = "Tronada", elemento = "rayo",   rareza = "fullart" },
     { id = 168, set = "s2", num = 68, nombre = "Nyx",     elemento = "sombra", rareza = "secreta" },
@@ -214,14 +214,14 @@ return {
     { id = 248, set = "s3", num = 48, nombre = "Cuarzo",  elemento = "tierra", rareza = "rara" },
     { id = 249, set = "s3", num = 49, nombre = "Geoda",   elemento = "tierra", rareza = "rara" },
     { id = 250, set = "s3", num = 50, nombre = "Menhir",  elemento = "tierra", rareza = "rara" },
-    { id = 251, set = "s3", num = 51, nombre = "Wyvern",  elemento = "fuego",  rareza = "holo" },
+    { id = 251, set = "s3", num = 51, nombre = "Wyvern",  elemento = "fuego",  rareza = "holo", alt = true },
     { id = 252, set = "s3", num = 52, nombre = "Tritón",  elemento = "agua",   rareza = "holo" },
     { id = 253, set = "s3", num = 53, nombre = "Mjolnir", elemento = "rayo",   rareza = "holo" },
     { id = 254, set = "s3", num = 54, nombre = "Gárgola", elemento = "sombra", rareza = "holo" },
-    { id = 255, set = "s3", num = 55, nombre = "Golem",   elemento = "tierra", rareza = "holo" },
+    { id = 255, set = "s3", num = 55, nombre = "Golem",   elemento = "tierra", rareza = "holo", alt = true },
     { id = 256, set = "s3", num = 56, nombre = "Quimera", elemento = "fuego",  rareza = "fullart" },
     { id = 257, set = "s3", num = 57, nombre = "Sirena",  elemento = "agua",   rareza = "fullart" },
-    { id = 258, set = "s3", num = 58, nombre = "Behemot", elemento = "tierra", rareza = "fullart", chase = true },
+    { id = 258, set = "s3", num = 58, nombre = "Behemot", elemento = "tierra", rareza = "fullart", chase = true, alt = true },
     { id = 259, set = "s3", num = 59, nombre = "Ifrit",   elemento = "fuego",  rareza = "secreta" },
     { id = 260, set = "s3", num = 60, nombre = "Gaia",    elemento = "tierra", rareza = "secreta", chase = true },
 
@@ -266,14 +266,14 @@ return {
     { id = 338, set = "s4", num = 38, nombre = "Púlsar",  elemento = "astral", rareza = "rara" },
     { id = 339, set = "s4", num = 39, nombre = "Cosmos",  elemento = "astral", rareza = "rara" },
     { id = 340, set = "s4", num = 40, nombre = "Galaxia", elemento = "astral", rareza = "rara" },
-    { id = 341, set = "s4", num = 41, nombre = "Draco",   elemento = "fuego",  rareza = "holo" },
+    { id = 341, set = "s4", num = 41, nombre = "Draco",   elemento = "fuego",  rareza = "holo", alt = true },
     { id = 342, set = "s4", num = 42, nombre = "Orión",   elemento = "rayo",   rareza = "holo" },
     { id = 343, set = "s4", num = 43, nombre = "Selene",  elemento = "sombra", rareza = "holo" },
     { id = 344, set = "s4", num = 44, nombre = "Vega",    elemento = "hielo",  rareza = "holo" },
-    { id = 345, set = "s4", num = 45, nombre = "Sirio",   elemento = "astral", rareza = "holo" },
+    { id = 345, set = "s4", num = 45, nombre = "Sirio",   elemento = "astral", rareza = "holo", alt = true },
     { id = 346, set = "s4", num = 46, nombre = "Pegaso",  elemento = "astral", rareza = "fullart" },
     { id = 347, set = "s4", num = 47, nombre = "Kronos",  elemento = "metal",  rareza = "fullart" },
-    { id = 348, set = "s4", num = 48, nombre = "Nova",    elemento = "astral", rareza = "fullart", chase = true },
+    { id = 348, set = "s4", num = 48, nombre = "Nova",    elemento = "astral", rareza = "fullart", chase = true, alt = true },
     { id = 349, set = "s4", num = 49, nombre = "Omega",   elemento = "sombra", rareza = "secreta" },
     { id = 350, set = "s4", num = 50, nombre = "Génesis", elemento = "astral", rareza = "secreta", chase = true },
 
@@ -328,12 +328,12 @@ return {
     { id = 448, set = "s5", num = 48, nombre = "Nefasto", elemento = "sombra", rareza = "rara" },
     { id = 449, set = "s5", num = 49, nombre = "Ofidio",  elemento = "veneno", rareza = "rara" },
     { id = 450, set = "s5", num = 50, nombre = "Pútrido", elemento = "tierra", rareza = "rara" },
-    { id = 451, set = "s5", num = 51, nombre = "Hidra",   elemento = "veneno", rareza = "holo" },
+    { id = 451, set = "s5", num = 51, nombre = "Hidra",   elemento = "veneno", rareza = "holo", alt = true },
     { id = 452, set = "s5", num = 52, nombre = "Equidna", elemento = "veneno", rareza = "holo" },
     { id = 453, set = "s5", num = 53, nombre = "Ladón",   elemento = "agua",   rareza = "holo" },
     { id = 454, set = "s5", num = 54, nombre = "Yamata",  elemento = "veneno", rareza = "holo" },
-    { id = 455, set = "s5", num = 55, nombre = "Apofis",  elemento = "veneno", rareza = "holo" },
-    { id = 456, set = "s5", num = 56, nombre = "Nidhogg", elemento = "veneno", rareza = "fullart", chase = true },
+    { id = 455, set = "s5", num = 55, nombre = "Apofis",  elemento = "veneno", rareza = "holo", alt = true },
+    { id = 456, set = "s5", num = 56, nombre = "Nidhogg", elemento = "veneno", rareza = "fullart", chase = true, alt = true },
     { id = 457, set = "s5", num = 57, nombre = "Uróboro", elemento = "veneno", rareza = "fullart" },
     { id = 458, set = "s5", num = 58, nombre = "Pitón",   elemento = "agua",   rareza = "fullart" },
     { id = 459, set = "s5", num = 59, nombre = "Estigia", elemento = "veneno", rareza = "secreta", chase = true },
@@ -398,14 +398,14 @@ return {
     { id = 556, set = "s6", num = 56, nombre = "Silfo",   elemento = "planta", rareza = "rara" },
     { id = 557, set = "s6", num = 57, nombre = "Sílfide", elemento = "viento", rareza = "rara" },
     { id = 558, set = "s6", num = 58, nombre = "Aura",    elemento = "tierra", rareza = "rara" },
-    { id = 559, set = "s6", num = 59, nombre = "Garuda",  elemento = "viento", rareza = "holo" },
+    { id = 559, set = "s6", num = 59, nombre = "Garuda",  elemento = "viento", rareza = "holo", alt = true },
     { id = 560, set = "s6", num = 60, nombre = "Alcío",   elemento = "viento", rareza = "holo" },
     { id = 561, set = "s6", num = 61, nombre = "Eolo",    elemento = "rayo",   rareza = "holo" },
     { id = 562, set = "s6", num = 62, nombre = "Vayu",    elemento = "viento", rareza = "holo" },
     { id = 563, set = "s6", num = 63, nombre = "Ziz",     elemento = "viento", rareza = "holo" },
-    { id = 564, set = "s6", num = 64, nombre = "Ventus",  elemento = "tierra", rareza = "holo" },
-    { id = 565, set = "s6", num = 65, nombre = "Quetzal", elemento = "viento", rareza = "fullart", chase = true },
-    { id = 566, set = "s6", num = 66, nombre = "Fujin",   elemento = "viento", rareza = "fullart" },
+    { id = 564, set = "s6", num = 64, nombre = "Ventus",  elemento = "tierra", rareza = "holo", alt = true },
+    { id = 565, set = "s6", num = 65, nombre = "Quetzal", elemento = "viento", rareza = "fullart", chase = true, alt = true },
+    { id = 566, set = "s6", num = 66, nombre = "Fujin",   elemento = "viento", rareza = "fullart", alt = true },
     { id = 567, set = "s6", num = 67, nombre = "Shu",     elemento = "rayo",   rareza = "fullart" },
     { id = 568, set = "s6", num = 68, nombre = "Enlil",   elemento = "viento", rareza = "fullart" },
     { id = 569, set = "s6", num = 69, nombre = "Celeste", elemento = "viento", rareza = "secreta" },
@@ -452,12 +452,12 @@ return {
     { id = 638, set = "s7", num = 38, nombre = "Etna",    elemento = "dragon", rareza = "rara" },
     { id = 639, set = "s7", num = 39, nombre = "Ceniza",  elemento = "metal",  rareza = "rara" },
     { id = 640, set = "s7", num = 40, nombre = "Basalto", elemento = "dragon", rareza = "rara" },
-    { id = 641, set = "s7", num = 41, nombre = "Pyrax",   elemento = "dragon", rareza = "holo" },
+    { id = 641, set = "s7", num = 41, nombre = "Pyrax",   elemento = "dragon", rareza = "holo", alt = true },
     { id = 642, set = "s7", num = 42, nombre = "Draknar", elemento = "dragon", rareza = "holo" },
     { id = 643, set = "s7", num = 43, nombre = "Volkor",  elemento = "metal",  rareza = "holo" },
     { id = 644, set = "s7", num = 44, nombre = "Ryujin",  elemento = "dragon", rareza = "holo" },
-    { id = 645, set = "s7", num = 45, nombre = "Escarla", elemento = "dragon", rareza = "holo" },
-    { id = 646, set = "s7", num = 46, nombre = "Anciano", elemento = "dragon", rareza = "fullart", chase = true },
+    { id = 645, set = "s7", num = 45, nombre = "Escarla", elemento = "dragon", rareza = "holo", alt = true },
+    { id = 646, set = "s7", num = 46, nombre = "Anciano", elemento = "dragon", rareza = "fullart", chase = true, alt = true },
     { id = 647, set = "s7", num = 47, nombre = "Krakus",  elemento = "dragon", rareza = "fullart" },
     { id = 648, set = "s7", num = 48, nombre = "Vermis",  elemento = "metal",  rareza = "fullart" },
     { id = 649, set = "s7", num = 49, nombre = "Dragón",  elemento = "dragon", rareza = "secreta", chase = true },
@@ -530,18 +530,69 @@ return {
     { id = 764, set = "s8", num = 64, nombre = "Ungido",  elemento = "hielo",  rareza = "rara" },
     { id = 765, set = "s8", num = 65, nombre = "Beato",   elemento = "luz",    rareza = "rara" },
     { id = 766, set = "s8", num = 66, nombre = "Gloria",  elemento = "astral", rareza = "rara" },
-    { id = 767, set = "s8", num = 67, nombre = "Helios",  elemento = "luz",    rareza = "holo" },
+    { id = 767, set = "s8", num = 67, nombre = "Helios",  elemento = "luz",    rareza = "holo", alt = true },
     { id = 768, set = "s8", num = 68, nombre = "Apolo",   elemento = "luz",    rareza = "holo" },
     { id = 769, set = "s8", num = 69, nombre = "Febo",    elemento = "agua",   rareza = "holo" },
     { id = 770, set = "s8", num = 70, nombre = "Inti",    elemento = "luz",    rareza = "holo" },
-    { id = 771, set = "s8", num = 71, nombre = "Mitra",   elemento = "luz",    rareza = "holo" },
+    { id = 771, set = "s8", num = 71, nombre = "Mitra",   elemento = "luz",    rareza = "holo", alt = true },
     { id = 772, set = "s8", num = 72, nombre = "Eos",     elemento = "hielo",  rareza = "holo" },
     { id = 773, set = "s8", num = 73, nombre = "Sunna",   elemento = "luz",    rareza = "holo" },
-    { id = 774, set = "s8", num = 74, nombre = "Lumina",  elemento = "luz",    rareza = "holo" },
-    { id = 775, set = "s8", num = 75, nombre = "Serafín", elemento = "luz",    rareza = "fullart" },
+    { id = 774, set = "s8", num = 74, nombre = "Lumina",  elemento = "luz",    rareza = "holo", alt = true },
+    { id = 775, set = "s8", num = 75, nombre = "Serafín", elemento = "luz",    rareza = "fullart", alt = true },
     { id = 776, set = "s8", num = 76, nombre = "Arconte", elemento = "luz",    rareza = "fullart" },
     { id = 777, set = "s8", num = 77, nombre = "Celesta", elemento = "agua",   rareza = "fullart" },
-    { id = 778, set = "s8", num = 78, nombre = "Eclipta", elemento = "luz",    rareza = "fullart", chase = true },
+    { id = 778, set = "s8", num = 78, nombre = "Eclipta", elemento = "luz",    rareza = "fullart", chase = true, alt = true },
     { id = 779, set = "s8", num = 79, nombre = "Sol Rey", elemento = "luz",    rareza = "secreta", chase = true },
     { id = 780, set = "s8", num = 80, nombre = "Divina",  elemento = "luz",    rareza = "secreta" },
 }
+
+-- Fuera de set: no cuentan para el 100% del album y van numeradas despues de
+-- las del set (como las secretas de los TCG de verdad). Son las secretas y sus
+-- variantes, que salen solas a partir de las de arriba:
+--  ALT: el mismo bicho con arte a sangre y marco dorado. Las tienen las holo y
+--  full art con alt = true y todas las secretas.
+--  SILVER (secretas normales) y GOLDEN (la secreta chase): placa de metal grabada.
+-- Las variantes tienen id = el de su carta + 1000 (ALT) o + 2000 (SILVER y GOLDEN).
+for _, c in ipairs(lista) do
+    if c.rareza == "secreta" then c.fuera = true end
+end
+
+local variantes = {}
+local function variante(c, cual, suma)
+    table.insert(variantes, {
+        id = c.id + suma, set = c.set, nombre = c.nombre, elemento = c.elemento, rareza = c.rareza,
+        variante = cual, de = c.id, semilla = c.semilla or c.id * 7919 + 13, sprite = c.sprite,
+        chase = (cual ~= "silver" and c.chase) or nil, fuera = true,
+    })
+end
+for _, c in ipairs(lista) do
+    if c.alt or c.rareza == "secreta" then variante(c, "alt", 1000) end
+end
+for _, c in ipairs(lista) do
+    if c.rareza == "secreta" then variante(c, c.chase and "golden" or "silver", 2000) end
+end
+-- orden dentro de cada set: ALT de holo, de full art y de secreta, SILVER y GOLDEN
+local ORDEN = { holo = 1, fullart = 2, secreta = 3 }
+local function rango(v)
+    if v.variante == "alt" then return ORDEN[v.rareza] end
+    return v.variante == "silver" and 4 or 5
+end
+local numDe = {}
+for _, c in ipairs(lista) do numDe[c.id] = c.num end
+table.sort(variantes, function(a, b)
+    if a.set ~= b.set then return a.set < b.set end
+    if rango(a) ~= rango(b) then return rango(a) < rango(b) end
+    return numDe[a.de] < numDe[b.de]
+end)
+-- numeros: siguen a los del set (las secretas ya van al final)
+local ultimo = {}
+for _, c in ipairs(lista) do
+    ultimo[c.set] = math.max(ultimo[c.set] or 0, c.num)
+end
+for _, v in ipairs(variantes) do
+    ultimo[v.set] = ultimo[v.set] + 1
+    v.num = ultimo[v.set]
+    table.insert(lista, v)
+end
+
+return lista
