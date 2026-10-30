@@ -13,6 +13,7 @@ local ui = require "src.ui"
 local nav = require "src.nav"
 local sobre = require "src.sobre"
 local caja = require "src.caja"
+local muebles = require "src.muebles"
 
 local lg = love.graphics
 
@@ -46,14 +47,60 @@ end
 
 -- album: todas las cartas del set o solo las que faltan
 local soloFaltan = false
+-- album abierto: "1" el de 1ª edicion, "r" el de reimpresiones; nil la estanteria
+local albumEd
 
+-- copias de una carta de una edicion (sin edicion: todas)
+local function copiasEd(id, ed)
+    ed = ed or albumEd
+    if not ed then return partida.copias(id) end
+    local n = 0
+    for _, c in ipairs(partida.lista(id)) do
+        if (c.p and "1" or "r") == ed then n = n + 1 end
+    end
+    return n
+end
+
+local function distintasEd(setId, ed)
+    local n = 0
+    for _, def in ipairs(partida.cartasDe(setId)) do
+        if copiasEd(def.id, ed) > 0 then n = n + 1 end
+    end
+    return n
+end
+
+-- las de fuera de set que tienes de una edicion, y cuantas hay
+local function fueraEd(setId, ed)
+    local n, fuera = 0, mercado.fueraDe(setId)
+    for _, def in ipairs(fuera) do
+        if copiasEd(def.id, ed) > 0 then n = n + 1 end
+    end
+    return n, #fuera
+end
+
+-- master set: el set entero y todo lo de fuera de set, en esa edicion
+local function masterEd(setId, ed)
+    local n, total = fueraEd(setId, ed)
+    return n >= total and distintasEd(setId, ed) >= #partida.cartasDe(setId)
+end
+
+-- las del set y, si ya tienes alguna de fuera de set, detras sus paginas
+-- (empiezan en pagina nueva). Devuelve tambien donde empiezan las de fuera
 local function listaAlbum()
-    if not soloFaltan then return delSet() end
     local lista = {}
     for _, def in ipairs(delSet()) do
-        if partida.copias(def.id) == 0 then table.insert(lista, def) end
+        if not soloFaltan or copiasEd(def.id) == 0 then table.insert(lista, def) end
     end
-    return lista
+    if fueraEd(setActivo) == 0 then return lista end
+    local fuera = {}
+    for _, def in ipairs(mercado.fueraDe(setActivo)) do
+        if not soloFaltan or copiasEd(def.id) == 0 then table.insert(fuera, def) end
+    end
+    if #fuera == 0 then return lista end
+    while #lista % POR_PAGINA ~= 0 do table.insert(lista, false) end
+    local inicio = #lista + 1
+    for _, def in ipairs(fuera) do table.insert(lista, def) end
+    return lista, inicio
 end
 
 local function totalPliegos()
@@ -109,7 +156,7 @@ local function hayNormales(def)
 end
 
 local function tooltipCarta(def)
-    local r = rarezas[def.rareza]
+    local r = rarezas.de(def)
     local n = partida.copias(def.id)
     local p1 = partida.deEdicion(def.id, true)
     local lineas = {
@@ -125,12 +172,13 @@ local function tooltipCarta(def)
     local c1 = mercado.cambio(def.id, 7, true)
     table.insert(lineas, { "1ª ed. " .. ui.dinero(mercado.valor(def.id, true)) .. "  " .. ui.porcentaje(c1), ui.colorCambio(c1) })
     table.insert(lineas, { "Click: ver copias  -  Arrastra: mover", p.gris })
-    ui.tooltip(def.nombre, r.color, lineas)
+    ui.tooltip(rarezas.nombre(def), r.color, lineas)
 end
 
+-- pestaña RAREZA: las de fuera de set van dentro de su rareza
 local function tengo(filtro)
     local lista = {}
-    for _, def in ipairs(delSet()) do
+    for _, def in ipairs(mercado.cartasDe(setActivo)) do
         if partida.copias(def.id) > 0 and (not filtro or def.rareza == filtro) then
             table.insert(lista, def)
         end
@@ -233,7 +281,7 @@ local function dibujarRareza()
         local lista = tengo(r.id)
         local id = "r_" .. r.id
         local total = 0
-        for _, def in ipairs(delSet()) do
+        for _, def in ipairs(mercado.cartasDe(setActivo)) do
             if def.rareza == r.id then total = total + 1 end
         end
         local copias = 0
@@ -268,16 +316,83 @@ local function dibujarRareza()
     rejilla("rareza" .. setActivo .. rarezaAbierta, tengo(rarezaAbierta), 166, bandejaAbierta() and 1 or 3, false, 584, 162)
 end
 
+-- pagina de fuera de set: cabecera y, si es MASTER SET, marco dorado
+local function cabeceraFuera(x, y, master)
+    local tiene, total = fueraEd(setActivo)
+    if not master then
+        fuentes.texto("FUERA DE SET  " .. tiene .. "/" .. total, x + 8, y + 5, 1, p.grisclaro)
+        return
+    end
+    local O = muebles.ORO
+    -- marco en bisel: claro arriba-izq, oscuro abajo-der
+    for i = 0, 3 do
+        lg.setColor(({ O.osc, O.claro, O.oro, O.osc })[i + 1])
+        lg.rectangle("line", x - 4.5 + i, y - 4.5 + i, 245 - i * 2, 333 - i * 2)
+    end
+    lg.setColor(O.brillo)
+    lg.rectangle("fill", x - 4, y - 4, 244, 1)
+    lg.rectangle("fill", x - 4, y - 4, 1, 332)
+    -- remates en las esquinas
+    for _, q in ipairs({ { x - 6, y - 6, 1, 1 }, { x + 241, y - 6, -1, 1 }, { x - 6, y + 329, 1, -1 }, { x + 241, y + 329, -1, -1 } }) do
+        local ex, ey, dx, dy = q[1], q[2], q[3], q[4]
+        for k = 0, 9 do
+            lg.setColor(O.osc)
+            lg.rectangle("fill", ex + dx * k, ey, 1, 3)
+            lg.rectangle("fill", ex, ey + dy * k, 3, 1)
+            lg.setColor(O.claro)
+            lg.rectangle("fill", ex + dx * k, ey + (dy > 0 and 0 or 2), 1, 1)
+            lg.rectangle("fill", ex + (dx > 0 and 0 or 2), ey + dy * k, 1, 1)
+        end
+        lg.setColor(p.negro)
+        lg.rectangle("fill", ex + dx * 3 - 1, ey + dy * 3 - 1, 5, 5)
+        lg.setColor(O.oro)
+        lg.rectangle("fill", ex + dx * 3, ey + dy * 3, 3, 3)
+        lg.setColor(O.brillo)
+        lg.rectangle("fill", ex + dx * 3 + 1, ey + dy * 3, 1, 1)
+    end
+    -- linea de puntos dorada por dentro
+    lg.setColor(O.oro)
+    for i = 2, 233, 3 do
+        lg.rectangle("fill", x + i, y + 2, 1, 1)
+        lg.rectangle("fill", x + i, y + 321, 1, 1)
+    end
+    for i = 2, 321, 3 do
+        lg.rectangle("fill", x + 2, y + i, 1, 1)
+        lg.rectangle("fill", x + 233, y + i, 1, 1)
+    end
+    -- placa de arriba
+    lg.setColor(p.negro)
+    lg.rectangle("fill", x + 79, y - 7, 78, 13)
+    lg.setColor(O.oro)
+    lg.rectangle("fill", x + 80, y - 6, 76, 11)
+    lg.setColor(O.claro)
+    lg.rectangle("fill", x + 80, y - 6, 76, 1)
+    lg.setColor(O.osc)
+    lg.rectangle("fill", x + 80, y + 4, 76, 1)
+    fuentes.texto("MASTER SET", x + 80, y - 3, 1, p.negro, "center", 76)
+    fuentes.texto(tiene .. "/" .. total, x, y + 6, 1, O.claro, "right", 228)
+    lg.setColor(1, 1, 1)
+end
+
 local function dibujarPagina(num, x, y)
     ui.caja(x, y, 236, 324, p.grisosc)
+    local lista, inicioFuera = listaAlbum()
+    local primero = (num - 1) * POR_PAGINA + 1
+    local fuera = inicioFuera and primero >= inicioFuera
+    -- en las de fuera de set las cartas bajan un poco para la cabecera
+    local baja = 0
+    if fuera then
+        cabeceraFuera(x, y, masterEd(setActivo))
+        baja = 6
+    end
     for j = 1, POR_PAGINA do
-        local def = listaAlbum()[(num - 1) * POR_PAGINA + j]
+        local def = lista[primero + j - 1]
         if def then
             local col = (j - 1) % 3
             local fila = math.floor((j - 1) / 3)
             local cx = x + 44 + col * 76
-            local cy = y + 58 + fila * 104
-            local n = partida.copias(def.id)
+            local cy = y + 58 + fila * 104 + baja
+            local n = copiasEd(def.id)
             if n > 0 then
                 local id = "a" .. def.id
                 carta.dibujar(def, cx, cy, 2, 2, 0, true, ui.hoverCarta(id, cx, cy, CW * 2, CH * 2), enFunda(def.id), extraCarta(def.id))
@@ -296,10 +411,13 @@ local function dibujarPagina(num, x, y)
                 end
                 ui.zona(id, cx - CW, cy - CH, CW * 2, CH * 2)
                 if ui.encima == id then
-                    local r = rarezas[def.rareza]
+                    local r = rarezas.de(def)
                     local normal = hayNormales(def)
-                    ui.tooltip("TE FALTA: " .. def.nombre:upper(), r.color, {
-                        { r.nombre .. (def.chase and "  -  CHASE" or ""), r.color },
+                    -- de fuera de set no se dice cual es, salvo que ya la tengas
+                    -- (de la otra edicion) o la busques
+                    local conocida = not def.fuera or buscada or partida.copias(def.id) > 0
+                    ui.tooltip("TE FALTA: " .. (conocida and rarezas.nombre(def):upper() or "???"), conocida and r.color or p.gris, {
+                        conocida and { r.nombre .. (def.chase and "  -  CHASE" or ""), r.color } or { "Fuera de set", p.gris },
                         { (normal and "Normal " or "1ª edición ") .. ui.dinero(mercado.valor(def.id, not normal)) },
                         { buscada and "La buscas: toca para quitarla" or "Toca para buscarla", p.amarillo },
                     })
@@ -321,6 +439,84 @@ local function dibujarAlbum()
         lg.circle("line", 387, y, 4)
     end
     lg.setColor(1, 1, 1)
+end
+
+-- estanteria de albumes: arriba los de 1ª edicion, abajo las reimpresiones
+local EST = { x = 136, y = 44, w = 470, h = 296, d = 36 }
+local POR_BALDA = 7
+local paginaEst = 1
+
+local function dibujarEstanteria()
+    lg.setColor(muebles.MADERA[1] * 0.42, muebles.MADERA[2] * 0.42, muebles.MADERA[3] * 0.42)
+    lg.rectangle("fill", 128, 24, 512, 336)
+    local E = EST
+    muebles.mueble(E.x, E.y, E.w, E.h, E.d, 7)
+    -- la balda de arriba deja sitio a la tapa de los albumes (no se salen del mueble)
+    local suelos = { E.y + 142, E.y + E.h }
+    muebles.balda(E.x, suelos[1], E.w, E.d)
+    local lista = mercado.setsSalidos()
+    local paginasEst = math.max(1, math.ceil(#lista / POR_BALDA))
+    paginaEst = math.min(paginaEst, paginasEst)
+    local desde = (paginaEst - 1) * POR_BALDA + 1
+    local encima
+    for fila = 1, 2 do
+        local ed = fila == 1 and "1" or "r"
+        for k = 1, POR_BALDA do
+            local set = lista[desde + k - 1]
+            if set then
+                local tipo = sobres.porSet and sobres.porSet[set.id] or nil
+                if not tipo then
+                    for _, t in ipairs(sobres.lista) do
+                        if t.set == set.id then tipo = t end
+                    end
+                end
+                local x, y = E.x + 10 + (k - 1) * 62, suelos[fila] - 14 - muebles.ALBUM.h
+                local id = "alb_" .. set.id .. "_" .. ed
+                local hay = ed == "1" or mercado.fase(set.id) == "reimpresion" or distintasEd(set.id, "r") > 0
+                if hay then
+                    -- la zona no se mueve con el album: si no, entrando por un lado
+                    -- se marca y se desmarca sin parar
+                    ui.zona(id, x - 4, y - 14, 48, muebles.ALBUM.h + 24)
+                    if ui.encima == id then
+                        x, y = x - 4, y + 10
+                        encima = { set = set, ed = ed, x = x, y = y }
+                    end
+                    local fTiene, fTotal = fueraEd(set.id, ed)
+                    muebles.album(tipo.colores, x, y, set.codigo, ed == "1", distintasEd(set.id, ed), #partida.cartasDe(set.id),
+                        fTiene > 0 and { fTiene, fTotal } or nil)
+                    if masterEd(set.id, ed) then
+                        ui.estrella(x + 15, y + 92, muebles.ORO.claro)
+                    elseif distintasEd(set.id, ed) >= #partida.cartasDe(set.id) then
+                        ui.estrella(x + 15, y + 82, p.amarillo)
+                    end
+                else
+                    lg.setColor(p.gris)
+                    for i = 0, 99, 3 do
+                        lg.rectangle("fill", x + 6, y - 12 + i, 1, 1)
+                        lg.rectangle("fill", x + 35, y - 12 + i, 1, 1)
+                    end
+                    fuentes.texto("REIMP.", x, y + 40, 1, p.gris, "center", 42)
+                end
+            end
+        end
+        local txt = fila == 1 and "1ª EDICIÓN" or "REIMPRESIONES"
+        local pw = fuentes.ancho(txt) + 10
+        local py = suelos[fila] + 9
+        lg.setColor(p.negro)
+        lg.rectangle("fill", E.x + E.w / 2 - pw / 2, py, pw, 10)
+        lg.setColor(p.amarillo[1] * 0.8, p.amarillo[2] * 0.8, p.amarillo[3] * 0.8)
+        lg.rectangle("fill", E.x + E.w / 2 - pw / 2 + 1, py + 1, pw - 2, 8)
+        fuentes.texto(txt, E.x + E.w / 2 - pw / 2, py + 3, 1, p.negro, "center", pw)
+    end
+    if encima then
+        lg.setColor(p.lima)
+        lg.rectangle("line", encima.x - 1.5, encima.y - 1.5, muebles.ALBUM.w + 3, muebles.ALBUM.h + 3)
+        ui.tooltip(encima.set.nombre:upper() .. (encima.ed == "1" and " - 1ª EDICIÓN" or " - REIMPRESIÓN"), p.lima, { { "Toca para abrirlo" } })
+    end
+    if paginasEst > 1 then
+        ui.boton("est_ant", "<", 128, 180, 12, 30, p.azul, paginaEst > 1)
+        ui.boton("est_sig", ">", 626, 180, 12, 30, p.azul, paginaEst < paginasEst)
+    end
 end
 
 local paginaSellado = 1
@@ -437,7 +633,7 @@ local function panelSeleccion()
         return
     end
     local def = partida.carta(id)
-    local r = rarezas[def.rareza]
+    local r = rarezas.de(def)
     local c = copiaVista(id)
     -- a 5/3: con la pantalla a x3 sigue siendo pixel exacto, y con funda y top
     -- cabe en el panel sin tapar el nombre
@@ -445,7 +641,7 @@ local function panelSeleccion()
     carta.dibujar(def, 65, 150, e, e, 0, true, ui.hoverCarta("sel", 65, 150, CW * e, CH * e), c.f, { primera = c.p, top = c.t })
     ui.zona("sel", 65 - CW * e / 2, 150 - CH * e / 2, CW * e, CH * e)
 
-    fuentes.texto(def.nombre, 6, 202, 1, p.blanco, "center", 118)
+    fuentes.texto(rarezas.nombre(def), 6, 202, 1, p.blanco, "center", 118)
     fuentes.texto(r.nombre .. (def.chase and " - CHASE" or ""), 6, 210, 1, r.color, "center", 118)
     local n, p1 = partida.copias(id), partida.deEdicion(id, true)
     fuentes.texto("COPIAS " .. n, 12, 220, 1, p.grisclaro)
@@ -503,10 +699,15 @@ local function panelAlbum()
     local paginasAlbum = math.max(1, math.ceil(#listaAlbum() / POR_PAGINA))
     local izq = pliego() * 2 - 1
     local der = math.min(izq + 1, paginasAlbum)
-    fuentes.texto("PÁGINAS " .. izq .. "-" .. der .. " DE " .. paginasAlbum, 6, 106, 1, p.blanco, "center", 118)
-    ui.boton("pagAnt", "<", 12, 118, 50, 14, p.azul, pliego() > 1)
-    ui.boton("pagSig", ">", 68, 118, 50, 14, p.azul, pliego() < totalPliegos())
-    ui.boton("album_faltan", soloFaltan and "VER TODAS" or "VER LAS QUE FALTAN", 12, 134, 106, 10, soloFaltan and p.naranja or p.grisosc)
+    if albumEd then
+        fuentes.texto("PÁGINAS " .. izq .. "-" .. der .. " DE " .. paginasAlbum, 6, 106, 1, p.blanco, "center", 118)
+        ui.boton("pagAnt", "<", 12, 118, 50, 14, p.azul, pliego() > 1)
+        ui.boton("pagSig", ">", 68, 118, 50, 14, p.azul, pliego() < totalPliegos())
+        ui.boton("album_faltan", soloFaltan and "VER TODAS" or "VER LAS QUE FALTAN", 12, 134, 106, 10, soloFaltan and p.naranja or p.grisosc)
+        ui.boton("estanteria", "< A LA ESTANTERÍA", 6, 84, 118, 12, p.morado)
+    else
+        fuentes.texto("ELIGE UN ÁLBUM", 6, 122, 1, p.lima, "center", 118)
+    end
 
     local y = 146
     for _, r in ipairs(rarezas.lista) do
@@ -514,17 +715,28 @@ local function panelAlbum()
         for _, def in ipairs(delSet()) do
             if def.rareza == r.id then
                 total = total + 1
-                if partida.copias(def.id) > 0 then tiene = tiene + 1 end
+                if copiasEd(def.id) > 0 then tiene = tiene + 1 end
             end
         end
-        fuentes.texto(r.nombre, 14, y, 1, r.color)
-        fuentes.texto(tiene .. "/" .. total, 14, y, 1, tiene == total and p.amarillo or p.blanco, "right", 98)
+        if total > 0 then
+            fuentes.texto(r.nombre, 14, y, 1, r.color)
+            fuentes.texto(tiene .. "/" .. total, 14, y, 1, tiene == total and p.amarillo or p.blanco, "right", 98)
+            y = y + 10
+        end
+    end
+    -- fuera de set: solo cuando ya ha salido su pagina
+    local fTiene, fTotal = fueraEd(setActivo)
+    if fTiene > 0 then
+        local master = masterEd(setActivo)
+        fuentes.texto(master and "MASTER SET" or "FUERA DE SET", 14, y, 1, master and muebles.ORO.claro or p.naranja)
+        fuentes.texto(fTiene .. "/" .. fTotal, 14, y, 1, fTiene == fTotal and p.amarillo or p.blanco, "right", 98)
         y = y + 10
     end
     y = y + 6
     fuentes.texto("TOTAL", 14, y, 1, p.blanco)
-    local tiene, total = partida.distintas(setActivo), #delSet()
-    fuentes.texto(tiene .. "/" .. total .. "  " .. math.floor(tiene / total * 100) .. "%", 14, y, 1, tiene >= total and p.amarillo or p.blanco, "right", 98)
+    local tiene, total = distintasEd(setActivo), #delSet()
+    local pct = math.floor((tiene + (tiene >= total and fTiene or 0)) / total * 100)
+    fuentes.texto(tiene .. "/" .. total .. "  " .. pct .. "%", 14, y, 1, tiene >= total and p.amarillo or p.blanco, "right", 98)
 
     -- premios del set: los conseguidos en amarillo
     y = y + 14
@@ -593,13 +805,13 @@ local function tooltipCopia(def, c)
     if c.f then table.insert(lineas, { "En funda", p.cian }) end
     if c.a then table.insert(lineas, { "Publicada en el móvil", p.celeste }) end
     if c.m then table.insert(lineas, { "En la mesa", p.lima }) end
-    ui.tooltip(def.nombre, rarezas[def.rareza].color, lineas)
+    ui.tooltip(rarezas.nombre(def), rarezas.de(def).color, lineas)
 end
 
 local function dibujarBandeja()
     local id = bandeja
     local def = partida.carta(id)
-    local r = rarezas[def.rareza]
+    local r = rarezas.de(def)
     local lista = partida.lista(id)
     local n = #lista
 
@@ -611,10 +823,10 @@ local function dibujarBandeja()
     ui.zona("bandeja", B.x, B.y, B.w, B.h)
 
     local p1, fu, mo = partida.deEdicion(id, true), partida.enfundadas(id), partida.publicadas(id)
-    fuentes.texto(def.nombre:upper(), B.x + 8, B.y + 5, 1, r.color)
+    fuentes.texto(rarezas.nombre(def):upper(), B.x + 8, B.y + 5, 1, r.color)
     local resumen = n .. (n == 1 and " COPIA" or " COPIAS") .. "  -  " .. p1 .. " DE 1ª ED  -  " .. fu .. " EN FUNDA"
     if mo > 0 then resumen = resumen .. "  -  " .. mo .. " EN EL MÓVIL" end
-    fuentes.texto(resumen, B.x + 14 + fuentes.ancho(def.nombre:upper()), B.y + 5, 1, p.grisclaro)
+    fuentes.texto(resumen, B.x + 14 + fuentes.ancho(rarezas.nombre(def):upper()), B.y + 5, 1, p.grisclaro)
     ui.boton("cerrarBandeja", "X", B.x + B.w - 18, B.y + 3, 12, 10, p.gris)
 
     -- filtros rapidos
@@ -727,8 +939,10 @@ function armario.dibujar()
         dibujarRareza()
     elseif modo == "sellado" then
         dibujarSellado()
-    else
+    elseif albumEd then
         dibujarAlbum()
+    else
+        dibujarEstanteria()
     end
     if bandejaAbierta() then dibujarBandeja() end
     dibujarCogida()
@@ -776,7 +990,7 @@ local function venderElegidas()
     end
     if #uids >= partida.copias(id) then
         ui.confirmar(#uids == 1 and "¿VENDER LA ÚLTIMA?" or "¿VENDER TODAS?", {
-            "SON TODAS TUS COPIAS DE " .. def.nombre:upper(),
+            "SON TODAS TUS COPIAS DE " .. rarezas.nombre(def):upper(),
             "DESAPARECERÁ DEL ÁLBUM",
         }, "SÍ, VENDER", hacer)
         return
@@ -929,7 +1143,20 @@ local function clickLote(id)
 end
 
 function armario.click(id)
+    if id:match("^alb_") then
+        local set, ed = id:match("^alb_(.+)_(%w)$")
+        setActivo, albumEd = set, ed
+        sonido.tocar("nueva")
+        return
+    elseif id == "estanteria" then
+        albumEd = nil
+        return
+    elseif id == "est_ant" or id == "est_sig" then
+        paginaEst = paginaEst + (id == "est_sig" and 1 or -1)
+        return
+    end
     if id:match("^modo_") then
+        if id == "modo_album" then albumEd = nil end
         modo = id:sub(6)
     elseif id == "sel_ant" or id == "sel_sig" then
         paginaSellado = paginaSellado + (id == "sel_sig" and 1 or -1)
@@ -949,7 +1176,8 @@ function armario.click(id)
     elseif id:match("^abrir_") then
         nav.abrir()
     elseif id:match("^set_") then
-        setActivo = id:sub(5)
+        -- las flechas llevan _ant / _sig para no animarse con el boton del set
+        setActivo = id:sub(5):gsub("_ant$", ""):gsub("_sig$", "")
         rarezaAbierta = nil
     elseif id:match("^pag_") then
         local clave, d = id:match("^pag_(.+)_(%-?%d)$")
@@ -1090,7 +1318,11 @@ function armario.tecla(tecla)
         bandeja = nil
         return true
     end
-    if modo ~= "album" then return end
+    if modo ~= "album" or not albumEd then return end
+    if tecla == "escape" then
+        albumEd = nil
+        return true
+    end
     if tecla == "left" then cambiarPliego(-1) end
     if tecla == "right" then cambiarPliego(1) end
 end
@@ -1112,7 +1344,7 @@ function armario.pestanas(x, limite)
     local hasta = math.min(#lista, desde + caben - 1)
     if caben < #lista then
         local ant = lista[math.max(1, pos - 1)]
-        ui.boton("set_" .. ant.id, "<", x, 3, 16, 14, p.gris, pos > 1)
+        ui.boton("set_" .. ant.id .. "_ant", "<", x, 3, 16, 14, p.gris, pos > 1)
         x = x + 19
     end
     for i = desde, hasta do
@@ -1123,7 +1355,7 @@ function armario.pestanas(x, limite)
     end
     if caben < #lista then
         local sig = lista[math.min(#lista, pos + 1)]
-        ui.boton("set_" .. sig.id, ">", x, 3, 16, 14, p.gris, pos < #lista)
+        ui.boton("set_" .. sig.id .. "_sig", ">", x, 3, 16, 14, p.gris, pos < #lista)
     end
 end
 
