@@ -243,11 +243,11 @@ end
 local function mejorDe(defs, godpack)
     local mejor = defs[1]
     for _, def in ipairs(defs) do
-        if rarezas[def.rareza].nivel > rarezas[mejor.rareza].nivel then mejor = def end
+        if rarezas.rango(def) > rarezas.rango(mejor) then mejor = def end
     end
     local chase = false
     for _, def in ipairs(defs) do
-        if def.chase then chase = true end
+        if def.chase or rarezas.de(def).especial then chase = true end
     end
     return mejor, chase, godpack
 end
@@ -390,16 +390,23 @@ end
 function directo.carta(def, nueva)
     if not d then return end
     d.quieto = 0
-    local r = rarezas[def.rareza]
+    local r = rarezas.de(def)
+    -- las ALT reaccionan como la rareza de encima; SILVER y GOLDEN, como una chase
+    local rid = rarezas.lista[r.nivel].id
+    local chase = def.chase or r.especial
     local C = datos.chat
     -- reacciones: con poca gente solo a lo bueno
     local n
     if d.esp < 4 then
         n = (r.nivel >= 4 and d.esp >= 1 and love.math.random() < 0.6) and 1 or 0
     else
-        n = math.min(C.maxReaccion, cuantos(d.esp * (C.reaccion[def.rareza] or 0)))
+        n = math.min(C.maxReaccion, cuantos(d.esp * (C.reaccion[rid] or 0)))
     end
-    if n > 0 then rafaga(def.rareza, n, r.nivel >= 5 and 2.5 or 1.2) end
+    if n > 0 then rafaga(rid, n, r.nivel >= 5 and 2.5 or 1.2) end
+    if r.especial and d.esp >= 1 then
+        rafaga("godpack", math.min(C.maxReaccion, 2 + cuantos(d.esp * 0.5)), 2)
+        emojis.lanzar({ "corona", "diamante", "corona", "diamante", "OMG", "flipa" }, 6 + math.floor(d.esp * 0.1), 2.5)
+    end
     -- emojis: de rara para arriba, mas cuanta mas gente y mejor la carta
     if r.nivel >= 3 and d.esp >= 1 then
         local tipos = ({ { "corazon", "fuego", "rana" }, { "fuego", "corazon", "ojos", "flipa", "diamante" },
@@ -407,21 +414,21 @@ function directo.carta(def, nueva)
                          { "estrella", "fuego", "67", "W", "corona", "OMG", "flipa", "diamante" } })[r.nivel - 2]
         emojis.lanzar(tipos, 1 + math.floor(d.esp * 0.05 * (r.nivel - 2)), r.nivel >= 5 and 2 or 1)
     end
-    if def.chase and d.esp >= 1 then emojis.lanzar({ "corona", "estrella", "diamante", "100" }, 3, 1.5) end
-    if def.chase and d.esp >= 1 then rafaga("chase", math.min(C.maxReaccion, 1 + cuantos(d.esp * 0.3)), 2) end
+    if chase and d.esp >= 1 then emojis.lanzar({ "corona", "estrella", "diamante", "100" }, 3, 1.5) end
+    if chase and d.esp >= 1 then rafaga("chase", math.min(C.maxReaccion, 1 + cuantos(d.esp * 0.3)), 2) end
     if nueva and d.esp >= 6 and love.math.random() < 0.3 then decir("nueva", 0.8) end
     -- las buenas traen mirones y propinas al momento
     local S = datos.subidon
     local P = datos.propinas
-    local viral = P.viral[def.rareza] or def.chase
+    local viral = P.viral[rid] or chase
     local f = viral and 1 or factorRitmo()
-    d.subidon = d.subidon + ((S[def.rareza] or 0) + (def.chase and S.chase or 0)) * f
-    local mult = ((P.rareza[def.rareza] or 0) + (def.chase and P.chase or 0)) * f
+    d.subidon = d.subidon + ((S[rid] or 0) + (chase and S.chase or 0)) * f
+    local mult = ((P.rareza[rid] or 0) + (chase and P.chase or 0)) * f
     if mult > 0 then cobrarPropinas(tirarPropinas(d.esp, mult, viral), 0.8) end
     -- en la venta, lo bueno da ganas de comprar
     if d.tipo == "venta" then
         local H = V.hype
-        d.hype = math.min(H.max, d.hype + (H[def.rareza] or 0) + (def.chase and H.chase or 0))
+        d.hype = math.min(H.max, d.hype + (H[rid] or 0) + (chase and H.chase or 0))
     end
 end
 
@@ -851,6 +858,24 @@ local function partir(cad, w)
     return lineas
 end
 
+-- X roja para rechazar una compra: cuadrado de 9x9 con la X pintada a
+-- pixeles (en el movil se toca en un hueco mas grande, sin crecer)
+local function botonRechazar(id, x, y)
+    local enc = ui.encima == id
+    lg.setColor(p.negro)
+    lg.rectangle("fill", x, y + 1, 9, 9)
+    lg.setColor(enc and p.naranja or p.rojo)
+    lg.rectangle("fill", x, y, 9, 9)
+    lg.setColor(p.blanco)
+    for i = 0, 4 do
+        lg.rectangle("fill", x + 2 + i, y + 2 + i, 1, 1)
+        lg.rectangle("fill", x + 6 - i, y + 2 + i, 1, 1)
+    end
+    lg.setColor(1, 1, 1)
+    local m = ui.tactil and 3 or 1
+    ui.zona(id, x - m, y - m, 9 + 2 * m, 9 + 2 * m)
+end
+
 local function lineasMensaje(m, w)
     if m.sistema then
         -- partidas, que las largas (VENDIDO A ...) se salian del chat
@@ -942,7 +967,7 @@ local function dibujarChat(x, y, w, h)
             fuentes.texto(ui.dinero(directo.precioPedido(pd)), x + 24, fy, 1, p.lima)
             fuentes.texto(string.format("%d:%02d", math.floor(pd.t / 60), math.floor(pd.t % 60)), x, fy, 1,
                 parpadeo and p.rojo or p.blanco, "right", w - (rechazar and 20 or 8))
-            if rechazar then ui.boton("dir_rechazar_" .. i, "X", x + w - 15, fy - 2, 11, 9, p.rojo) end
+            if rechazar then botonRechazar("dir_rechazar_" .. i, x + w - 14, fy - 2) end
         end
         tope = y + 25 + alto
     end
