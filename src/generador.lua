@@ -4,19 +4,80 @@ local rarezas = require "datos.rarezas"
 local generador = {}
 
 -- porSet["s1"]["holo"] = lista de cartas
-local porSet = {}
+-- (sin las variantes: esas salen cambiando una carta normal, ver mejorar)
+-- varDe[id]["alt"] = la ALT de esa carta (o la "silver" / "golden")
+local porSet, varDe, todasVar = {}, {}, {}
 for _, c in ipairs(cartas) do
-    porSet[c.set] = porSet[c.set] or {}
-    local r = porSet[c.set]
-    r[c.rareza] = r[c.rareza] or {}
-    table.insert(r[c.rareza], c)
+    if c.variante then
+        varDe[c.de] = varDe[c.de] or {}
+        varDe[c.de][c.variante] = c
+        todasVar[c.set] = todasVar[c.set] or {}
+        todasVar[c.set][c.variante] = todasVar[c.set][c.variante] or {}
+        table.insert(todasVar[c.set][c.variante], c)
+    else
+        porSet[c.set] = porSet[c.set] or {}
+        local r = porSet[c.set]
+        r[c.rareza] = r[c.rareza] or {}
+        table.insert(r[c.rareza], c)
+    end
+end
+
+-- probabilidad de que una carta de cada rareza se cambie por su variante, para
+-- que salga de media una de cada tipo.variantes[clave] sobres
+-- chances[tipo.id][rareza][variante] = probabilidad
+local chances = {}
+local function chancesDe(tipo)
+    if chances[tipo.id] then return chances[tipo.id] end
+    local esperadas = {}
+    for _, h in ipairs(tipo.huecos) do
+        local total = 0
+        for _, peso in pairs(h.rarezas) do total = total + peso end
+        for r, peso in pairs(h.rarezas) do
+            esperadas[r] = (esperadas[r] or 0) + h.cantidad * peso / total
+        end
+    end
+    local t = {}
+    for r, lista in pairs(porSet[tipo.set]) do
+        for _, nombre in ipairs({ "alt", "silver", "golden" }) do
+            -- cuantas de esa rareza tienen esta variante y su clave (alt_holo...)
+            local con, clave = 0, nil
+            for _, c in ipairs(lista) do
+                local v = varDe[c.id] and varDe[c.id][nombre]
+                if v then con, clave = con + 1, rarezas.clave(v) end
+            end
+            local cada = clave and tipo.variantes and tipo.variantes[clave]
+            if cada and (esperadas[r] or 0) > 0 then
+                t[r] = t[r] or {}
+                t[r][nombre] = math.min(1, (1 / cada) / (esperadas[r] * con / #lista))
+            end
+        end
+    end
+    chances[tipo.id] = t
+    return t
+end
+
+-- la carta que ha salido, o su ALT / SILVER / GOLDEN si toca
+local ORDEN_VAR = { "golden", "silver", "alt" }
+local function mejorar(c, tipo)
+    local suyas = varDe[c.id]
+    if not suyas then return c end
+    local t = chancesDe(tipo)[c.rareza] or {}
+    local tirada = love.math.random()
+    for _, nombre in ipairs(ORDEN_VAR) do
+        if suyas[nombre] and t[nombre] then
+            if tirada < t[nombre] then return suyas[nombre] end
+            tirada = tirada - t[nombre]
+        end
+    end
+    return c
 end
 
 -- sobres seguidos sin holo o mejor, uno por tipo de sobre (la piedad).
 -- Es la tabla de la partida (partida.sequia), asi se guarda
 generador.sequia = {}
 
--- herramientas de desarrollador: "godpack" o "secreta" para el siguiente sobre
+-- herramientas de desarrollador: "godpack", "secreta", "alt", "silver" o
+-- "golden" para el siguiente sobre
 generador.forzar = nil
 
 -- mejoras de suerte (las pone src/mejoras.lua):
@@ -79,6 +140,7 @@ function generador.sobre(tipo)
     local S = generador.suerte
     local godpack = love.math.random() < tipo.godpack * S.godpack or generador.forzar == "godpack"
     local secreta = generador.forzar == "secreta"
+    local forzada = generador.forzar
     generador.forzar = nil
     local ultimo = tipo.huecos[#tipo.huecos]
     local porRareza = porSet[tipo.set]
@@ -107,7 +169,7 @@ function generador.sobre(tipo)
                     usadas[otra.id] = nil
                 end
             end
-            table.insert(sobre, c)
+            table.insert(sobre, mejorar(c, tipo))
             mejorNivel = math.max(mejorNivel, rarezas[c.rareza].nivel)
         end
     end
@@ -115,17 +177,26 @@ function generador.sobre(tipo)
     if love.math.random() < S.extra then
         local comodin = tipo.huecos[math.max(1, #tipo.huecos - 1)]
         local c = sacarDe(porRareza, godpack and pesosGod or comodin.rarezas, 1, usadas)
-        table.insert(sobre, c)
+        table.insert(sobre, mejorar(c, tipo))
         mejorNivel = math.max(mejorNivel, rarezas[c.rareza].nivel)
     end
     generador.sequia[tipo.id] = mejorNivel >= 4 and 0 or seco + 1
 
+    -- forzada desde las herramientas: la ultima carta pasa a ser una variante
+    local lista = forzada and todasVar[tipo.set] and todasVar[tipo.set][forzada]
+    if lista then sobre[#sobre] = lista[love.math.random(#lista)] end
+
     table.sort(sobre, function(a, b)
-        local na, nb = rarezas[a.rareza].nivel, rarezas[b.rareza].nivel
+        local na, nb = rarezas.rango(a), rarezas.rango(b)
         if na ~= nb then return na < nb end
         return a.id < b.id
     end)
     return sobre, godpack
+end
+
+-- probabilidad de cada variante por sobre (para la tienda y las pruebas)
+function generador.chances(tipo)
+    return chancesDe(tipo)
 end
 
 return generador

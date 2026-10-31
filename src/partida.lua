@@ -68,6 +68,7 @@ function partida.nueva()
     partida.canal = { nombre = "MI_CANAL", idioma = "es", seguidores = 0, directos = 0, propinas = 0, record = 0 }
     partida.mejoras = {}
     partida.cajas, partida.cajas1 = {}, {}
+    partida.red = { racha = 0, dia = -99 }   -- red de rescate (partida.rescate)
     partida.cajaAbierta = nil    -- caja empezada en la mesa (tipo, quedan, primera)
     partida.vendidos = nil      -- lo comprado hoy a los vendedores del movil
     partida.logros = {}         -- id del logro = dia en que se consiguio
@@ -162,17 +163,83 @@ function partida.copia(id, u)
     end
 end
 
--- set: "s1", "s2"... o nil para contar todos
+-- set: "s1", "s2"... o nil para contar todos. Con set solo cuenta las del
+-- set (las de fuera de set van aparte, ver partida.fuera)
 function partida.distintas(set)
     local n = 0
     for id in pairs(partida.inv) do
-        if not set or porId[id].set == set then n = n + 1 end
+        local def = porId[id]
+        if not set or (def.set == set and not def.fuera) then n = n + 1 end
     end
     return n
 end
 
+-- Red de rescate (no se avisa): si estas arruinado, cada sobre que abres
+-- tiene mas opciones de traer una secreta normal para venderla. Como mucho
+-- una vez cada RED.dias dias, para que sea una red y no un sueldo
+local RED = { dinero = 500, anuncios = 500, dias = 7, prob = { 0.15, 0.35, 0.6, 1 } }
+
+local function arruinado()
+    if partida.dinero > RED.dinero or partida.sobresGuardados() > 0 then return false end
+    for _, t in ipairs({ partida.cajas, partida.cajas1 }) do
+        for _, n in pairs(t) do
+            if n > 0 then return false end
+        end
+    end
+    local enVenta = 0
+    for _, a in ipairs(partida.anuncios) do enVenta = enVenta + mercado.valor(a.id, a.primera) end
+    if enVenta > RED.anuncios then return false end
+    -- una full art o mejor repetida ya se puede vender
+    for id, l in pairs(partida.inv) do
+        if #l > 1 and rarezas[porId[id].rareza].nivel >= 5 then return false end
+    end
+    return true
+end
+
+-- defs: el sobre que se va a abrir (se cambia la ultima carta si toca)
+function partida.rescate(defs, tipo)
+    local red = partida.red
+    if mercado.dia() - red.dia < RED.dias or not arruinado() then
+        red.racha = 0
+        return
+    end
+    red.racha = red.racha + 1
+    if love.math.random() >= RED.prob[math.min(red.racha, #RED.prob)] then return end
+    local secretas = {}
+    for _, def in ipairs(mercado.fueraDe(tipo.set)) do
+        if def.rareza == "secreta" and not def.variante and not def.chase then table.insert(secretas, def) end
+    end
+    if #secretas == 0 then return end
+    defs[#defs] = secretas[love.math.random(#secretas)]
+    red.racha, red.dia = 0, mercado.dia()
+end
+
+-- las que cuentan para el 100% del set
 function partida.cartasDe(set)
-    return mercado.cartasDe(set)
+    return mercado.baseDe(set)
+end
+
+-- las de fuera de set que tienes y cuantas hay
+function partida.fuera(set)
+    local n, fuera = 0, mercado.fueraDe(set)
+    for _, def in ipairs(fuera) do
+        if partida.copias(def.id) > 0 then n = n + 1 end
+    end
+    return n, #fuera
+end
+
+-- lo que llevas del set en %: llega al 100 con las del set y, ya completo,
+-- pasa del 100 con las de fuera de set
+function partida.porcentaje(set)
+    local total, tiene = #mercado.baseDe(set), partida.distintas(set)
+    if tiene < total then return math.floor(tiene / total * 100) end
+    return math.floor((total + partida.fuera(set)) / total * 100)
+end
+
+-- master set: el set entero y todas las de fuera de set
+function partida.master(set)
+    local tiene, total = partida.fuera(set)
+    return tiene >= total and partida.distintas(set) >= #mercado.baseDe(set)
 end
 
 function partida.totalCartas()
@@ -192,8 +259,8 @@ end
 
 -- lo que llevas de cada hito de un set: distintas, de 1ª edicion y total
 function partida.progreso(set)
-    local total, tienes, primeras = #mercado.cartasDe(set), 0, 0
-    for _, def in ipairs(mercado.cartasDe(set)) do
+    local total, tienes, primeras = #mercado.baseDe(set), 0, 0
+    for _, def in ipairs(mercado.baseDe(set)) do
         local l = partida.inv[def.id]
         if l then
             tienes = tienes + 1
@@ -1246,7 +1313,7 @@ function partida.guardar()
 end
 
 local CAMPOS = { "dinero", "abiertos", "inv", "uid", "guardados", "guardados1", "anuncios",
-    "orden", "mesa", "seguidas", "opciones", "fundasLibres", "cartera", "premios", "canal", "mejoras", "encargos", "ofertasEncargo", "cajas", "cajas1", "cajaAbierta", "topsLibres", "apartados", "vendidos", "logros", "tutorial", "desbloqueos", "sequia", "tiradas", "pistas", "guia", "buscadas" }
+    "orden", "mesa", "seguidas", "opciones", "fundasLibres", "cartera", "premios", "canal", "mejoras", "encargos", "ofertasEncargo", "cajas", "cajas1", "cajaAbierta", "topsLibres", "apartados", "vendidos", "logros", "tutorial", "desbloqueos", "sequia", "tiradas", "pistas", "guia", "buscadas", "red" }
 
 -- la partida como se guarda (tambien para los reportes de bugs)
 function partida.texto()
