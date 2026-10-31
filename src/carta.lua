@@ -9,6 +9,7 @@ local lg = love.graphics
 
 -- tamaño real de la carta en pixeles; en pantalla se dibuja a x1, x2 o x3
 local carta = { ANCHO = 36, ALTO = 50 }
+local W, H = carta.ANCHO, carta.ALTO
 
 -- caras[id] = { normal, arriba, parpadeo }: las holo o mejores respiran y parpadean
 local caras = {}
@@ -16,7 +17,10 @@ local siluetas = {}
 local dorso, sello
 local shader
 
-local MODOS = { reflejo = 1, foil = 2, purpurina = 3, oro = 4 }
+local MODOS = { reflejo = 1, foil = 2, purpurina = 3, oro = 4, plata = 5, golden = 6 }
+
+-- zona del foil: el recuadro del dibujo (en las ALT, toda la escena)
+local ARTE_FOIL, ARTE_FOIL_ALT = { 3, 8, 32, 25 }, { 2, 2, 33, 34 }
 
 -- El vertice gira la carta en 3D alrededor de su centro y la pinta con
 -- perspectiva (w distinto de 1, asi la textura no se deforma en diagonal).
@@ -33,6 +37,7 @@ extern number fuerza;
 extern vec2 luz;
 extern number modo;
 extern number barrido;
+extern vec4 arte;
 
 #ifdef VERTEX
 vec4 position(mat4 transform_projection, vec4 vp) {
@@ -65,10 +70,10 @@ vec4 effect(vec4 color, Image tex, vec2 uv, vec2 sc) {
         suma += vec3(franja * 0.35 * fuerza);
     } else if (modo > 1.5 && modo < 2.5) {
         // foil: arcoiris a rayas dentro del recuadro del dibujo
-        float arte = step(3.0, px.x) * step(px.x, 32.0) * step(8.0, px.y) * step(px.y, 25.0);
+        float dentro = step(arte.x, px.x) * step(px.x, arte.z) * step(arte.y, px.y) * step(px.y, arte.w);
         float rayas = step(0.5, fract((px.x - px.y) / 3.0));
         vec3 col = arcoiris((px.x * 0.5 + px.y) / tam.y + luz.x * 0.9 + luz.y * 0.5 + tiempo * 0.05);
-        suma += col * (0.3 + 0.25 * rayas) * fuerza * arte;
+        suma += col * (0.3 + 0.25 * rayas) * fuerza * dentro;
         suma += vec3(franja * 0.3 * fuerza);
     } else if (modo > 2.5 && modo < 3.5) {
         // purpurina: pixeles sueltos que destellan y una pelicula de color
@@ -77,7 +82,7 @@ vec4 effect(vec4 color, Image tex, vec2 uv, vec2 sc) {
         suma += vec3(g) * fuerza * (1.0 - barra * 0.7);
         suma += arcoiris(px.y / tam.y + luz.x * 0.7 + luz.y * 0.4) * 0.16 * fuerza;
         suma += vec3(franja * 0.25 * fuerza);
-    } else if (modo > 3.5) {
+    } else if (modo > 3.5 && modo < 4.5) {
         // oro: metal dorado, trama de prisma y estrellas que brillan
         float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
         c.rgb = mix(c.rgb, c.rgb * vec3(1.08, 0.95, 0.65) + vec3(0.06, 0.04, 0.0), 0.35 * fuerza);
@@ -90,6 +95,29 @@ vec4 effect(vec4 color, Image tex, vec2 uv, vec2 sc) {
         float estrella = (d.x + d.y < 0.5) ? 1.0 : ((d.x + d.y < 1.5) ? 0.5 : 0.0);
         float brilla = pow(max(0.0, sin(tiempo * 2.0 + azar(celda) * 6.28 + luz.x * 3.0)), 12.0) * step(0.55, azar(celda + 3.1));
         suma += vec3(estrella * brilla * fuerza);
+    } else if (modo > 4.5) {
+        // SILVER y GOLDEN: metal cepillado, cada fila de pixeles refleja distinto
+        bool oro = modo > 5.5;
+        float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+        float fila = azar(vec2(3.0, px.y));
+        float cep = 0.5 + 0.5 * sin(fila * 6.28 + luz.x * 5.0 + px.x * 0.12);
+        vec3 tinte = oro ? vec3(1.1, 0.93, 0.6) : vec3(0.88, 0.97, 1.15);
+        c.rgb = mix(c.rgb, c.rgb * tinte, 0.55 * fuerza);
+        vec3 brillo = oro ? vec3(1.0, 0.85, 0.45) : vec3(0.82, 0.92, 1.0);
+        suma += brillo * cep * 0.14 * fuerza * step(0.3, lum);
+        // reflejo especular: uno ancho y un filo fino encima
+        float o = (px.x * 0.7 + px.y) / tam.y - (0.55 - luz.x * 0.7 + luz.y * 0.4);
+        suma += brillo * (exp(-o * o * 35.0) * 0.3 + exp(-o * o * 500.0) * 0.5) * fuerza;
+        suma += arcoiris(o * 2.5 + tiempo * 0.05) * exp(-o * o * 10.0) * (oro ? 0.05 : 0.1) * fuerza;
+        // destellos sueltos (muchos mas en la golden)
+        float g = pow(fract(azar(px) * 7.0 + tiempo * 0.9 + luz.x * 1.5 + luz.y), oro ? 16.0 : 40.0);
+        suma += brillo * g * (oro ? 1.0 : 0.7) * fuerza * step(0.35, lum);
+        if (oro) {
+            // aura que late alrededor del medallon
+            float rr = length(px + 0.5 - vec2(18.0, 22.0));
+            float aura = exp(-pow(rr - 13.0, 2.0) * 0.35) * (0.55 + 0.45 * sin(tiempo * 3.5));
+            suma += vec3(1.0, 0.8, 0.35) * aura * 0.5 * fuerza;
+        }
     }
 
     // destello que cruza la carta una vez al revelarla
@@ -125,14 +153,14 @@ local BAYER = { { 0, 8, 2, 10 }, { 12, 4, 14, 6 }, { 3, 11, 1, 9 }, { 15, 7, 13,
 
 local totalSet = {}
 for _, c in ipairs(cartas) do
-    totalSet[c.set] = (totalSet[c.set] or 0) + 1
+    if not c.fuera then totalSet[c.set] = (totalSet[c.set] or 0) + 1 end
 end
 
 local function px(x, y)
     lg.rectangle("fill", x, y, 1, 1)
 end
 
-local function silueta(W, H, base)
+local function silueta(_, _, base)
     lg.setColor(p.negro)
     lg.rectangle("fill", 1, 0, W - 2, H)
     lg.rectangle("fill", 0, 1, W, H - 2)
@@ -140,7 +168,7 @@ local function silueta(W, H, base)
     lg.rectangle("fill", 1, 1, W - 2, H - 2)
 end
 
-local function esquinas(W, H)
+local function esquinas()
     lg.setColor(p.negro)
     px(1, 1); px(W - 2, 1); px(1, H - 2); px(W - 2, H - 2)
 end
@@ -185,7 +213,6 @@ local function recuadro(def, img, x, y, w, h, dy)
 end
 
 local function gemas(r, cy)
-    local W = carta.ANCHO
     local x0 = math.floor(W / 2 - (r.nivel * 4 - 1) / 2) + 1
     for i = 0, r.nivel - 1 do
         local x = x0 + i * 4
@@ -197,12 +224,211 @@ local function gemas(r, cy)
     end
 end
 
+-- cartas de fuera de set (datos/variantes.lua): ALT, SILVER y GOLDEN
+local function trama(x, y, t) return t * 16 > BAYER[y % 4 + 1][x % 4 + 1] + 0.5 end
+
+-- marco dorado: bisel de 2 px y adornos en las esquinas (joyas = secreta alt)
+local function marcoOro(joyas)
+    for x = 1, W - 2 do
+        for y = 1, H - 2 do
+            local b = math.min(x - 1, y - 1, W - 2 - x, H - 2 - y)
+            if b == 0 then
+                local luz = (x - 1 == b or y - 1 == b) and not (W - 2 - x == b or H - 2 - y == b)
+                lg.setColor(luz and p.amarillo or p.naranja)
+                if (x * 2 + y) % 7 == 0 then lg.setColor(p.blanco) end
+                px(x, y)
+            elseif b == 1 then
+                lg.setColor((x + y) % 2 == 0 and p.naranja or p.morado)
+                px(x, y)
+            end
+        end
+    end
+    for _, q in ipairs({ { 3, 3, 1, 1 }, { W - 4, 3, -1, 1 }, { 3, 33, 1, -1 }, { W - 4, 33, -1, -1 } }) do
+        local x, y, dx, dy = q[1], q[2], q[3], q[4]
+        lg.setColor(p.negro)
+        px(x + dx * 2, y); px(x, y + dy * 2); px(x + dx, y + dy)
+        lg.setColor(p.amarillo)
+        px(x, y); px(x + dx, y); px(x, y + dy)
+        if joyas then
+            lg.setColor(p.negro); px(x + dx * 2, y + dy); px(x + dx, y + dy * 2)
+            lg.setColor(p.cian); px(x + dx, y + dy)
+        end
+    end
+    -- adorno arriba en el centro
+    local c = math.floor(W / 2)
+    lg.setColor(p.negro)
+    px(c - 2, 2); px(c + 1, 2); px(c - 1, 3); px(c, 3)
+    lg.setColor(p.amarillo)
+    px(c - 1, 2); px(c, 2)
+    lg.setColor(p.blanco)
+    px(c - 1, 1); px(c, 1)
+end
+
+-- escena a sangre: cielo con sol detras del bicho, rayos y suelo
+local function escena(d, img, x, y, w, h, dy, estrellas)
+    local e = elementos[d.elemento]
+    local cielo = h - 5
+    local cx, cy = x + w / 2, y + cielo * 0.5
+    for py = 0, h - 1 do
+        for pxx = 0, w - 1 do
+            local X, Y = x + pxx, y + py
+            local col
+            if py < cielo then
+                col = trama(pxx, py, py / (cielo - 1)) and e.horizonte or e.cielo
+                local ang = math.atan2(Y + 0.5 - cy, X + 0.5 - cx)
+                if math.floor((ang + math.pi) / (math.pi / 8)) % 2 == 0 and (pxx + py) % 2 == 0 then col = e.horizonte end
+                local dist = math.sqrt((X + 0.5 - cx) ^ 2 + (Y + 0.5 - cy) ^ 2)
+                if dist < 9 then col = e.horizonte
+                elseif dist < 10.2 then col = (pxx + py) % 2 == 0 and e.luz or e.horizonte end
+                if estrellas and (pxx * 5 + py * 11) % 23 == 0 and dist > 11 then col = p.amarillo end
+            else
+                col = e.suelo
+                if py == cielo or tramas[e.trama](pxx, py - cielo) then col = e.horizonte end
+            end
+            lg.setColor(col)
+            px(X, Y)
+        end
+    end
+    lg.setColor(1, 1, 1)
+    lg.setScissor(x, y, w, h)
+    lg.draw(img, x + math.floor((w - img:getWidth()) / 2), y + cielo - img:getHeight() + 2 - (dy or 0))
+    lg.setScissor()
+end
+
+-- barra negra del nombre, como la de las full art
+local function barraNombre(d)
+    lg.setColor(p.negro)
+    lg.rectangle("fill", 2, 35, W - 4, H - 37)
+    fuentes.texto(d.nombre, 0, 37, 1, p.blanco, "center", W)
+    gemas(rarezas[d.rareza], 44)
+end
+
+-- ALT: escena a sangre con marco dorado (joyas = la de una secreta)
+local function pintarAlt(d, img, dy, joyas)
+    silueta(W, H, p.amarillo)
+    escena(d, img, 2, 2, W - 4, 33, 2 + dy, joyas)
+    barraNombre(d)
+    marcoOro(joyas)
+    esquinas(W, H)
+end
+
+-- ALT de full art: fondo de rafaga y el bicho grande sobre el suelo, sin ventana
+local function pintarAltFull(d, img, dy)
+    local e = elementos[d.elemento]
+    silueta(W, H, p.grisclaro)
+    local cx, cy = 18, 16
+    for y = 2, 34 do
+        for x = 2, W - 3 do
+            local ang = math.atan2(y + 0.5 - cy, x + 0.5 - cx)
+            local s = math.floor((ang + math.pi) / (math.pi / 10)) % 2 == 0
+            lg.setColor(s and e.sombra or e.cielo)
+            if not s and (x + y) % 2 == 0 then lg.setColor(e.horizonte) end
+            px(x, y)
+        end
+    end
+    lg.setColor(e.suelo)
+    lg.rectangle("fill", 2, 30, W - 4, 5)
+    lg.setColor(e.horizonte)
+    lg.rectangle("fill", 2, 30, W - 4, 1)
+    for py = 1, 4 do
+        for x = 0, W - 5 do
+            if tramas[e.trama](x, py) then px(2 + x, 30 + py) end
+        end
+    end
+    lg.setColor(1, 1, 1)
+    lg.draw(img, math.floor((W - img:getWidth()) / 2), 30 - img:getHeight() + 2 - dy)
+    barraNombre(d)
+    marcoOro(false)
+    esquinas(W, H)
+end
+
+local RAMPAS = {
+    plata = { p.azulosc, p.grisosc, p.gris, p.grisclaro, p.blanco },
+    oro = { p.negro, p.morado, p.naranja, p.amarillo, p.blanco },
+}
+
+-- SILVER y GOLDEN: placa de metal grabada (guilloche), medallon y el bicho en relieve
+local function pintarMetal(d, img, dy)
+    local oro = d.variante == "golden"
+    local R = oro and RAMPAS.oro or RAMPAS.plata
+    lg.setColor(p.negro)
+    lg.rectangle("fill", 1, 0, W - 2, H)
+    lg.rectangle("fill", 0, 1, W, H - 2)
+    local mx, my, mr = 18, 22, 13.5
+    for y = 1, H - 2 do
+        for x = 1, W - 2 do
+            local col
+            local borde = math.min(x - 1, y - 1, W - 2 - x, H - 2 - y)
+            if borde == 0 then
+                col = (x + y < (W + H) / 2) and R[5] or R[3]
+                if (x * 3 + y) % 5 == 0 then col = R[4] end
+            elseif borde == 1 then
+                col = R[2]
+            else
+                -- guilloche: dos ondas cruzadas, como en los billetes
+                local t = 0.25 + (1 - (x + y) / (W + H)) * 0.45
+                col = trama(x, y, t) and R[3] or R[2]
+                local a = math.sin(x * 0.6 + 2.4 * math.sin(y * 0.3))
+                local b = math.sin(x * 0.6 - 2.4 * math.sin(y * 0.3) + 1.6)
+                if math.abs(a) < 0.2 or math.abs(b) < 0.2 then col = R[4] end
+                local dist = math.sqrt((x + 0.5 - mx) ^ 2 + (y + 0.5 - my) ^ 2)
+                if dist < mr - 1.2 then
+                    col = (math.floor(dist) % 3 == 0) and R[3] or R[2]
+                    if dist < 4 then col = R[2] end
+                elseif dist < mr then
+                    col = (y < my) and R[5] or R[4]
+                elseif dist < mr + 1 then
+                    col = p.negro
+                end
+            end
+            lg.setColor(col)
+            px(x, y)
+        end
+    end
+    -- remaches
+    for _, q in ipairs({ { 3, 3 }, { W - 4, 3 }, { 3, H - 4 }, { W - 4, H - 4 } }) do
+        lg.setColor(R[2]); px(q[1] + 1, q[2] + 1)
+        lg.setColor(R[5]); px(q[1], q[2])
+    end
+    if oro then
+        for k = 0, 7 do
+            local a = k / 8 * math.pi * 2
+            local sx, sy = math.floor(mx + math.cos(a) * mr), math.floor(my + math.sin(a) * mr)
+            lg.setColor(p.blanco)
+            px(sx, sy)
+        end
+    end
+    -- placa de arriba y de abajo
+    local txt = oro and "GOLDEN" or "SILVER"
+    lg.setColor(p.negro)
+    lg.rectangle("fill", 4, 2, W - 8, 8)
+    lg.setColor(R[4])
+    lg.rectangle("fill", 5, 3, W - 10, 6)
+    lg.setColor(R[5])
+    lg.rectangle("fill", 5, 3, W - 10, 1)
+    fuentes.texto(txt, 0, 4, 1, R[1], "center", W)
+    lg.setColor(p.negro)
+    lg.rectangle("fill", 4, 37, W - 8, 9)
+    lg.setColor(R[3])
+    lg.rectangle("line", 4.5, 37.5, W - 9, 8)
+    fuentes.texto(d.nombre, 0, 39, 1, R[5], "center", W)
+    -- el bicho en relieve del mismo metal (img: imagenDe)
+    lg.setColor(1, 1, 1)
+    lg.draw(img, math.floor((W - img:getWidth()) / 2), my - 11 - dy)
+    esquinas(W, H)
+end
+
 -- recuadro del dibujo en las cartas normales
 local ARTE = { x = 3, y = 8, w = 30, h = 18 }
 
 local function pintarCara(def, img, dy)
+    if def.variante == "alt" then
+        if def.rareza == "fullart" then return pintarAltFull(def, img, dy) end
+        return pintarAlt(def, img, dy, def.rareza == "secreta")
+    elseif def.variante then
+        return pintarMetal(def, img, dy)
+    end
     local r = rarezas[def.rareza]
-    local W, H = carta.ANCHO, carta.ALTO
     local base = def.rareza == "secreta" and p.amarillo or p.blanco
     silueta(W, H, base)
 
@@ -242,7 +468,6 @@ local function pintarCara(def, img, dy)
 end
 
 local function pintarSilueta(def)
-    local W = carta.ANCHO
     lg.setColor(1, 1, 1)
     local img = imagenBicho(def, false)
     lg.draw(img, math.floor((W - img:getWidth()) / 2), ARTE.y + ARTE.h - SUELO - img:getHeight() + 2)
@@ -269,7 +494,6 @@ end
 -- dorso "constelacion rombo": fondo de noche con estrellas sueltas y dos
 -- rombos unidos por sus puntas, igual para todas las cartas
 local function pintarDorso()
-    local W, H = carta.ANCHO, carta.ALTO
     silueta(W, H, p.cian)
     lg.setColor(p.negro)
     lg.rectangle("fill", 2, 2, W - 4, H - 4)
@@ -320,19 +544,27 @@ local function lienzo(w, h, pintar, ...)
     return c
 end
 
+-- el bicho de cada carta: el de su carta normal (misma semilla y tamaño) o,
+-- en SILVER y GOLDEN, en relieve del mismo metal
+local function imagenDe(def, cerrados)
+    if def.variante == "silver" or def.variante == "golden" then
+        local R = def.variante == "golden" and RAMPAS.oro or RAMPAS.plata
+        return bicho.crear(def.semilla, 22, 22, { cuerpo = R[4], luz = R[5], sombra = R[3] }, cerrados)
+    end
+    return imagenBicho(def, rarezas[def.rareza].nivel >= 5, cerrados)
+end
+
 function carta.preparar()
     shader = lg.newShader(CODIGO_SHADER)
     dorso = lienzo(carta.ANCHO, carta.ALTO, pintarDorso)
     sello = lienzo(SELLO.w, SELLO.h, pintarSello)
-    local W, H = carta.ANCHO, carta.ALTO
     for _, def in ipairs(cartas) do
         local r = rarezas[def.rareza]
-        local grande = r.nivel >= 5
-        local img = imagenBicho(def, grande)
+        local img = imagenDe(def)
         local frames = { lienzo(W, H, pintarCara, def, img, 0) }
         if r.nivel >= 4 and not def.sprite then
             frames[2] = lienzo(W, H, pintarCara, def, img, 1)
-            frames[3] = lienzo(W, H, pintarCara, def, imagenBicho(def, grande, true), 0)
+            frames[3] = lienzo(W, H, pintarCara, def, imagenDe(def, true), 0)
         end
         caras[def.id] = frames
         siluetas[def.id] = lienzo(W, H, pintarSilueta, def)
@@ -376,7 +608,6 @@ local function altoEn(x, y, h)
 end
 
 local function toploader(x, y, sx, sy, rot, gx, gy)
-    local W, H = carta.ANCHO, carta.ALTO
     local cx, cy = lg.transformPoint(x, y)
     preparar3D(gx, gy, cx, cy, altoEn(x, y, H * math.abs(sy)), 0, 0, 0, 0)
     lg.push()
@@ -398,7 +629,6 @@ local function toploader(x, y, sx, sy, rot, gx, gy)
 end
 
 local function funda(x, y, sx, sy, rot, gx, gy)
-    local W, H = carta.ANCHO, carta.ALTO
     local cx, cy = lg.transformPoint(x, y)
     preparar3D(gx, gy, cx, cy, altoEn(x, y, H * math.abs(sy)), 0, 0, 0, 0)
     lg.push()
@@ -423,7 +653,6 @@ end
 -- extra (opcional): primera (sello de 1ª edicion), barrido (0-1, destello al
 -- revelar), quieta (sin balanceo), giro = { x, y } para forzar la inclinacion
 function carta.dibujar(def, x, y, sx, sy, rot, bocaArriba, h, enFunda, extra)
-    local W, H = carta.ANCHO, carta.ALTO
     rot = rot or 0
     extra = extra or {}
     local a, lx, ly = 0, 0, 0
@@ -431,7 +660,7 @@ function carta.dibujar(def, x, y, sx, sy, rot, bocaArriba, h, enFunda, extra)
     local alza = a * 2
 
     local gx, gy = -lx * 0.32 * a, ly * 0.32 * a
-    local r = def and rarezas[def.rareza]
+    local r = def and rarezas.de(def)
     if bocaArriba and def and not extra.quieta then
         -- balanceo en reposo, como si la tuvieras en la mano
         local t = love.timer.getTime() + def.id * 0.77
@@ -463,10 +692,13 @@ function carta.dibujar(def, x, y, sx, sy, rot, bocaArriba, h, enFunda, extra)
     local fuerza = (r.efecto or 0) * (0.7 + a * 0.5)
     -- la luz sigue a la inclinacion, tambien la del balanceo
     preparar3D(gx, gy, cx, cy, alto, modo, fuerza, lx * a - gx * 1.5, ly * a + gy * 1.5, extra.barrido)
+    enviar("arte", def.variante == "alt" and ARTE_FOIL_ALT or ARTE_FOIL)
     lg.draw(cara(def), x, y - alza, rot, sx, sy, W / 2, H / 2)
     if extra.primera then
         preparar3D(gx, gy, cx, cy, alto, 0, 0, 0, 0)
-        lg.draw(sello, x, y - alza, rot, sx, sy, W / 2 - SELLO.x, H / 2 - SELLO.y)
+        -- en SILVER y GOLDEN va abajo, para no tapar la placa de arriba
+        local metal = def.variante == "silver" or def.variante == "golden"
+        lg.draw(sello, x, y - alza, rot, sx, sy, W / 2 - (metal and 28 or SELLO.x), H / 2 - (metal and 31 or SELLO.y))
     end
     lg.setShader()
     if enFunda then funda(x, y - alza, sx, sy, rot, gx, gy) end
@@ -474,16 +706,22 @@ function carta.dibujar(def, x, y, sx, sy, rot, bocaArriba, h, enFunda, extra)
 end
 
 -- carta que aun no tienes: hueco oscuro con la silueta del bicho
+-- (las de fuera de set no dicen cual es: solo un ? grande)
 function carta.hueco(def, x, y, escala)
-    local W, H = carta.ANCHO * escala, carta.ALTO * escala
-    local x0, y0 = math.floor(x - W / 2), math.floor(y - H / 2)
+    local w, h = W * escala, H * escala
+    local x0, y0 = math.floor(x - w / 2), math.floor(y - h / 2)
     lg.setColor(0, 0, 0, 0.35)
-    lg.rectangle("fill", x0, y0, W, H)
+    lg.rectangle("fill", x0, y0, w, h)
     lg.setColor(p.grisosc)
-    lg.rectangle("line", x0 + 0.5, y0 + 0.5, W - 1, H - 1)
+    lg.rectangle("line", x0 + 0.5, y0 + 0.5, w - 1, h - 1)
+    if def.fuera then
+        local t = math.max(1, math.floor(escala * 1.5))
+        fuentes.texto("?", x0, y0 + math.floor((h - 5 * t) / 2), t, p.gris, "center", w)
+        return
+    end
     lg.setColor(p.negro[1], p.negro[2], p.negro[3], 0.9)
     lg.draw(siluetas[def.id], x0, y0, 0, escala, escala)
-    fuentes.texto(string.format("#%02d", def.num), x0, y0 + H - 8 * escala, escala, p.grisosc, "center", W)
+    fuentes.texto(string.format("#%02d", def.num), x0, y0 + h - 8 * escala, escala, p.grisosc, "center", w)
 end
 
 -- montón de cartas: defs[1] arriba del todo, total = cuantas hay en el monton.
