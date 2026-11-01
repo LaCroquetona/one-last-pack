@@ -1,5 +1,6 @@
 local cartas = require "datos.cartas"
 local sobres = require "datos.sobres"
+local productos = require "datos.productos"
 local rarezas = require "datos.rarezas"
 local datosMercado = require "datos.mercado"
 local premios = require "datos.premios"
@@ -68,8 +69,12 @@ function partida.nueva()
     partida.canal = { nombre = "MI_CANAL", idioma = "es", seguidores = 0, directos = 0, propinas = 0, record = 0 }
     partida.mejoras = {}
     partida.cajas, partida.cajas1 = {}, {}
+    -- productos sellados (blister, tin, ETB): "etb:set1" = cuantos; prods1 los de 1ª ed
+    partida.prods, partida.prods1 = {}, {}
+    partida.sueltos = { fundas = 0, tops = 0 }   -- fundas y tops de un producto, sueltos en la mesa
+    partida.huecosArmario = {}   -- armario SELLADO: { k = "etb:set1:1", n } por hueco (false: libre)
     partida.red = { racha = 0, dia = -99 }   -- red de rescate (partida.rescate)
-    partida.cajaAbierta = nil    -- caja empezada en la mesa (tipo, quedan, primera)
+    partida.cajaAbierta = nil    -- caja empezada en la mesa (tipo, quedan, primera, prod: si no es caja)
     partida.vendidos = nil      -- lo comprado hoy a los vendedores del movil
     partida.logros = {}         -- id del logro = dia en que se consiguio
     partida.encargos = {}        -- aceptados: { nombre, tipo, n, hechos, pago, dias, primera }
@@ -181,7 +186,7 @@ local RED = { dinero = 500, anuncios = 500, dias = 7, prob = { 0.15, 0.35, 0.6, 
 
 local function arruinado()
     if partida.dinero > RED.dinero or partida.sobresGuardados() > 0 then return false end
-    for _, t in ipairs({ partida.cajas, partida.cajas1 }) do
+    for _, t in ipairs({ partida.cajas, partida.prods }) do
         for _, n in pairs(t) do
             if n > 0 then return false end
         end
@@ -595,7 +600,8 @@ end
 -- saca una caja (antes las de reimpresion, como los sobres); devuelve si era de 1ª ed
 local function sacarCaja(tipo, respetar)
     if (respetar and partida.cajasDisponibles(tipo.id) or partida.cajasDe(tipo.id)) <= 0 then return nil end
-    local primera = partida.cajasDe(tipo.id, false) == 0 or (respetar and partida.apartado("c", tipo.id, false))
+    local primera
+    if respetar then primera = partida.sinApartar("c", tipo.id, false) == 0 else primera = partida.cajasDe(tipo.id, false) == 0 end
     partida.cajas[tipo.id] = partida.cajasDe(tipo.id) - 1
     if primera then partida.cajas1[tipo.id] = partida.cajasDe(tipo.id, true) - 1 end
     tocar()
@@ -605,13 +611,11 @@ end
 -- se abre en la mesa: se queda en su esquina y los sobres se sacan de ella.
 -- Si ya habia una abierta, sus sobres pasan a los guardados
 function partida.abrirCaja(tipo)
-    local primera = sacarCaja(tipo, true)
-    if primera == nil then return false end
-    local vieja = partida.cajaAbierta
-    if vieja and vieja.quedan > 0 then partida.meterSobres(vieja.tipo, vieja.quedan, vieja.primera) end
-    partida.cajaAbierta = { tipo = tipo.id, quedan = sobres.caja.sobres, primera = primera or nil }
-    return true
+    return partida.abrirProd("caja", tipo)
 end
+
+-- lo ultimo que se vacio en la mesa (si vuelve un sobre, vuelve a eso)
+local ultimoProd
 
 -- saca un sobre de la caja abierta
 function partida.sacarDeCaja()
@@ -619,7 +623,10 @@ function partida.sacarDeCaja()
     if not c or c.quedan <= 0 then return nil end
     c.quedan = c.quedan - 1
     partida.abiertos = partida.abiertos + 1
-    if c.quedan <= 0 then partida.cajaAbierta = nil end
+    if c.quedan <= 0 then
+        partida.cajaAbierta = nil
+        ultimoProd = c.prod
+    end
     tocar()
     return sobres[c.tipo], c.primera or false
 end
@@ -639,6 +646,228 @@ end
 function partida.meterCaja(tipoId, primera)
     partida.cajas[tipoId] = partida.cajasDe(tipoId) + 1
     if primera then partida.cajas1[tipoId] = partida.cajasDe(tipoId, true) + 1 end
+    tocar()
+end
+
+-- productos sellados (datos/productos.lua). La caja usa sus tablas de siempre
+local function claveProd(pid, tipoId) return pid .. ":" .. tipoId end
+
+function partida.prodDe(pid, tipoId, primera)
+    if pid == "caja" then return partida.cajasDe(tipoId, primera) end
+    local k = claveProd(pid, tipoId)
+    local n = partida.prods[k] or 0
+    if primera == nil then return n end
+    local p1 = math.min(n, partida.prods1[k] or 0)
+    return primera and p1 or n - p1
+end
+
+-- suma (o resta) d de una edicion
+local function moverProd(pid, tipoId, primera, d)
+    if pid == "caja" then
+        partida.cajas[tipoId] = partida.cajasDe(tipoId) + d
+        if primera then partida.cajas1[tipoId] = partida.cajasDe(tipoId, true) + d end
+    else
+        local k = claveProd(pid, tipoId)
+        partida.prods[k] = partida.prodDe(pid, tipoId) + d
+        if primera then partida.prods1[k] = partida.prodDe(pid, tipoId, true) + d end
+        if partida.prods[k] <= 0 then partida.prods[k], partida.prods1[k] = nil, nil end
+    end
+    tocar()
+end
+
+function partida.meterProd(pid, tipoId, primera, n)
+    moverProd(pid, tipoId, primera, n or 1)
+end
+
+function partida.comprarProd(prod, tipo)
+    if prod.id == "caja" then return partida.comprarCaja(tipo) end
+    local precio = mercado.precioProd(prod, tipo)
+    if not precio or mercado.stockProd(prod, tipo) <= 0 or partida.dinero < precio then return false end
+    local _, primera = mercado.enTienda(tipo)
+    partida.dinero = partida.dinero - precio
+    mercado.gastarProd(prod, tipo)
+    if primera then mercado.comprados(tipo.set, prod.sobres) end
+    moverProd(prod.id, tipo.id, primera, 1)
+    return precio
+end
+
+function partida.venderProd(prod, tipo, primera)
+    if prod.id == "caja" then return partida.venderCaja(tipo, primera) end
+    if partida.prodDe(prod.id, tipo.id, primera) <= 0 then return false end
+    local valor = mercado.trasComision(mercado.valorProd(prod, tipo, primera))
+    moverProd(prod.id, tipo.id, primera, -1)
+    partida.dinero = partida.dinero + valor
+    return valor
+end
+
+-- saca uno sin apartar (antes los de reimpresion); devuelve si era de 1ª ed
+local function sacarProd(pid, tipoId, primera)
+    if primera == nil then
+        if partida.sinApartar(pid, tipoId, false) > 0 then primera = false
+        elseif partida.sinApartar(pid, tipoId, true) > 0 then primera = true
+        else return nil end
+    elseif partida.prodDe(pid, tipoId, primera) <= 0 then
+        return nil
+    end
+    moverProd(pid, tipoId, primera, -1)
+    return primera
+end
+
+local function lleva(prod)
+    if prod.fundas then partida.sueltos.fundas = partida.sueltos.fundas + prod.fundas end
+    if prod.tops then partida.sueltos.tops = partida.sueltos.tops + prod.tops end
+end
+
+-- se abre en la mesa: sus sobres se quedan en la esquina y se sacan de ahi;
+-- las fundas y los tops se quedan sueltos en la mesa. Si ya habia algo
+-- abierto, sus sobres pasan a los guardados
+function partida.abrirProd(pid, tipo, primera)
+    local prod = productos[pid]
+    primera = sacarProd(pid, tipo.id, primera)
+    if primera == nil then return false end
+    local vieja = partida.cajaAbierta
+    if vieja and vieja.quedan > 0 then partida.meterSobres(vieja.tipo, vieja.quedan, vieja.primera) end
+    partida.cajaAbierta = { tipo = tipo.id, quedan = prod.sobres, primera = primera or nil, prod = pid ~= "caja" and pid or nil }
+    lleva(prod)
+    tocar()
+    return true
+end
+
+-- un blister se rasga y deja sus sobres con los guardados
+function partida.rasgarBlister(tipoId, primera)
+    primera = sacarProd("blister", tipoId, primera)
+    if primera == nil then return nil end
+    partida.meterSobres(tipoId, productos.blister.sobres, primera)
+    return primera
+end
+
+-- vacia un producto cerrado en los sobres guardados, sin abrirlo (lo que
+-- trae ademas va directo a tus fundas y tops)
+function partida.vaciarProd(pid, tipo, primera)
+    if pid == "caja" then return partida.vaciarCaja(tipo, primera) end
+    local prod = productos[pid]
+    primera = sacarProd(pid, tipo.id, primera)
+    if primera == nil then return nil end
+    partida.meterSobres(tipo.id, prod.sobres, primera)
+    partida.fundasLibres = partida.fundasLibres + (prod.fundas or 0)
+    partida.topsLibres = partida.topsLibres + (prod.tops or 0)
+    return prod.sobres
+end
+
+-- las fundas o los tops sueltos de la mesa pasan a tu caja
+function partida.guardarSueltos(que)
+    local n = partida.sueltos[que] or 0
+    if n <= 0 then return 0 end
+    partida.sueltos[que] = 0
+    if que == "fundas" then partida.fundasLibres = partida.fundasLibres + n else partida.topsLibres = partida.topsLibres + n end
+    tocar()
+    return n
+end
+
+-- Armario SELLADO: lo que tienes cerrado, repartido en huecos como en la vida
+-- real. Cada hueco guarda una clave "pid:tipoId:ed" (pid "sobre" para los
+-- sueltos) y cuantos; lo nuevo se junta con un hueco de lo mismo con sitio o va
+-- al primer hueco libre. Los huecos solo recuerdan el orden: lo que tienes de
+-- verdad son los contadores de siempre, y aqui se cuadran
+function partida.capacidadHueco(pid)
+    return pid == "sobre" and productos.sobresPorHueco or productos[pid].cabe
+end
+
+local function totalesSellado()
+    local t = {}
+    for _, tipo in ipairs(sobres.lista) do
+        for _, ed in ipairs({ true, false }) do
+            local e = ed and "1" or "n"
+            local n = partida.sobres(tipo.id, ed)
+            if n > 0 then t["sobre:" .. tipo.id .. ":" .. e] = n end
+            for _, prod in ipairs(productos.lista) do
+                local m = partida.prodDe(prod.id, tipo.id, ed)
+                if m > 0 then t[prod.id .. ":" .. tipo.id .. ":" .. e] = m end
+            end
+        end
+    end
+    return t
+end
+
+function partida.huecos()
+    local H = partida.huecosArmario
+    local t = totalesSellado()
+    local en = {}
+    for _, h in ipairs(H) do
+        if h then en[h.k] = (en[h.k] or 0) + h.n end
+    end
+    -- lo que ya no esta sale de los ultimos huecos de lo mismo
+    for i = #H, 1, -1 do
+        local h = H[i]
+        local sobra = h and (en[h.k] or 0) - (t[h.k] or 0) or 0
+        if sobra > 0 then
+            local q = math.min(sobra, h.n)
+            h.n, en[h.k] = h.n - q, en[h.k] - q
+            if h.n <= 0 then H[i] = false end
+        end
+    end
+    local claves = {}
+    for k in pairs(t) do table.insert(claves, k) end
+    table.sort(claves)
+    for _, k in ipairs(claves) do
+        local falta = t[k] - (en[k] or 0)
+        if falta > 0 then
+            local cap = partida.capacidadHueco(k:match("^[^:]+"))
+            for _, h in ipairs(H) do
+                if falta > 0 and h and h.k == k and h.n < cap then
+                    local q = math.min(falta, cap - h.n)
+                    h.n, falta = h.n + q, falta - q
+                end
+            end
+            local i = 1
+            while falta > 0 do
+                if not H[i] then
+                    local q = math.min(falta, cap)
+                    H[i], falta = { k = k, n = q }, falta - q
+                end
+                i = i + 1
+            end
+        end
+    end
+    while #H > 0 and H[#H] == false do table.remove(H) end
+    return H
+end
+
+-- ordena el armario una vez (por set o por tipo); luego se sigue llenando como venga
+local ORDEN_TIPO = { sobre = 1 }
+for i, x in ipairs(productos.lista) do ORDEN_TIPO[x.id] = i + 1 end
+local ORDEN_SET = {}
+for i, x in ipairs(sobres.lista) do ORDEN_SET[x.id] = i end
+
+function partida.ordenarArmario(por)
+    local t = totalesSellado()
+    local claves = {}
+    for k in pairs(t) do table.insert(claves, k) end
+    local function partes(k)
+        local pid, tipoId, ed = k:match("^([^:]+):([^:]+):(.+)$")
+        return ORDEN_TIPO[pid] or 99, ORDEN_SET[tipoId] or 99, ed == "1" and 0 or 1
+    end
+    table.sort(claves, function(a, b)
+        local ta, sa, ea = partes(a)
+        local tb, sb, eb = partes(b)
+        if por == "set" then
+            if sa ~= sb then return sa < sb end
+            if ta ~= tb then return ta < tb end
+        else
+            if ta ~= tb then return ta < tb end
+            if sa ~= sb then return sa < sb end
+        end
+        return ea < eb
+    end)
+    local H = {}
+    for _, k in ipairs(claves) do
+        local cap, n = partida.capacidadHueco(k:match("^[^:]+")), t[k]
+        while n > 0 do
+            table.insert(H, { k = k, n = math.min(cap, n) })
+            n = n - cap
+        end
+    end
+    partida.huecosArmario = H
     tocar()
 end
 
@@ -703,7 +932,7 @@ function partida.devolverSobre(tipoId, primera, aCaja)
     if aCaja and c and c.tipo == tipoId and (c.primera or false) == (primera or false) then
         c.quedan = c.quedan + 1
     elseif aCaja and not c then
-        partida.cajaAbierta = { tipo = tipoId, quedan = 1, primera = primera or nil }
+        partida.cajaAbierta = { tipo = tipoId, quedan = 1, primera = primera or nil, prod = ultimoProd }
     else
         partida.meterSobres(tipoId, 1, primera)
     end
@@ -767,39 +996,68 @@ end
 
 -- tipoId: el sobre que se quiere abrir; sin el, el primero que quede.
 -- Se abren antes los de reimpresion: los de 1ª edicion cerrados valen mas
--- apartados: no salen en la mesa (clase "s" sobres, "c" cajas)
-function partida.apartado(clase, tipoId, primera)
-    return partida.apartados[clase .. ":" .. tipoId .. ":" .. (primera and 1 or "n")] or false
+-- apartados: no salen en la mesa. Clase "s" sobres, "c" cajas o el id del
+-- producto; se guarda cuantos ("s:set1:1" = sobres de 1ª ed del set 1)
+local function claveApartado(clase, tipoId, primera)
+    return clase .. ":" .. tipoId .. ":" .. (primera and 1 or "n")
 end
 
-function partida.apartar(clase, tipoId, primera)
-    local k = clase .. ":" .. tipoId .. ":" .. (primera and 1 or "n")
-    partida.apartados[k] = not partida.apartados[k] or nil
+-- cuantos hay de una clase y edicion
+function partida.cuantos(clase, tipoId, primera)
+    if clase == "s" then return partida.sobres(tipoId, primera) end
+    if clase == "c" then return partida.cajasDe(tipoId, primera) end
+    return partida.prodDe(clase, tipoId, primera)
+end
+
+function partida.apartadosDe(clase, tipoId, primera)
+    local n = partida.apartados[claveApartado(clase, tipoId, primera)]
+    if type(n) ~= "number" then return 0 end
+    return math.max(0, math.min(n, partida.cuantos(clase, tipoId, primera)))
+end
+
+function partida.apartado(clase, tipoId, primera)
+    return partida.apartadosDe(clase, tipoId, primera) > 0
+end
+
+function partida.sinApartar(clase, tipoId, primera)
+    return partida.cuantos(clase, tipoId, primera) - partida.apartadosDe(clase, tipoId, primera)
+end
+
+-- n: cuantos se apartan (negativo: vuelven a la mesa). Sin n, todos o ninguno
+function partida.apartar(clase, tipoId, primera, n)
+    local k = claveApartado(clase, tipoId, primera)
+    local total, ya = partida.cuantos(clase, tipoId, primera), partida.apartadosDe(clase, tipoId, primera)
+    local nuevo
+    if n then nuevo = math.max(0, math.min(total, ya + n)) else nuevo = ya > 0 and 0 or total end
+    partida.apartados[k] = nuevo > 0 and nuevo or nil
     tocar()
 end
 
 -- sobres que se pueden abrir en la mesa (sin los apartados)
 function partida.disponibles(tipoId)
-    local n = 0
-    if not partida.apartado("s", tipoId, false) then n = n + partida.sobres(tipoId, false) end
-    if not partida.apartado("s", tipoId, true) then n = n + partida.sobres(tipoId, true) end
-    return n
+    return partida.sinApartar("s", tipoId, false) + partida.sinApartar("s", tipoId, true)
 end
 
 function partida.cajasDisponibles(tipoId)
-    local n = 0
-    if not partida.apartado("c", tipoId, false) then n = n + partida.cajasDe(tipoId, false) end
-    if not partida.apartado("c", tipoId, true) then n = n + partida.cajasDe(tipoId, true) end
-    return n
+    return partida.sinApartar("c", tipoId, false) + partida.sinApartar("c", tipoId, true)
 end
 
--- respetar: no saca los apartados (la mesa)
-function partida.sacarSobre(tipoId, respetar)
+function partida.prodDisponibles(pid, tipoId)
+    if pid == "caja" then return partida.cajasDisponibles(tipoId) end
+    return partida.sinApartar(pid, tipoId, false) + partida.sinApartar(pid, tipoId, true)
+end
+
+-- respetar: no saca los apartados (la mesa). primera: de esa edicion
+function partida.sacarSobre(tipoId, respetar, primeraPedida)
     for _, s in ipairs(sobres.lista) do
         local hay = respetar and partida.disponibles(s.id) or partida.sobres(s.id)
+        if primeraPedida ~= nil then
+            hay = respetar and partida.sinApartar("s", s.id, primeraPedida) or partida.sobres(s.id, primeraPedida)
+        end
         if (not tipoId or s.id == tipoId) and hay > 0 then
-            local normales = partida.sobres(s.id, false) > 0 and not (respetar and partida.apartado("s", s.id, false))
+            local normales = (respetar and partida.sinApartar("s", s.id, false) or partida.sobres(s.id, false)) > 0
             local primera = not normales
+            if primeraPedida ~= nil then primera = primeraPedida end
             sacar(s.id, primera)
             partida.abiertos = partida.abiertos + 1
             return s, primera
@@ -1313,7 +1571,7 @@ function partida.guardar()
 end
 
 local CAMPOS = { "dinero", "abiertos", "inv", "uid", "guardados", "guardados1", "anuncios",
-    "orden", "mesa", "seguidas", "opciones", "fundasLibres", "cartera", "premios", "canal", "mejoras", "encargos", "ofertasEncargo", "cajas", "cajas1", "cajaAbierta", "topsLibres", "apartados", "vendidos", "logros", "tutorial", "desbloqueos", "sequia", "tiradas", "pistas", "guia", "buscadas", "red" }
+    "orden", "mesa", "seguidas", "opciones", "fundasLibres", "cartera", "premios", "canal", "mejoras", "encargos", "ofertasEncargo", "cajas", "cajas1", "prods", "prods1", "sueltos", "huecosArmario", "cajaAbierta", "topsLibres", "apartados", "vendidos", "logros", "tutorial", "desbloqueos", "sequia", "tiradas", "pistas", "guia", "buscadas", "red" }
 
 -- la partida como se guarda (tambien para los reportes de bugs)
 function partida.texto()
@@ -1474,6 +1732,14 @@ function partida.cargar()
         partida.opciones.fundaDesde = partida.opciones.autoFundas == false and 0 or 4
         partida.opciones.topDesde = 5
         partida.opciones.autoFundas = nil
+    end
+    -- partidas de antes de apartar por cantidad (v0.9.5 o antes): se apartan los que hay
+    for k, v in pairs(partida.apartados) do
+        if v == true then
+            local clase, tipoId, ed = k:match("^([^:]+):([^:]+):(.+)$")
+            local n = clase and partida.cuantos(clase, tipoId, ed == "1") or 0
+            partida.apartados[k] = n > 0 and n or nil
+        end
     end
     partida.premiosNuevos = {}
     generador.sequia = partida.sequia

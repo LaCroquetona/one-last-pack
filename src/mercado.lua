@@ -1,6 +1,7 @@
 local cartas = require "datos.cartas"
 local sets = require "datos.sets"
 local sobres = require "datos.sobres"
+local productos = require "datos.productos"
 local datos = require "datos.mercado"
 local rarezas = require "datos.rarezas"
 local datosCalendario = require "datos.calendario"
@@ -298,6 +299,52 @@ function mercado.valorCaja(tipo, primera)
     -- mientras la tienda las vende, venderla nunca da mas de lo que cuesta nueva
     local nueva = mercado.precioCaja(tipo)
     if nueva then v = math.min(v, nueva * 0.9) end
+    return math.floor(v / 10 + 0.5) * 10
+end
+
+-- productos de un set que se venden (sin la caja si sinCaja)
+function mercado.productosDe(tipo, sinCaja)
+    local lista = {}
+    for _, x in ipairs(productos.lista) do
+        if x.sale ~= false and not x.mix and (not x.sets or x.sets[tipo.set]) and not (sinCaja and x.id == "caja") then
+            table.insert(lista, x)
+        end
+    end
+    return lista
+end
+
+local function claveProd(prod, tipo) return prod.id .. ":" .. tipo.id end
+
+-- precio en la tienda (nil si hoy no se vende)
+function mercado.precioProd(prod, tipo)
+    if prod.id == "caja" then return mercado.precioCaja(tipo) end
+    local precio = mercado.enTienda(tipo)
+    if not precio then return nil end
+    return math.floor((precio * prod.sobres * prod.precio + (prod.extra or 0)) / 10 + 0.5) * 10
+end
+
+function mercado.stockProd(prod, tipo)
+    if prod.id == "caja" then return mercado.stockCajas(tipo) end
+    return (mercado.estado.prods or {})[claveProd(prod, tipo)] or 0
+end
+
+function mercado.gastarProd(prod, tipo)
+    if prod.id == "caja" then
+        mercado.estado.cajas[tipo.id] = math.max(0, mercado.stockCajas(tipo) - 1)
+        return
+    end
+    local k = claveProd(prod, tipo)
+    mercado.estado.prods[k] = math.max(0, (mercado.estado.prods[k] or 0) - 1)
+end
+
+-- lo que vale cerrado: sus sobres cerrados a precio de mercado y lo que trae
+function mercado.valorProd(prod, tipo, primera)
+    if prod.id == "caja" then return mercado.valorCaja(tipo, primera) end
+    local v = mercado.sellado(tipo, primera) or mercado.sellado(tipo, not primera) or tipo.precio
+    v = v * prod.sobres * sobres.caja.valor + (prod.fundas or 0) * productos.valorFunda + (prod.tops or 0) * productos.valorTop
+    -- mientras la tienda lo vende, venderlo nunca da mas de lo que cuesta nuevo
+    local nuevo = mercado.precioProd(prod, tipo)
+    if nuevo then v = math.min(v, nuevo * 0.9) end
     return math.floor(v / 10 + 0.5) * 10
 end
 
@@ -739,6 +786,16 @@ local function abrirSets(dia)
     end
 end
 
+local function reponerProds(dia)
+    mercado.estado.prods = {}
+    for _, tipo in ipairs(sobres.lista) do
+        local n = stockDelDia(tipo, dia)
+        for _, prod in ipairs(mercado.productosDe(tipo, true)) do
+            mercado.estado.prods[claveProd(prod, tipo)] = n > 0 and prod.porDia or 0
+        end
+    end
+end
+
 local function reponerStock(dia)
     mercado.estado.cajas = mercado.estado.cajas or {}
     for _, tipo in ipairs(sobres.lista) do
@@ -746,6 +803,7 @@ local function reponerStock(dia)
         mercado.estado.stock[tipo.id] = n > 0 and n + mercado.extraStock or 0
         mercado.estado.cajas[tipo.id] = n > 0 and sobres.caja.porDia or 0
     end
+    reponerProds(dia)
 end
 
 local function avisosCalendario(dia)
@@ -823,6 +881,8 @@ function mercado.cargar(estado)
             estado.cajas[tipo.id] = stockDelDia(tipo, estado.dia) > 0 and sobres.caja.porDia or 0
         end
     end
+    -- partidas de antes de los productos (v0.9.5 o antes): hoy llegan los de siempre
+    if not estado.prods then reponerProds(estado.dia) end
 end
 
 -- se persigue el objetivo en logaritmo: subir x2 y bajar a la mitad pesan igual

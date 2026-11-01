@@ -51,8 +51,10 @@ end
 
 local function nadaQueAbrir()
     if partida.sobresGuardados() > 0 or partida.cajaAbierta then return false end
-    for _, n in pairs(partida.cajas) do
-        if n > 0 then return false end
+    for _, t in ipairs({ partida.cajas, partida.prods }) do
+        for _, n in pairs(t) do
+            if n > 0 then return false end
+        end
     end
     return true
 end
