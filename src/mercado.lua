@@ -19,10 +19,18 @@ for _, c in ipairs(cartas) do
     porId[c.id] = c
 end
 
-local delSet = {}
+-- todas las del set, las que cuentan para el 100% y las de fuera de set
+local delSet, baseDe, fueraDe = {}, {}, {}
 for _, c in ipairs(cartas) do
     delSet[c.set] = delSet[c.set] or {}
     table.insert(delSet[c.set], c)
+    local t = c.fuera and fueraDe or baseDe
+    t[c.set] = t[c.set] or {}
+    table.insert(t[c.set], c)
+end
+-- las de fuera de set, por numero (las secretas primero)
+for _, l in pairs(fueraDe) do
+    table.sort(l, function(a, b) return a.num < b.num end)
 end
 
 -- cada carta tiene su "caracter" fijo: unas valen algo mas que otras de su rareza
@@ -32,9 +40,10 @@ local function variacion(id)
     return a + rng:random() * (b - a)
 end
 
+-- las ALT, SILVER y GOLDEN tienen su precio en sets.valores (alt_holo...)
 local base = {}
 for _, c in ipairs(cartas) do
-    base[c.id] = sets[c.set].valores[c.rareza] * variacion(c.id)
+    base[c.id] = sets[c.set].valores[rarezas.clave(c) or c.rareza] * variacion(c.de or c.id)
 end
 
 -- todo lo que cambia y se guarda con la partida
@@ -66,6 +75,14 @@ end
 
 function mercado.cartasDe(setId)
     return delSet[setId] or {}
+end
+
+function mercado.baseDe(setId)
+    return baseDe[setId] or {}
+end
+
+function mercado.fueraDe(setId)
+    return fueraDe[setId] or {}
 end
 
 function mercado.base(id)
@@ -478,7 +495,7 @@ function mercado.noticia(clave)
     if plantilla.tipo == "carta" then
         local def = cartaAlAzar(plantilla.soloChase)
         if not def then return nil end
-        n.texto = plantilla.texto:gsub("{carta}", def.nombre)
+        n.texto = plantilla.texto:gsub("{carta}", rarezas.nombre(def))
         n.carta = def.id
         n.set = def.set
         golpear(plantilla, def.id)
@@ -527,7 +544,7 @@ function mercado.torneo(ya)
             table.insert(mazo, def)
         end
         local nombres = {}
-        for _, def in ipairs(mazo) do table.insert(nombres, def.nombre) end
+        for _, def in ipairs(mazo) do table.insert(nombres, rarezas.nombre(def)) end
         local texto = #nombres > 1 and (table.concat(nombres, ", ", 1, #nombres - 1) .. " y " .. nombres[#nombres]) or nombres[1]
         return anadirNoticia({ clave = "torneoNacional", tono = "sube", carta = mazo[1].id, set = t.set,
                                texto = "Torneo nacional: el mazo campeón lleva " .. texto })
@@ -549,7 +566,7 @@ function mercado.burbujaAhora(def)
     def = def or cartaAlAzar(true)
     if not def or mercado.estado.burbujas[def.id] then return end
     mercado.estado.burbujas[def.id] = { fase = "sube", d = 0, dur = love.math.random(B.dias[1], B.dias[2]), m = 1 }
-    return anadirNoticia({ clave = "habla", tono = "sube", carta = def.id, set = def.set, texto = "Todo el mundo habla de " .. def.nombre })
+    return anadirNoticia({ clave = "habla", tono = "sube", carta = def.id, set = def.set, texto = "Todo el mundo habla de " .. rarezas.nombre(def) })
 end
 
 local function avanzarBurbujas()
@@ -564,7 +581,7 @@ local function avanzarBurbujas()
             b.m = b.m * B.pinchazo
             if b.d == 1 then
                 local def = porId[id]
-                anadirNoticia({ clave = "burbuja", tono = "baja", carta = id, set = def.set, texto = "Se desinfla " .. def.nombre .. ": todo el mundo vende a la vez" })
+                anadirNoticia({ clave = "burbuja", tono = "baja", carta = id, set = def.set, texto = "Se desinfla " .. rarezas.nombre(def) .. ": todo el mundo vende a la vez" })
             end
             if b.d >= B.diasPinchazo then b.fase, b.d = "vuelve", 0 end
         else
