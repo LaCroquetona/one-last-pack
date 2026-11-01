@@ -99,11 +99,12 @@ function apertura.empezar(tipo, primera, desde)
     local defs
     defs, godpack = partida.sacarTirada(tipo.id, primera)
     if not defs then defs, godpack = generador.sobre(tipo) end
+    if not paraOtro then partida.rescate(defs, tipo) end
     mano = {}
     for i, def in ipairs(defs) do
         mano[i] = { def = def, x = CX, y = CY, escala = GRANDE, boca = false, nueva = false }
     end
-    mejor = rarezas[defs[#defs].rareza]
+    mejor = rarezas.de(defs[#defs])
     carga = 0
     estado, t = "entrando", 0
     if dev.saltar then
@@ -134,6 +135,7 @@ function apertura.lote(n)
         abiertos = abiertos + 1
         local defs, gp = partida.sacarTirada(tipo.id, primera)
         if not defs then defs, gp = generador.sobre(tipo) end
+        partida.rescate(defs, tipo)
         if gp then godpacks = godpacks + 1 end
         partida.encargoSobre(tipo.id, primera)
         for _, def in ipairs(defs) do
@@ -149,17 +151,24 @@ function apertura.lote(n)
     end
     if abiertos == 0 then return false end
     table.sort(orden, function(a, b)
-        local na, nb = rarezas[a.rareza].nivel, rarezas[b.rareza].nivel
+        local na, nb = rarezas.rango(a), rarezas.rango(b)
         if na ~= nb then return na > nb end
         return a.id < b.id
     end)
     local numNuevas = 0
     for _ in pairs(nuevas) do numNuevas = numNuevas + 1 end
+    -- las de fuera de set que han salido, para la cabecera
+    local especiales = {}
+    for _, def in ipairs(orden) do
+        if def.variante then
+            especiales[def.variante] = (especiales[def.variante] or 0) + cuenta[def.id]
+        end
+    end
     lote = { cartas = orden, cuenta = cuenta, nuevas = nuevas, abiertos = abiertos,
-             total = total, valor = valor, numNuevas = numNuevas, godpacks = godpacks }
+             total = total, valor = valor, numNuevas = numNuevas, godpacks = godpacks, especiales = especiales }
     partida.guardar()
     sonido.carga(0)
-    sonido.tocar(rarezas[orden[1].rareza].id)
+    sonido.tocar(rarezas.de(orden[1]).id)
     fx.destello({1, 1, 1}, 0.5)
     fx.sacudir(4)
     estado, t = "lote", 0
@@ -240,6 +249,25 @@ end
 -- segundos que tarda en contar hasta el precio
 local CUENTA = { [0] = 0, 0.35, 0.8, 1.5 }
 
+-- SILVER y GOLDEN: sonido propio, destello del metal, explosion doble y camara lenta
+local TEXTO_ESPECIAL = { silver = "¡SILVER!", golden = "¡¡GOLDEN!!" }
+local function especial(r)
+    local oro = r.especial == "golden"
+    if oro then
+        sonido.tocar("secreta", 1.26)
+        sonido.tocar("secreta", 1.5)
+    else
+        sonido.tocar("secreta", 0.8)
+    end
+    local color = oro and p.amarillo or p.grisclaro
+    fx.destello(oro and p.amarillo or p.blanco, 0.9)
+    fx.explosion(CX, CY, color, 160, 300)
+    fx.explosion(CX, CY, p.blanco, 80, 380)
+    fx.confeti(CX, CY - 60, oro and 90 or 50, 200)
+    fx.camaraLenta(1.4, 0.2)
+    fx.sacudir(oro and 14 or 10)
+end
+
 local function impacto(c, r)
     -- la carta que buscabas: se celebra encima de ella
     if not paraOtro and partida.buscada(c.def.id) then
@@ -251,10 +279,11 @@ local function impacto(c, r)
     c.nivelPrecio = nivelPrecio(c.precio)
     c.tPrecio, c.tic, c.contado = 0, 0, false
     c.tVista = 0
-    c.coleccion = partida.distintas(c.def.set) .. "/" .. #partida.cartasDe(c.def.set)
-    sonido.tocar(r.id)
+    local pct = partida.porcentaje(c.def.set)
+    c.coleccion = pct > 100 and (pct .. "%") or (partida.distintas(c.def.set) .. "/" .. #partida.cartasDe(c.def.set))
+    if r.especial then especial(r) else sonido.tocar(r.id) end
     directo.carta(c.def, c.nueva)
-    if r.nivel >= 4 then fx.golpear(r.nombre:upper(), r.color, 40) end
+    if r.nivel >= 4 then fx.golpear(r.especial and TEXTO_ESPECIAL[r.especial] or r.nombre:upper(), r.color, 40) end
     if r.nivel >= 6 then
         fx.explosion(CX, CY, p.amarillo, 120, 240)
         fx.explosion(CX, CY, p.blanco, 40, 300)
@@ -312,7 +341,7 @@ end
 
 local function actualizarCarta(dt, mantenido)
     local c = mano[idx]
-    local r = rarezas[c.def.rareza]
+    local r = rarezas.de(c.def)
     tf = tf + dt
 
     if fase == "esperando" then
@@ -325,8 +354,15 @@ local function actualizarCarta(dt, mantenido)
         latido = latido - dt
         if latido <= 0 then
             sonido.tocar("latido", 1 + tf * 0.4)
-            fx.sacudir(1 + r.nivel * 0.4)
-            latido = math.max(0.12, 0.4 - tf * 0.2)
+            if r.especial then
+                -- latidos cada vez mas fuertes y seguidos
+                local q = tf / r.suspense
+                fx.sacudir(2 + q * 5)
+                latido = math.max(0.07, 0.5 * (1 - q))
+            else
+                fx.sacudir(1 + r.nivel * 0.4)
+                latido = math.max(0.12, 0.4 - tf * 0.2)
+            end
         end
         if tf >= r.suspense then fase, tf = "girando", 0 end
     elseif fase == "girando" then
@@ -473,6 +509,14 @@ local function dibujarLote()
     local cabecera = L.abiertos .. " SOBRES  -  " .. L.total .. " CARTAS  -  " .. L.numNuevas .. " NUEVAS  -  VALOR " .. ui.dinero(L.valor)
     texto(cabecera, 30, 1, p.blanco)
     if L.godpacks > 0 then texto(L.godpacks == 1 and "¡GOD PACK!" or ("¡" .. L.godpacks .. " GOD PACKS!"), 40, 2, rarezas.secreta.color) end
+    local E = L.especiales
+    if next(E) then
+        local partes = {}
+        if E.golden then table.insert(partes, E.golden > 1 and (E.golden .. " GOLDEN") or "¡GOLDEN!") end
+        if E.silver then table.insert(partes, E.silver > 1 and (E.silver .. " SILVER") or "¡SILVER!") end
+        if E.alt then table.insert(partes, E.alt .. " ALT") end
+        texto(table.concat(partes, "  "), L.godpacks > 0 and 52 or 40, L.godpacks > 0 and 1 or 2, E.golden and p.amarillo or p.grisclaro)
+    end
 
     -- 12 por fila a tamaño normal; con muchas distintas, 24 por fila a la mitad
     local pequenas = #L.cartas > 48
@@ -486,7 +530,7 @@ local function dibujarLote()
             local col, fila = (k - 1) % columnas, math.floor((k - 1) / columnas)
             local cx = 320 + (col - (columnas - 1) / 2) * pasoX
             local cy = (pequenas and 74 or 88) + fila * pasoY
-            local r = rarezas[def.rareza]
+            local r = rarezas.de(def)
             local e = fx.salidaRebote(aparece) * base
             local id = "lote" .. def.id
             if r.nivel >= 4 then fx.aura(cx, cy, r.color, 34 * base, 0.35) end
@@ -503,7 +547,7 @@ local function dibujarLote()
             end
             ui.zona(id, cx - cw / 2, cy - ch / 2, cw, ch)
             if ui.encima == id then
-                ui.tooltip(def.nombre, r.color, {
+                ui.tooltip(rarezas.nombre(def), r.color, {
                     { r.nombre, r.color },
                     { "En este lote: " .. L.cuenta[def.id] },
                     { "Copias: " .. partida.copias(def.id) },
@@ -577,7 +621,7 @@ local function dibujarNueva(c)
 end
 
 local function dibujarActual(c)
-    local r = rarezas[c.def.rareza]
+    local r = rarezas.de(c.def)
     local x, y = c.x, c.y
     local sx, sy = c.escala, c.escala
     local rot = 0
@@ -586,6 +630,12 @@ local function dibujarActual(c)
 
     if fase == "suspense" then
         local fuerza = tf / r.suspense
+        if r.especial then
+            -- la pantalla se va oscureciendo
+            lg.setColor(0, 0, 0, fuerza * 0.75)
+            lg.rectangle("fill", -10, -10, 660, 380)
+            lg.setColor(1, 1, 1)
+        end
         x = x + (love.math.random() * 2 - 1) * fuerza * 3
         y = y + (love.math.random() * 2 - 1) * fuerza * 3
         fx.aura(CX, CY, r.color, 70 + fuerza * 60, fuerza * 0.9)
@@ -617,7 +667,7 @@ local function dibujarActual(c)
     carta.dibujar(c.def, x, y, sx, sy, rot, c.boca, h, false, extra(barrido))
 
     if fase == "mostrando" then
-        texto(c.def.nombre, 246, 3, p.blanco)
+        texto(rarezas.nombre(c.def), 246, 3, p.blanco)
         texto(r.nombre .. (primeraActual and "  -  1ª EDICIÓN" or ""), 268, 1, r.color)
         dibujarPrecio(c)
         if c.nueva then dibujarNueva(c) end
@@ -647,7 +697,7 @@ local function dibujarResumen()
     local dos = filasResumen() == 2
 
     for i, c in ipairs(mano) do
-        local r = rarezas[c.def.rareza]
+        local r = rarezas.de(c.def)
         local id = "res" .. i
         local h = t > 0.6 and ui.hoverCarta(id, c.x, c.y, cw, ch) or nil
         local funda = c.copia and c.copia.f
@@ -680,7 +730,7 @@ local function dibujarResumen()
                 fuentes.texto("¡NUEVA!", c.x - 40, c.y - ch / 2 - 10, 1, p.amarillo, "center", 80)
             end
             if ui.encima == id then
-                ui.tooltip(c.def.nombre, r.color, {
+                ui.tooltip(rarezas.nombre(c.def), r.color, {
                     { r.nombre, r.color },
                     { "Copias: " .. partida.copias(c.def.id) },
                     { "Valor " .. ui.dinero(mercado.valor(c.def.id, primeraActual)), p.amarillo },
