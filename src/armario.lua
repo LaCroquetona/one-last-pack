@@ -14,6 +14,9 @@ local nav = require "src.nav"
 local sobre = require "src.sobre"
 local caja = require "src.caja"
 local muebles = require "src.muebles"
+local productos = require "datos.productos"
+local prDib = require "src.productos"
+local mesa = require "src.mesa"
 
 local lg = love.graphics
 
@@ -553,56 +556,159 @@ local function panelSobres()
     end
 end
 
--- coleccion sellada: sobres y cajas cerrados de cada set; lo apartado no
--- sale en la mesa (para no abrirlo sin querer)
-local function dibujarSellado()
-    local x0, y = AREA_X, 30
-    fuentes.texto("TU COLECCIÓN SELLADA  -  LO APARTADO NO SALE EN LA MESA", x0, y, 1, p.grisclaro)
-    y = y + 14
-    -- de 4 en 4 sets, con flechas si hay mas
-    local lista = {}
-    for _, tipo in ipairs(sobres.lista) do
-        if partida.sobres(tipo.id) + partida.cajasDe(tipo.id) > 0 or mercado.salido(tipo.set) then table.insert(lista, tipo) end
-    end
-    local numPag = math.max(1, math.ceil(#lista / 4))
-    paginaSellado = math.max(1, math.min(paginaSellado, numPag))
-    if numPag > 1 then
-        local txt = paginaSellado .. "/" .. numPag
-        fuentes.texto(txt, x0 + 496 - 40, y - 14, 1, p.grisclaro, "center", 20)
-        ui.boton("sel_ant", "<", x0 + 496 - 58, y - 17, 16, 12, p.gris, paginaSellado > 1)
-        ui.boton("sel_sig", ">", x0 + 496 - 16, y - 17, 16, 12, p.gris, paginaSellado < numPag)
-    end
-    for i, tipo in ipairs(lista) do
-        if math.ceil(i / 4) == paginaSellado then
-            ui.caja(x0, y, 496, 70, p.grisosc)
-            sobre.dibujar(tipo.id, x0 + 22, y + 35, 1.2)
-            caja.dibujar(tipo.id, x0 + 70, y + 38, 1)
-            fuentes.texto(sets[tipo.set].nombre:upper(), x0 + 100, y + 6, 1, tipo.colores.letras)
-            local filas = {
-                { "s", true, "SOBRES 1ª ED", partida.sobres(tipo.id, true) },
-                { "s", false, "SOBRES REIMPR.", partida.sobres(tipo.id, false) },
-                { "c", true, "CAJAS 1ª ED", partida.cajasDe(tipo.id, true) },
-                { "c", false, "CAJAS REIMPR.", partida.cajasDe(tipo.id, false) },
-            }
-            for k, f in ipairs(filas) do
-                local fx0 = x0 + 100 + ((k - 1) % 2) * 196
-                local fy = y + 18 + math.floor((k - 1) / 2) * 24
-                local apartado = partida.apartado(f[1], tipo.id, f[2])
-                fuentes.texto(f[3] .. ": " .. f[4], fx0, fy + 3, 1, f[2] and p.amarillo or p.blanco)
-                ui.boton("apa_" .. f[1] .. "_" .. tipo.id .. "_" .. (f[2] and "1" or "n"), apartado and "APARTADO" or "APARTAR",
-                    fx0 + 118, fy, 70, 12, apartado and p.naranja or p.gris, f[4] > 0 or apartado)
-                -- las cajas se pueden vaciar en los sobres sin abrirlas
-                if f[1] == "c" and f[4] > 0 then
-                    local idSacar = "sac_" .. tipo.id .. "_" .. (f[2] and "1" or "n")
-                    ui.boton(idSacar, "SACAR", fx0 + 76, fy, 38, 12, p.azul)
-                    if ui.encima == idSacar then
-                        ui.tooltip("Sacar los sobres", p.azul, { { "Pasan a tus sobres sin abrir la caja" } })
-                    end
-                end
+-- Armario SELLADO: un mini armario de 3 estantes de 4 huecos (varios, con
+-- flechas) y la ficha del hueco elegido a la derecha. Lo apartado no sale en
+-- la mesa (para no abrirlo sin querer)
+local A = { x = 134, y = 62, w = 304, h = 280, d = 20 }
+local HW = prDib.HUECO
+local ESTS = { A.y + 92, A.y + 184, A.y + A.h }
+local POR_ARMARIO = 12
+local huecoSel        -- clave del hueco elegido ("etb:set1:1")
+local cuantosSel = 1  -- cuantos se mandan o se apartan
+
+local function hx(i) return A.x + muebles.dz(A.d) + 4 + (i - 1) * HW end
+
+local function partesClave(k)
+    local pid, tipoId, ed = k:match("^([^:]+):([^:]+):(.+)$")
+    return pid, tipoId, ed == "1"
+end
+
+-- clase de los apartados: "s" sobres, "c" cajas, el id de los demas
+local function claseDe(pid)
+    if pid == "sobre" then return "s" end
+    if pid == "caja" then return "c" end
+    return pid
+end
+
+local function nombreProd(pid)
+    if pid == "sobre" then return "SOBRES" end
+    return productos[pid].nombre
+end
+
+local function fichaSellado()
+    local FX, FY, FW = 452, 40, 182
+    if not huecoSel then
+        ui.caja(FX, FY, FW, 216)
+        fuentes.texto("TOCA UN HUECO", FX, FY + 90, 1, p.grisclaro, "center", FW)
+        fuentes.texto("PARA VER LO QUE HAY", FX, FY + 100, 1, p.grisclaro, "center", FW)
+    else
+        local pid, tipoId, primera = partesClave(huecoSel)
+        local tipo = sobres[tipoId]
+        local clase = claseDe(pid)
+        local total = partida.cuantos(clase, tipoId, primera)
+        local apartados = partida.apartadosDe(clase, tipoId, primera)
+        cuantosSel = math.max(1, math.min(cuantosSel, math.max(1, total)))
+        ui.caja(FX, FY, FW, 216)
+        muebles.rect(tipo.colores.base, FX + 1, FY + 1, FW - 2, 22)
+        muebles.rect(tipo.colores.rayas, FX + 1, FY + 20, FW - 2, 3)
+        fuentes.texto(nombreProd(pid) .. " " .. sets[tipo.set].nombre:upper(), FX + 8, FY + 6, 2, p.blanco)
+        if pid == "sobre" then
+            sobre.dibujar(tipoId, FX + 30, FY + 62, 1)
+        elseif pid == "caja" then
+            caja.dibujar(tipoId, FX + 30, FY + 62, 1)
+        else
+            prDib.uno(pid, tipoId, FX + 30, FY + 62, pid == "blister" and 0.6 or 1)
+        end
+        local valor
+        if pid == "sobre" then valor = mercado.sellado(tipo, primera)
+        else valor = mercado.valorProd(productos[pid], tipo, primera) end
+        local ly = FY + 32
+        local lineas = {
+            { "1ª ED: " .. partida.cuantos(clase, tipoId, true), p.amarillo },
+            { "REIMPR.: " .. partida.cuantos(clase, tipoId, false), p.grisclaro },
+            { "VALE: " .. (valor and ui.dinero(valor) or "-"), p.lima },
+        }
+        if pid ~= "sobre" then
+            local prod = productos[pid]
+            table.insert(lineas, { prod.sobres .. " SOBRES", p.grisclaro })
+            if prod.fundas then table.insert(lineas, { prod.fundas .. " FUNDAS", p.cian }) end
+            if prod.tops then table.insert(lineas, { prod.tops .. " TOPS", p.celeste }) end
+        end
+        for _, l in ipairs(lineas) do
+            fuentes.texto(l[1], FX + 62, ly, 1, l[2])
+            ly = ly + 11
+        end
+        fuentes.texto((primera and "ESTE HUECO: 1ª EDICIÓN" or "ESTE HUECO: REIMPRESIÓN"), FX + 8, FY + 98, 1, primera and p.amarillo or p.grisclaro)
+        local sy = FY + 110
+        ui.boton("hs_menos", "<", FX + 10, sy, 14, 12, p.azul, cuantosSel > 1)
+        muebles.rect(p.negro, FX + 26, sy, 30, 12)
+        fuentes.texto(tostring(cuantosSel), FX + 26, sy + 3, 1, p.blanco, "center", 30)
+        ui.boton("hs_mas", ">", FX + 58, sy, 14, 12, p.azul, cuantosSel < total)
+        fuentes.texto("DE " .. total, FX + 78, sy + 3, 1, p.gris)
+        ui.boton("hs_mesa", "SACAR A LA MESA", FX + 8, sy + 18, FW - 16, 16, p.azul, total > 0)
+        local libres = total - apartados
+        ui.boton("hs_apartar", "APARTAR", FX + 8, sy + 38, FW - 16, 14, p.grisosc, libres > 0)
+        local estado = apartados > 0 and ("APARTADOS: " .. apartados .. ". NO SALEN EN LA MESA") or "TODO SALE EN LA MESA"
+        fuentes.texto(estado, FX + 8, sy + 56, 1, apartados > 0 and p.naranja or p.gris)
+        if pid ~= "sobre" and pid ~= "blister" then
+            ui.boton("hs_vaciar", "SACAR SUS SOBRES", FX + 8, sy + 66, FW - 16, 12, p.grisosc, total > 0)
+            if ui.encima == "hs_vaciar" then
+                ui.tooltip("Sacar los sobres", p.azul, { { "Pasan a tus sobres sin abrirlo" } })
             end
-            y = y + 74
+        end
+        fuentes.texto("SE VENDE EN EL MÓVIL", FX + 8, sy + 84, 1, p.gris)
+    end
+    fuentes.texto("HUECO: 2 ETB, 4 TINS, 2 CAJAS,", FX, FY + 226, 1, p.gris, "center", FW)
+    fuentes.texto("20 SOBRES O 5 BLÍSTERS", FX, FY + 236, 1, p.gris, "center", FW)
+end
+
+local function dibujarSellado()
+    local H = partida.huecos()
+    local num = math.max(1, math.ceil(#H / POR_ARMARIO))
+    paginaSellado = math.max(1, math.min(paginaSellado, num))
+    ui.boton("hs_porset", "ORDENAR POR SET", 134, 20, 76, 11, p.azul, #H > 0)
+    ui.boton("hs_portipo", "ORDENAR POR TIPO", 213, 20, 80, 11, p.azul, #H > 0)
+    if num > 1 then
+        ui.boton("sel_ant", "<", 380, 20, 12, 11, p.azul, paginaSellado > 1)
+        fuentes.texto(paginaSellado .. "/" .. num, 394, 23, 1, p.blanco, "center", 20)
+        ui.boton("sel_sig", ">", 416, 20, 12, 11, p.azul, paginaSellado < num)
+    end
+    -- el mueble
+    muebles.mueble(A.x, A.y, A.w, A.h, A.d, 5)
+    muebles.bloque(A.x + 88, A.y - 22, 128, 13, 4, muebles.tonos(p.morado, 1, 1.3, 0.6))
+    fuentes.texto(num > 1 and ("MI ARMARIO " .. paginaSellado .. "/" .. num) or "MI ARMARIO", A.x + 88, A.y - 18, 1, p.amarillo, "center", 128)
+    muebles.balda(A.x, ESTS[1], A.w, A.d)
+    muebles.balda(A.x, ESTS[2], A.w, A.d)
+    for e = 1, 3 do
+        local techo = e == 1 and A.y + 6 or ESTS[e - 1] + 6
+        for i = 2, 4 do muebles.rect(p.negro, hx(i) - 1, techo + 4, 1, ESTS[e] - techo - 6, 0.25) end
+    end
+    local sigue = false
+    for j = 1, POR_ARMARIO do
+        local idx = (paginaSellado - 1) * POR_ARMARIO + j
+        local h = H[idx]
+        local e, i = math.floor((j - 1) / 4) + 1, (j - 1) % 4 + 1
+        local x, y = hx(i), ESTS[e]
+        local techo = e == 1 and A.y + 6 or ESTS[e - 1] + 6
+        if h then
+            local pid, tipoId, primera = partesClave(h.k)
+            prDib.enHueco(pid, tipoId, x, y, h.n)
+            local cap = partida.capacidadHueco(pid)
+            muebles.etiqueta(x + HW / 2 - 2, y - 11, h.n .. "/" .. cap, primera and p.amarillo or p.blanco, p.negro)
+            ui.zona("hsel_" .. idx, x + 2, techo + 2, HW - 4, y - techo - 2)
+            if h.k == huecoSel and not sigue then
+                sigue = true
+                lg.setColor(p.lima)
+                lg.rectangle("line", x + 2.5, techo + 0.5, HW - 5, y - techo - 1)
+                lg.setColor(1, 1, 1)
+            end
+            if ui.encima == "hsel_" .. idx then
+                local tipo = sobres[tipoId]
+                ui.tooltip(nombreProd(pid) .. " " .. sets[tipo.set].nombre:upper(), tipo.colores.letras,
+                    { { primera and "1ª EDICIÓN" or "REIMPRESIÓN", primera and p.amarillo or p.grisclaro }, { h.n .. " DE " .. cap .. " EN ESTE HUECO" } })
+            end
+        else
+            prDib.hueco(x + 3, techo + 6, HW - 8, y - techo - 10, "LIBRE")
         end
     end
+    if huecoSel then
+        local pid, tipoId, primera = partesClave(huecoSel)
+        if partida.cuantos(claseDe(pid), tipoId, primera) <= 0 then huecoSel = nil end
+    end
+    if #H == 0 then
+        fuentes.texto("AQUÍ VA LO QUE GUARDAS SIN ABRIR", A.x, A.y + 130, 1, p.grisclaro, "center", A.w - 20)
+    end
+    fichaSellado()
 end
 
 -- la copia que se ve en grande: la que tiene el raton, si no la elegida, si no la mejor
@@ -1160,18 +1266,39 @@ function armario.click(id)
         modo = id:sub(6)
     elseif id == "sel_ant" or id == "sel_sig" then
         paginaSellado = paginaSellado + (id == "sel_sig" and 1 or -1)
-    elseif id:match("^sac_") then
-        local tipoId, ed = id:match("^sac_(.+)_(%w)$")
-        local n = partida.vaciarCaja(sobres[tipoId], ed == "1")
-        if n then
-            sonido.tocar("giro")
-            fx.texto(ui.mx, ui.my - 10, "+" .. n .. " SOBRES", p.lima)
-            partida.guardar()
+    elseif id:match("^hsel_") then
+        local h = partida.huecos()[tonumber(id:sub(6))]
+        if h then
+            if huecoSel ~= h.k then cuantosSel = 1 end
+            huecoSel = h.k
         end
-    elseif id:match("^apa_") then
-        local clase, tipoId, ed = id:match("^apa_(%a)_(.+)_(%w)$")
-        partida.apartar(clase, tipoId, ed == "1")
+    elseif id == "hs_porset" or id == "hs_portipo" then
+        partida.ordenarArmario(id == "hs_porset" and "set" or "tipo")
         sonido.tocar("giro")
+        partida.guardar()
+    elseif id == "hs_menos" or id == "hs_mas" then
+        cuantosSel = cuantosSel + (id == "hs_mas" and 1 or -1)
+    elseif (id == "hs_mesa" or id == "hs_apartar" or id == "hs_vaciar") and huecoSel then
+        local pid, tipoId, primera = partesClave(huecoSel)
+        local clase = claseDe(pid)
+        if id == "hs_apartar" then
+            partida.apartar(clase, tipoId, primera, cuantosSel)
+            sonido.tocar("giro")
+            fx.texto(ui.mx, ui.my - 10, "APARTADOS", p.naranja)
+        elseif id == "hs_mesa" then
+            partida.apartar(clase, tipoId, primera, -cuantosSel)
+            mesa.verSet(tipoId)
+            partida.guardar()
+            nav.abrir()
+            return
+        else
+            local n = 0
+            for _ = 1, cuantosSel do n = n + (partida.vaciarProd(pid, sobres[tipoId], primera) or 0) end
+            if n > 0 then
+                sonido.tocar("giro")
+                fx.texto(ui.mx, ui.my - 10, "+" .. n .. " SOBRES", p.lima)
+            end
+        end
         partida.guardar()
     elseif id:match("^abrir_") then
         nav.abrir()
