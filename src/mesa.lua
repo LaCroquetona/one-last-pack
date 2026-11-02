@@ -12,6 +12,8 @@ local mercado = require "src.mercado"
 local carta = require "src.carta"
 local sobre = require "src.sobre"
 local caja = require "src.caja"
+local productos = require "datos.productos"
+local prDib = require "src.productos"
 local muebles = require "src.muebles"
 local encima = require "src.encima"
 local logros = require "src.logros"
@@ -38,6 +40,10 @@ local POR_TABLERO = 6
 local FUNDAS = { x = CAJA.x + 8, y = TABLERO + 142, w = CAJA.w - 16, h = 60 }
 -- donde se queda la caja abierta: abajo a la derecha del tapete (no tapa las cartas)
 local ESQUINA = { x = TAPETE.x + TAPETE.w - 36, y = TAPETE.y + 28, e = 1 }
+-- los sobres de una ETB o un tin abiertos, en abanico (en el mismo rincon)
+local ABANICO = { x = TAPETE.x + TAPETE.w - 70, y = TAPETE.y + 22 }
+-- fundas y tops sueltos que trae un producto
+local SUELTOS = { x = TAPETE.x + TAPETE.w - 30, y = TAPETE.y + 116 }
 -- animacion de abrir una caja (src/caja.lua)
 local animCaja
 local CW, CH = carta.ANCHO, carta.ALTO
@@ -67,33 +73,80 @@ local function dentro(r, x, y)
     return x >= r.x and x < r.x + r.w and y >= r.y and y < r.y + r.h
 end
 
--- tipos de sobre que tienes
-local function tiposConSobres()
-    local lista = {}
+-- selector de set de la columna: "todo" (un gancho por set), el id de un
+-- sobre (sus sobres de 1ª, de reimpresion y sus blisters) o "mix"
+local filtro = "todo"
+
+local function tieneAlgo(tipo)
+    if partida.disponibles(tipo.id) > 0 then return true end
+    for _, prod in ipairs(productos.lista) do
+        if not prod.mix and partida.prodDisponibles(prod.id, tipo.id) > 0 then return true end
+    end
+    return false
+end
+
+-- lo que se puede elegir en el selector
+local function opcionesFiltro()
+    local lista = { "todo" }
     for _, tipo in ipairs(sobres.lista) do
-        if partida.disponibles(tipo.id) > 0 then table.insert(lista, tipo) end
+        if mercado.salido(tipo.set) or tieneAlgo(tipo) then table.insert(lista, tipo.id) end
     end
     return lista
 end
 
--- pagina del tablero (solo con mas de 6 tipos de sobre)
-local paginaTablero = 1
-local function paginasTablero()
-    return math.max(1, math.ceil(#tiposConSobres() / POR_TABLERO))
+local function nombreFiltro(f)
+    if f == "todo" then return "TODO" end
+    if f == "mix" then return "MIX" end
+    return sets[sobres[f].set].nombre:upper()
 end
 
--- tipos de sobre que se ven en el tablero: caben 6; primero los que tienes y
--- luego huecos vacios de sets ya salidos
-local function tiposCaja()
-    local todos = tiposConSobres()
+-- lo que cuelga en el tablero: { clase = "sobre" | "blister", tipo, primera, id }
+local function entradasTodas()
+    local lista = {}
+    if filtro == "todo" then
+        for _, tipo in ipairs(sobres.lista) do
+            if partida.disponibles(tipo.id) > 0 then table.insert(lista, { clase = "sobre", tipo = tipo, id = "caja_" .. tipo.id }) end
+        end
+        for _, tipo in ipairs(sobres.lista) do
+            if partida.prodDisponibles("blister", tipo.id) > 0 then
+                table.insert(lista, { clase = "blister", tipo = tipo, id = "blis_" .. tipo.id })
+            end
+        end
+    elseif sobres[filtro] then
+        local tipo = sobres[filtro]
+        table.insert(lista, { clase = "sobre", tipo = tipo, primera = true, id = "caja_" .. tipo.id .. "_1" })
+        table.insert(lista, { clase = "sobre", tipo = tipo, primera = false, id = "caja_" .. tipo.id .. "_n" })
+        table.insert(lista, { clase = "blister", tipo = tipo, id = "blis_" .. tipo.id })
+    end
+    return lista
+end
+
+local function cuantosEntrada(e)
+    if e.clase == "blister" then return partida.prodDisponibles("blister", e.tipo.id) end
+    if e.primera == nil then return partida.disponibles(e.tipo.id) end
+    return partida.sinApartar("s", e.tipo.id, e.primera)
+end
+
+-- pagina del tablero (solo con mas de 6 ganchos)
+local paginaTablero = 1
+local function paginasTablero()
+    return math.max(1, math.ceil(#entradasTodas() / POR_TABLERO))
+end
+
+-- lo que se ve en el tablero: caben 6; en TODO, primero lo que tienes y luego
+-- huecos vacios de sets ya salidos
+local function entradas()
+    local todos = entradasTodas()
     paginaTablero = math.max(1, math.min(paginaTablero, paginasTablero()))
     local lista = {}
     for i = (paginaTablero - 1) * POR_TABLERO + 1, math.min(#todos, paginaTablero * POR_TABLERO) do
         table.insert(lista, todos[i])
     end
-    if #todos <= POR_TABLERO then
+    if filtro == "todo" and #todos <= POR_TABLERO then
         for _, tipo in ipairs(sobres.lista) do
-            if mercado.salido(tipo.set) and partida.disponibles(tipo.id) == 0 and #lista < POR_TABLERO then table.insert(lista, tipo) end
+            if mercado.salido(tipo.set) and partida.disponibles(tipo.id) == 0 and #lista < POR_TABLERO then
+                table.insert(lista, { clase = "sobre", tipo = tipo, id = "caja_" .. tipo.id })
+            end
         end
     end
     return lista
@@ -112,11 +165,31 @@ local function hueco(k)
     return hx, hy + 19
 end
 
-local function huecoDe(tipoId)
-    for k, tipo in ipairs(tiposCaja()) do
-        if tipo.id == tipoId then return hueco(k) end
+local function huecoDe(tipoId, primera)
+    local libre
+    for k, e in ipairs(entradas()) do
+        if e.clase == "sobre" and e.tipo.id == tipoId then
+            if e.primera == nil or e.primera == primera then return hueco(k) end
+            libre = libre or k
+        end
     end
+    if libre then return hueco(libre) end
     return CAJA.x + CAJA.w / 2, CAJA.y + 60
+end
+
+-- lo sellado grande de la balda: { prod, tipo } con algo que abrir
+local function pilasBalda()
+    local lista = {}
+    for _, tipo in ipairs(sobres.lista) do
+        if filtro == "todo" or filtro == tipo.id then
+            for _, prod in ipairs(productos.lista) do
+                if prod.sitio ~= "gancho" and not prod.mix and partida.prodDisponibles(prod.id, tipo.id) > 0 then
+                    table.insert(lista, { prod = prod, tipo = tipo })
+                end
+            end
+        end
+    end
+    return lista
 end
 
 -- copias sacadas a la mesa: sitio por defecto abajo del tapete
@@ -160,22 +233,50 @@ local function brilloFunda(x, y)
     partida.guardar()
 end
 
--- sobres que puedes abrir: los guardados y los de la caja abierta
+-- sobres que puedes abrir: los guardados, los de los blisters y los de la caja abierta
 local function quedanSobres()
     local n = partida.cajaAbierta and partida.cajaAbierta.quedan or 0
-    for _, t in ipairs(sobres.lista) do n = n + partida.disponibles(t.id) end
+    for _, t in ipairs(sobres.lista) do
+        n = n + partida.disponibles(t.id) + partida.prodDisponibles("blister", t.id) * productos.blister.sobres
+    end
     return n
+end
+
+-- lo que se queda en la mesa al abrir un producto: sus sobres en abanico y lo que trae
+local function hayAbanico()
+    return partida.cajaAbierta and partida.cajaAbierta.prod ~= nil
+end
+
+-- donde vuelven los sobres de lo abierto: la caja o el abanico
+local function rincon()
+    if hayAbanico() then return ABANICO.x, ABANICO.y + 20 end
+    return ESQUINA.x, ESQUINA.y
+end
+
+-- donde acaba cada sobre del abanico al abrir una ETB o un tin
+local function destinosAbanico(n)
+    local l = {}
+    local x0 = ABANICO.x - (n - 1) * 5
+    for i = 0, n - 1 do
+        local d = i - (n - 1) / 2
+        l[i + 1] = { x0 + i * 10, ABANICO.y + math.abs(d) * 1.5, d * 0.06 }
+    end
+    return l
+end
+
+local function haySueltos()
+    return partida.sueltos.fundas > 0 or partida.sueltos.tops > 0
 end
 
 -- empezar a abrir un sobre de este tipo, llegando desde (x, y)
 -- deCaja: el sobre sale de la caja abierta, no de los guardados
-local function soltarSobre(tipoId, x, y, a, escala, deCaja)
+local function soltarSobre(tipoId, x, y, a, escala, deCaja, ed)
     if apertura.bloqueada() or animCaja then return false end
     local tipo, primera
     if deCaja then
         tipo, primera = partida.sacarDeCaja()
     else
-        tipo, primera = partida.sacarSobre(tipoId, true)
+        tipo, primera = partida.sacarSobre(tipoId, true, ed)
     end
     if not tipo then return false end
     -- lo que habia en la mesa vuelve solo al armario
@@ -191,12 +292,12 @@ local function soltarSobre(tipoId, x, y, a, escala, deCaja)
 end
 
 -- vuelve volando a su sitio en la caja de carton (o a la caja abierta)
-local function volarACaja(tipoId, x0, y0, e0, a, deCaja)
+local function volarACaja(tipoId, x0, y0, e0, a, deCaja, primera)
     local x1, y1
     if deCaja and partida.cajaAbierta then
-        x1, y1 = ESQUINA.x, ESQUINA.y
+        x1, y1 = rincon()
     else
-        x1, y1 = huecoDe(tipoId)
+        x1, y1 = huecoDe(tipoId, primera)
     end
     table.insert(vuelos, { tipo = tipoId, x0 = x0, y0 = y0, x1 = x1, y1 = y1, e0 = e0, a = a or 0, t = 0 })
 end
@@ -212,7 +313,7 @@ function mesa.cancelar()
     local r = apertura.cancelar()
     if not r then return false end
     local cx, cy = apertura.centro()
-    volarACaja(r.tipo, cx, cy, 3, 0, r.deCaja)
+    volarACaja(r.tipo, cx, cy, 3, 0, r.deCaja, r.primera)
     sonido.tocar("giro")
     fx.texto(cx, cy - 60, "GUARDADO", p.lima)
     verPista("guardar")
@@ -224,7 +325,12 @@ end
 
 -- todas las cartas sueltas de la mesa al armario
 function mesa.recoger()
-    if #partida.mesa == 0 or apertura.activa() or animCaja then return false end
+    if apertura.activa() or animCaja then return false end
+    if #partida.mesa == 0 and not hayAbanico() and not haySueltos() then return false end
+    -- los sobres del abanico vuelven con los guardados y lo suelto a su caja
+    if hayAbanico() then partida.cerrarCajaAbierta() end
+    partida.guardarSueltos("fundas")
+    partida.guardarSueltos("tops")
     partida.recogerMesa()
     mesaSel = nil
     sonido.tocar("giro")
@@ -234,11 +340,11 @@ function mesa.recoger()
 end
 
 -- saca los sobres de una caja cerrada sin abrirla
-local function sacarDeCajaCerrada(tipoId)
-    local n = partida.vaciarCaja(sobres[tipoId])
+local function sacarDeCajaCerrada(pid, tipoId)
+    local n = partida.vaciarProd(pid, sobres[tipoId])
     chipCaja = nil
     if not n then return end
-    local s = sitioCajas[tipoId]
+    local s = sitioCajas[pid .. "_" .. tipoId]
     sonido.tocar("giro")
     fx.texto(s and s.x or CAJA.x + CAJA.w / 2, (s and s.y or CAJA.y + 170) - 20, "+" .. n .. " SOBRES", p.lima)
     verPista("sacar")
@@ -288,17 +394,44 @@ local function dibujarCaja()
         local cad = (mano.deCaja and c) and ("GUARDAR LOS " .. c.quedan) or "GUARDAR"
         fuentes.texto(cad, CAJA.x, CAJA.y + 15, 1, p.lima, "center", CAJA.w)
     end
-    for k, tipo in ipairs(tiposCaja()) do
+    -- selector de set
+    local ops = opcionesFiltro()
+    local pos = 1
+    for i, f in ipairs(ops) do if f == filtro then pos = i end end
+    if pos == 1 then filtro = "todo" end
+    if #ops > 1 then
+        local sy = CAJA.y + 2
+        ui.boton("mesa_filtro_-1", "<", CAJA.x + 2, sy, 14, 11, p.azul, pos > 1)
+        ui.boton("mesa_filtro_1", ">", CAJA.x + CAJA.w - 20, sy, 14, 11, p.azul, pos < #ops)
+        local cad = nombreFiltro(filtro)
+        local col = filtro ~= "todo" and sobres[filtro] and sobres[filtro].colores.letras or p.blanco
+        muebles.rect(p.negro, CAJA.x + 18, sy, CAJA.w - 40, 11, 0.6)
+        fuentes.texto(cad, CAJA.x + 18, sy + 3, 1, col, "center", CAJA.w - 40)
+    end
+
+    for k, e in ipairs(entradas()) do
+        local tipo = e.tipo
         local x, y = hueco(k)
-        local n = partida.disponibles(tipo.id)
-        local p1 = partida.apartado("s", tipo.id, true) and 0 or partida.sobres(tipo.id, true)
-        local cogido = mano and mano.cosa == "sobre" and mano.tipo == tipo.id and not mano.deCaja and 1 or 0
+        local n = cuantosEntrada(e)
+        local p1 = 0
+        if e.clase == "sobre" and e.primera ~= false then p1 = partida.sinApartar("s", tipo.id, true) end
+        local cogido = mano and mano.cosa == "sobre" and mano.tipo == tipo.id and not mano.deCaja and mano.id == e.id and 1 or 0
         local quedan = n - cogido
         -- colgados de su gancho
         local bx, by = ganchoHueco(k)
         local hx, hy = muebles.agujero(bx, by, 12)
         muebles.gancho(bx, by, 12)
-        if quedan > 0 then muebles.colgados(tipo.id, hx, hy, math.min(3, quedan), 0) end
+        if quedan > 0 then
+            if e.clase == "blister" then
+                lg.push()
+                lg.translate(hx, hy)
+                lg.scale(0.45, 0.45)
+                prDib.blister(tipo.id, tipo.colores, 0, 0, math.min(2, quedan), 0)
+                lg.pop()
+            else
+                muebles.colgados(tipo.id, hx, hy, math.min(3, quedan), 0)
+            end
+        end
         muebles.punta(bx, by, 12)
         -- pegatina dorada en el de delante si te queda alguno de 1ª edicion
         if quedan > 0 and p1 > 0 then
@@ -310,23 +443,40 @@ local function dibujarCaja()
             fuentes.texto("1ª", hx + 16 - sw, hy + 3, 1, p.negro, "center", sw)
         end
         if quedan > 0 then
-            local enc = ui.encima == "caja_" .. tipo.id and not bloqueada
+            local enc = ui.encima == e.id and not bloqueada
             if enc then
                 lg.setColor(1, 1, 1, 0.25)
                 lg.rectangle("line", x - 15.5, y - 22.5, 31, 45)
-                local lineas = { { quedan .. (quedan == 1 and " SOBRE" or " SOBRES") } }
-                if p1 > 0 then table.insert(lineas, { math.min(p1, quedan) .. " DE 1ª EDICIÓN", p.amarillo }) end
-                table.insert(lineas, { "Arrástralo al tapete", p.grisclaro })
+                local lineas
+                if e.clase == "blister" then
+                    lineas = { { quedan .. (quedan == 1 and " BLÍSTER" or " BLÍSTERS") }, { "Tócalo para rasgarlo", p.grisclaro } }
+                else
+                    lineas = { { quedan .. (quedan == 1 and " SOBRE" or " SOBRES") } }
+                    if p1 > 0 then table.insert(lineas, { math.min(p1, quedan) .. " DE 1ª EDICIÓN", p.amarillo }) end
+                    table.insert(lineas, { "Arrástralo al tapete", p.grisclaro })
+                end
                 ui.tooltip(sets[tipo.set].nombre:upper(), p.blanco, lineas)
             end
-            if not bloqueada then ui.zona("caja_" .. tipo.id, x - 16, y - 24, 32, 50) end
+            if not bloqueada then ui.zona(e.id, x - 16, y - 24, 32, 50) end
         end
-        -- si no cabe (texto grande del movil), solo la cantidad: el set ya va en el sobre
-        local txt = sets[tipo.set].codigo .. " X" .. quedan
-        if fuentes.ancho(txt) > 24 then txt = "X" .. quedan end
-        muebles.etiqueta(x, y + 24, txt, quedan > 0 and p.blanco or p.grisosc, quedan > 0 and p.negro or p.gris)
+        -- etiqueta: set y cuantos (en un set: la edicion o BLÍSTER)
+        local txt
+        if filtro == "todo" then
+            txt = sets[tipo.set].codigo .. " X" .. quedan
+            if e.clase == "blister" then txt = "BL X" .. quedan end
+        elseif e.clase == "blister" then
+            txt = "BL X" .. quedan
+        else
+            txt = (e.primera and "1ª X" or "X") .. quedan
+        end
+        if fuentes.ancho(txt) > 28 then txt = "X" .. quedan end
+        local fondo = quedan > 0 and (e.primera and p.amarillo or p.blanco) or p.grisosc
+        muebles.etiqueta(x, y + 24, txt, fondo, quedan > 0 and p.negro or p.gris)
     end
-    -- con mas de 6 tipos de sobre, flechas para ver los demas
+    if filtro ~= "todo" and not sobres[filtro] then
+        fuentes.texto("NADA DE MIX", CAJA.x, TABLERO + 40, 1, p.grisclaro, "center", CAJA.w - 6)
+    end
+    -- con mas de 6 ganchos, flechas para ver los demas
     local paginas = paginasTablero()
     if paginas > 1 then
         ui.boton("mesa_tablero_-1", "<", CAJA.x + 4, TABLERO + 130, 12, 9, p.azul, paginaTablero > 1)
@@ -334,28 +484,36 @@ local function dibujarCaja()
         ui.boton("mesa_tablero_1", ">", CAJA.x + CAJA.w - 22, TABLERO + 130, 12, 9, p.azul, paginaTablero < paginas)
     end
 
-    -- cajas cerradas: se arrastran al tapete para abrirlas
-    -- hasta 4 sets de cajas, cada uno en su pila encima de la balda
-    local hayCajas = 0
-    for _, tipo in ipairs(sobres.lista) do
-        local n = partida.cajasDisponibles(tipo.id)
-        if n > 0 and hayCajas < 4 then
-            hayCajas = hayCajas + 1
-            local cx, cy = CAJA.x + 18 + (hayCajas - 1) * 25, BALDA - 9
-            local cogida = mano and mano.cosa == "cajabox" and mano.tipo == tipo.id
-            local quedan = n - (cogida and 1 or 0)
-            local pila = math.min(4, quedan)
-            for i = 0, pila - 1 do caja.dibujar(tipo.id, cx + (i % 2), cy - i * 9, 1, { mini = true }) end
-            fuentes.texto("X" .. quedan, cx - 12, BALDA + 7, 1, p.blanco, "center", 24)
-            local top = cy - math.max(0, pila - 1) * 9
-            sitioCajas[tipo.id] = { x = cx, y = top }
-            if not bloqueada and not animCaja then ui.zona("cajabox_" .. tipo.id, cx - 12, top - 10, 24, cy - top + 20) end
+    -- lo sellado grande (cajas, ETB y tins): se arrastra al tapete para abrirlo.
+    -- Caben 4 pilas encima de la balda
+    sitioCajas = {}
+    for i, pila in ipairs(pilasBalda()) do
+        if i > 4 then break end
+        local pid, tipo = pila.prod.id, pila.tipo
+        local n = partida.prodDisponibles(pid, tipo.id)
+        local cx, cy = CAJA.x + 18 + (i - 1) * 25, BALDA - 9
+        local cogida = mano and mano.cosa == "cajabox" and mano.tipo == tipo.id and mano.prod == pid
+        local quedan = n - (cogida and 1 or 0)
+        local pila_ = math.min(pid == "caja" and 4 or 3, quedan)
+        local alto = pid == "caja" and 9 or (pid == "etb" and 17 or 10)
+        for k = 0, pila_ - 1 do
+            if pid == "caja" then caja.dibujar(tipo.id, cx + (k % 2), cy - k * 9, 1, { mini = true })
+            else prDib.mini(pid, tipo.id, cx + (k % 2), BALDA - k * alto) end
+        end
+        fuentes.texto("X" .. quedan, cx - 12, BALDA + 7, 1, p.blanco, "center", 24)
+        local top = pid == "caja" and cy - math.max(0, pila_ - 1) * 9 or BALDA - pila_ * alto + 6
+        sitioCajas[pid .. "_" .. tipo.id] = { x = cx, y = top, pid = pid, tipo = tipo.id }
+        local zid = pid == "caja" and ("cajabox_" .. tipo.id) or ("prodbox_" .. pid .. "_" .. tipo.id)
+        if not bloqueada and not animCaja and quedan > 0 then ui.zona(zid, cx - 12, top - 10, 24, BALDA - top + 12) end
+        if ui.encima == zid and not mano then
+            ui.tooltip(pila.prod.nombre .. " " .. sets[tipo.set].nombre:upper(), p.amarillo,
+                { { quedan .. " SIN ABRIR" }, { "Arrástrala al tapete para abrirla", p.grisclaro }, { "Tócala para sacar sus sobres", p.grisclaro } })
         end
     end
-    -- chip para sacar los sobres de la caja tocada (se va solo)
+    -- chip para sacar los sobres de lo tocado (se va solo)
     if chipCaja and not mano then
-        local s = sitioCajas[chipCaja.tipo]
-        if s and partida.cajasDisponibles(chipCaja.tipo) > 0 and not bloqueada then
+        local s = sitioCajas[chipCaja.prod .. "_" .. chipCaja.tipo]
+        if s and partida.prodDisponibles(chipCaja.prod, chipCaja.tipo) > 0 and not bloqueada then
             local w = math.min(CAJA.w - 4, math.max(62, fuentes.ancho("SACAR SOBRES") + 10))
             local x = math.max(CAJA.x + 2, math.min(CAJA.x + CAJA.w - w - 2, s.x - w / 2))
             ui.boton("mesa_sacar", "SACAR SOBRES", x, BALDA + 14, w, 12, p.azul)
@@ -460,6 +618,10 @@ local function dibujarTapete()
             fuentes.texto("CÓMPRALOS EN LA TIENDA", cx, cy + 16, 1, p.verde, "center", T.w)
         end
     end
+    -- con un abanico o algo suelto, RECOGER MESA lo guarda todo
+    if not animCaja and not apertura.activa() and (hayAbanico() or haySueltos()) and not (#partida.mesa > 0 and quedanSobres() == 0) then
+        ui.boton("mesa_recoger", "RECOGER MESA", T.x + T.w - 92, T.y + T.h - 22, 84, 16, p.azul)
+    end
 end
 
 local function dibujarCopias()
@@ -560,8 +722,13 @@ local function dibujarMano()
         lg.pop()
         lg.setColor(1, 1, 1)
         lg.draw(sobre.imagen(mano.tipo), mano.x, mano.y, mano.a, e, e, W / 2, 4)
+    elseif mano.cosa == "cajabox" and mano.prod ~= "caja" then
+        prDib.uno(mano.prod, mano.tipo, mano.x, mano.y + 14 * mano.escala, mano.escala, mano.a)
     elseif mano.cosa == "cajabox" then
         caja.dibujar(mano.tipo, mano.x, mano.y, mano.escala, { rot = mano.a, colgada = true, sombra = { 6, 10 } })
+    elseif mano.cosa == "suelto" then
+        local n = partida.sueltos[mano.que]
+        if mano.que == "fundas" then muebles.blister(mano.x, mano.y - 4, 1, mano.a, "X" .. n) else muebles.bolsaTops(mano.x, mano.y - 4, 1, mano.a, "X" .. n) end
     elseif mano.cosa == "funda" or mano.cosa == "top" then
         local esTop = mano.cosa == "top"
         local w, h = CW * 2, CH * 2
@@ -596,11 +763,31 @@ local function dibujarMano()
 end
 
 -- la caja abierta en su esquina, con los sobres que le quedan
+-- los sobres de una ETB o un tin abiertos, en abanico en la esquina
+local function dibujarAbanico(c, quedan)
+    local n = math.min(9, quedan)
+    local x0 = ABANICO.x - (n - 1) * 5
+    lg.setColor(1, 1, 1)
+    for i = 0, n - 1 do
+        local d = i - (n - 1) / 2
+        lg.draw(sobre.imagen(c.tipo), x0 + i * 10, ABANICO.y + math.abs(d) * 1.5, d * 0.06, 0.8, 0.8, 15, 0)
+    end
+    fuentes.texto("X" .. quedan, ABANICO.x - 20, ABANICO.y + 40, 1, p.amarillo, "center", 40)
+    if quedan > 0 and not apertura.bloqueada() then
+        ui.zona("caja_abierta", ABANICO.x - 52, ABANICO.y - 4, 104, 42)
+        if ui.encima == "caja_abierta" and not mano then
+            ui.tooltip((productos[c.prod] and productos[c.prod].nombre or "") .. " abierta", p.amarillo,
+                { { "Quedan " .. quedan .. " sobres" }, { "Arrastra uno al tapete", p.grisclaro }, { "RECOGER MESA los guarda", p.grisclaro } })
+        end
+    end
+end
+
 local function dibujarCajaAbierta()
     local c = partida.cajaAbierta
     if not c or animCaja then return end
     local cogido = mano and mano.cosa == "sobre" and mano.deCaja and 1 or 0
     local quedan = c.quedan - cogido
+    if c.prod then return dibujarAbanico(c, quedan) end
     caja.dibujar(c.tipo, ESQUINA.x, ESQUINA.y, ESQUINA.e, { abierta = true, quedan = quedan })
     fuentes.texto("X" .. quedan, ESQUINA.x - 20, ESQUINA.y + 22, 1, p.amarillo, "center", 40)
     if quedan > 0 and not apertura.bloqueada() then
@@ -609,6 +796,28 @@ local function dibujarCajaAbierta()
             ui.tooltip("Caja abierta", p.amarillo, { { "Quedan " .. quedan .. " sobres" }, { "Arrastra uno al tapete", p.grisclaro } })
         end
     end
+end
+
+-- fundas y tops que trae un producto: sueltos en la mesa hasta que se guardan
+local function dibujarSueltos()
+    if animCaja then return end
+    local x, y = SUELTOS.x, SUELTOS.y
+    local hay = false
+    for _, que in ipairs({ "fundas", "tops" }) do
+        local n = partida.sueltos[que]
+        local cogido = mano and mano.cosa == "suelto" and mano.que == que
+        if n > 0 and not cogido then
+            hay = true
+            if que == "fundas" then muebles.blister(x, y, 1, 0.12, "X" .. n) else muebles.bolsaTops(x, y, 1, -0.1, "X" .. n) end
+            if not apertura.bloqueada() then ui.zona("suelto_" .. que, x - 16, y - 2, 32, 48) end
+            if ui.encima == "suelto_" .. que and not mano then
+                ui.tooltip(que == "fundas" and "Fundas" or "Top loaders", que == "fundas" and p.cian or p.celeste,
+                    { { n .. " sueltos en la mesa" }, { "Arrástralos a tu caja", p.grisclaro } })
+            end
+        end
+        x = x - 40
+    end
+    if hay then fuentes.texto("< A TU CAJA", SUELTOS.x - 70, SUELTOS.y + 54, 1, p.lima, "center", 100) end
 end
 
 local function dibujarVuelos()
@@ -624,6 +833,7 @@ local PISTAS = {
     guardar = "¿MEJOR LUEGO? TOCA GUARDAR O ARRASTRA EL SOBRE A TU CAJA",
     sacar = "TOCA UNA CAJA PARA SACAR SUS SOBRES SIN ABRIRLA",
     cajaAbierta = "ARRASTRA UN SOBRE DE LA CAJA A TU CAJA Y SE GUARDAN TODOS",
+    sueltos = "ARRASTRA LAS FUNDAS Y LOS TOPS A TU CAJA PARA GUARDARLOS",
 }
 
 -- la pista que toca ahora y donde apunta
@@ -638,10 +848,11 @@ local function pistaQueToca()
         return "cajaAbierta", ESQUINA.x - 20, ESQUINA.y + 40
     end
     if not partida.pistas.sacar then
-        for id, s in pairs(sitioCajas) do
-            if partida.cajasDisponibles(id) > 0 then return "sacar", s.x + 20, s.y - 26 end
+        for _, s in pairs(sitioCajas) do
+            if partida.prodDisponibles(s.pid, s.tipo) > 0 then return "sacar", s.x + 20, s.y - 26 end
         end
     end
+    if haySueltos() and not partida.pistas.sueltos then return "sueltos", SUELTOS.x - 30, SUELTOS.y + 34 end
 end
 
 local function dibujarPista()
@@ -678,11 +889,12 @@ function mesa.dibujar()
         return
     end
     dibujarCajaAbierta()
+    dibujarSueltos()
     dibujarCopias()
     apertura.dibujar()
     if animCaja then
         local cx, cy = apertura.centro()
-        caja.dibujarAnim(animCaja, cx, cy)
+        if animCaja.prod then prDib.dibujarAnim(animCaja, cx, cy) else caja.dibujarAnim(animCaja, cx, cy) end
     end
     botonesCopia()
     -- el sobre del tapete aun se puede guardar sin abrir
@@ -723,7 +935,8 @@ function mesa.update(dt)
     -- abriendo una caja: al saltar la tapa, fiesta
     if animCaja then
         local cx, cy = apertura.centro()
-        if caja.avanzar(animCaja, dt, cx, cy) then
+        local avanzar = animCaja.prod and prDib.avanzarAnim or caja.avanzar
+        if avanzar(animCaja, dt, cx, cy) then
             local col = sobres[animCaja.tipo].colores
             sonido.tocar("rasgar")
             sonido.tocar("secreta")
@@ -735,7 +948,7 @@ function mesa.update(dt)
             fx.tintar(col.rayas)
             directo.caja()
         end
-        if animCaja.t >= caja.DURACION then
+        if animCaja.t >= (animCaja.prod and prDib.DURACION or caja.DURACION) then
             animCaja = nil
             sonido.tocar("giro")
             partida.guardar()
@@ -853,7 +1066,7 @@ function mesa.presionar(id, x, y)
         return true
     end
     if id == "mesa_sacar" then
-        if chipCaja then sacarDeCajaCerrada(chipCaja.tipo) end
+        if chipCaja then sacarDeCajaCerrada(chipCaja.prod, chipCaja.tipo) end
         return true
     end
     if id and directo.click(id) then return true end
@@ -862,13 +1075,36 @@ function mesa.presionar(id, x, y)
         return true
     end
     if id and id:match("^cajabox_") then
-        mano = { cosa = "cajabox", tipo = id:sub(9), x = x, y = y, a = 0, w = 0, vx = 0, escala = 0.8, x0 = x, y0 = y }
+        mano = { cosa = "cajabox", prod = "caja", tipo = id:sub(9), x = x, y = y, a = 0, w = 0, vx = 0, escala = 0.8, x0 = x, y0 = y }
         sonido.tocar("encima", 1.0)
+        return true
+    end
+    if id and id:match("^prodbox_") then
+        local pid, tipoId = id:match("^prodbox_([^_]+)_(.+)$")
+        mano = { cosa = "cajabox", prod = pid, tipo = tipoId, x = x, y = y, a = 0, w = 0, vx = 0, escala = 0.8, x0 = x, y0 = y }
+        sonido.tocar("encima", 1.0)
+        return true
+    end
+    if id and id:match("^blis_") then
+        local tipoId = id:sub(6)
+        if not apertura.bloqueada() and partida.rasgarBlister(tipoId) ~= nil then
+            local bx, by = ui.mx, ui.my
+            sonido.tocar("rasgar")
+            fx.explosion(bx, by, sobres[tipoId].colores.letras, 18, 80)
+            fx.texto(bx + 30, by - 14, "+" .. productos.blister.sobres .. " SOBRES", p.lima)
+            reporte.apuntar("blister " .. tipoId)
+            partida.guardar()
+        end
+        return true
+    end
+    if id and id:match("^suelto_") then
+        mano = { cosa = "suelto", que = id:sub(8), x = x, y = y, a = 0, w = 0, vx = 0, escala = 1 }
+        sonido.tocar("encima", 1.2)
         return true
     end
     if id == "caja_abierta" and partida.cajaAbierta then
         mano = { cosa = "sobre", tipo = partida.cajaAbierta.tipo, deCaja = true, x = x, y = y, a = 0, w = 0, vx = 0, escala = 1,
-                 hx = ESQUINA.x, hy = ESQUINA.y }
+                 hx = select(1, rincon()), hy = select(2, rincon()) }
         sonido.tocar("encima", 1.3)
         return true
     end
@@ -877,8 +1113,12 @@ function mesa.presionar(id, x, y)
         if que == "funda" or que == "top" then
             mano = { cosa = que, x = x, y = y, a = 0, w = 0, vx = 0, escala = 1 }
         else
-            local hx, hy = huecoDe(que)
-            mano = { cosa = "sobre", tipo = que, x = x, y = y, a = 0, w = 0, vx = 0, escala = 1, hx = hx, hy = hy }
+            local tipoId, ed = que:match("^(.-)_([1n])$")
+            tipoId = tipoId or que
+            local primera
+            if ed then primera = ed == "1" end
+            local hx, hy = huecoDe(tipoId, primera)
+            mano = { cosa = "sobre", tipo = tipoId, primera = primera, id = id, x = x, y = y, a = 0, w = 0, vx = 0, escala = 1, hx = hx, hy = hy }
         end
         sonido.tocar("encima", 1.3)
         return true
@@ -923,7 +1163,7 @@ function mesa.mover(x, y)
         if r then
             pulsadoEnTapete = false
             local hx, hy = huecoDe(r.tipo)
-            if r.deCaja and partida.cajaAbierta then hx, hy = ESQUINA.x, ESQUINA.y end
+            if r.deCaja and partida.cajaAbierta then hx, hy = rincon() end
             mano = { cosa = "sobre", tipo = r.tipo, deCaja = r.deCaja or nil, x = x, y = y, a = 0, w = 0, vx = 0,
                      escala = 3, hx = hx, hy = hy }
             sonido.tocar("encima", 1.3)
@@ -973,7 +1213,7 @@ function mesa.soltar(x, y)
     mano = nil
     if not m then return end
     if m.cosa == "sobre" then
-        if dentro(TAPETE, x, y) and soltarSobre(m.tipo, m.x, m.y + sobre.ALTO * m.escala / 2 - 4 * m.escala, m.a, m.escala, m.deCaja) then
+        if dentro(TAPETE, x, y) and soltarSobre(m.tipo, m.x, m.y + sobre.ALTO * m.escala / 2 - 4 * m.escala, m.a, m.escala, m.deCaja, m.primera) then
             return
         end
         -- el de la caja abierta soltado en la caja de carton: se guardan todos
@@ -994,18 +1234,33 @@ function mesa.soltar(x, y)
     elseif m.cosa == "cajabox" then
         -- tocada sin arrastrar: sale el chip para sacar sus sobres
         if not m.movida then
-            chipCaja = { tipo = m.tipo, t = 3 }
+            chipCaja = { prod = m.prod, tipo = m.tipo, t = 3 }
             return
         end
-        if dentro(TAPETE, x, y) and not apertura.bloqueada() and not animCaja and partida.abrirCaja(sobres[m.tipo]) then
+        if dentro(TAPETE, x, y) and not apertura.bloqueada() and not animCaja and partida.abrirProd(m.prod, sobres[m.tipo]) then
             apertura.recoger()
             partida.recogerMesa()
             mesaSel = nil
-            logros.marcar("caja")
-            animCaja = { tipo = m.tipo, t = 0, x0 = m.x, y0 = m.y + caja.COLGADO * m.escala, x1 = ESQUINA.x, y1 = ESQUINA.y, e1 = ESQUINA.e,
-                         quedan = sobres.caja.sobres }
+            if m.prod == "caja" then
+                logros.marcar("caja")
+                animCaja = { tipo = m.tipo, t = 0, x0 = m.x, y0 = m.y + caja.COLGADO * m.escala, x1 = ESQUINA.x, y1 = ESQUINA.y, e1 = ESQUINA.e,
+                             quedan = sobres.caja.sobres }
+            else
+                if m.prod == "etb" then logros.marcar("etb") end
+                animCaja = { prod = m.prod, tipo = m.tipo, t = 0, x0 = m.x, y0 = m.y + 10, destinos = destinosAbanico(productos[m.prod].sobres) }
+            end
+            reporte.apuntar("abre " .. m.prod .. " " .. m.tipo)
             sonido.tocar("giro")
             partida.guardar()
+        end
+    elseif m.cosa == "suelto" then
+        if dentro(CAJA, x, y) then
+            local n = partida.guardarSueltos(m.que)
+            if n > 0 then
+                brilloFunda(x, y)
+                fx.texto(x, y - 10, "+" .. n .. (m.que == "fundas" and " FUNDAS" or " TOPS"), m.que == "fundas" and p.cian or p.celeste)
+                verPista("sueltos")
+            end
         end
     elseif m.cosa == "funda" or m.cosa == "top" then
         local hacer = m.cosa == "top" and ponerTopCopia or enfundarCopia
@@ -1053,6 +1308,15 @@ function mesa.click(id)
     local d = id and id:match("^mesa_tablero_(%-?1)$")
     if d then
         paginaTablero = paginaTablero + tonumber(d)
+        return
+    end
+    d = id and id:match("^mesa_filtro_(%-?1)$")
+    if d then
+        local ops = opcionesFiltro()
+        local pos = 1
+        for i, f in ipairs(ops) do if f == filtro then pos = i end end
+        filtro = ops[math.max(1, math.min(#ops, pos + tonumber(d)))]
+        paginaTablero = 1
         return
     end
     local s = mesaSel and entradaMesa(mesaSel)
@@ -1110,7 +1374,7 @@ function mesa.espacio()
     local tipoId = apertura.ultimoTipo()
     if not tipoId or partida.disponibles(tipoId) == 0 then
         tipoId = nil
-        for _, tipo in ipairs(tiposConSobres()) do
+        for _, tipo in ipairs(sobres.lista) do
             if partida.disponibles(tipo.id) > 0 then
                 tipoId = tipo.id
                 break
@@ -1126,11 +1390,18 @@ function mesa.espacio()
     soltarSobre(tipoId, x, y, 0.5, 1)
 end
 
+-- el armario manda algo a la mesa: se ve su set
+function mesa.verSet(tipoId)
+    filtro = tipoId and sobres[tipoId] and tipoId or "todo"
+    paginaTablero = 1
+end
+
 -- al empezar o cargar otra partida
 function mesa.reiniciar()
     mano, mesaSel, animCaja = nil, nil, nil
     pulsoSobre, chipCaja, pistaVista = nil, nil, nil
     paginaTablero = 1
+    filtro = "todo"
     vuelos = {}
     apertura.recoger()
 end
