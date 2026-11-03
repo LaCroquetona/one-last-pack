@@ -100,6 +100,23 @@ function vendedores.deCaja(tipo, primera)
         { que = "caja", tipo = tipo.id, primera = primera })
 end
 
+-- los demas productos sellados (ETB, tin, blister), como las cajas
+function vendedores.deProd(prod, tipo, primera)
+    if prod.id == "caja" then return vendedores.deCaja(tipo, primera) end
+    if not mercado.salido(tipo.set) then return {} end
+    local ref
+    local precio, primeraTienda = mercado.enTienda(tipo)
+    if precio and (primeraTienda or false) == (primera or false) then
+        ref = mercado.precioProd(prod, tipo)
+    else
+        local s = mercado.sellado(tipo, primera)
+        if not s then return {} end
+        ref = s * prod.sobres * datos.cajaReventa + (prod.fundas or 0) * 5 + (prod.tops or 0) * 15
+    end
+    return ofertas(prod.id .. tipo.id .. (primera and 1 or 0), ref, "caja", datos.ofertas.caja, datos.stock.caja,
+        { que = "prod", prod = prod.id, tipo = tipo.id, primera = primera })
+end
+
 function vendedores.deCarta(id, primera)
     local def = mercado.carta(id)
     if not def or not mercado.salido(def.set) then return {} end
@@ -121,6 +138,8 @@ function vendedores.comprar(o)
         partida.meterSobres(c.tipo, 1, c.primera)
     elseif c.que == "caja" then
         partida.meterCaja(c.tipo, c.primera)
+    elseif c.que == "prod" then
+        partida.meterProd(c.prod, c.tipo, c.primera, 1)
     else
         partida.anadir(c.id, c.primera)
     end

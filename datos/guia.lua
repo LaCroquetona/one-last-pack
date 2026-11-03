@@ -48,7 +48,7 @@ return {
           apunta = "modo_album", pose = "piensa" },
         { texto = "EN EL ÁLBUM, TOCA UNA CARTA QUE TE FALTE Y LA MARCAS COMO BUSCADA: TE AVISO CUANDO SALGA O CUANDO ALGUIEN LA VENDA.",
           apunta = "modo_album", pose = "pulgar" },
-        { texto = "SELLADO: LOS SOBRES Y CAJAS QUE GUARDAS SIN ABRIR. DE AQUÍ LOS MANDAS A LA MESA O LOS DEJAS PARA REVENDERLOS.",
+        { texto = "SELLADO: TU ARMARIO CON LO QUE GUARDAS SIN ABRIR. CADA COSA VA AL PRIMER HUECO LIBRE; TOCA UN HUECO PARA MANDARLO A LA MESA O APARTARLO.",
           apunta = "modo_sellado", pose = "piensa" },
         { texto = "PARA VENDER, TOCA UNA CARTA Y USA LA BANDEJA, O VENDER EN LOTE PARA MUCHAS. LO QUE VALE MUCHO, MEJOR POR EL MÓVIL: PAGAN MÁS.",
           apunta = "venderLote", pose = "pulgar" },
@@ -58,9 +58,11 @@ return {
         { texto = "AQUÍ COMPRAS SOBRES DE LOS SETS QUE ESTÁN A LA VENTA. CADA DÍA LLEGAN MÁS, PERO LA 1ª EDICIÓN NO DURA PARA SIEMPRE.",
           apunta = "comprar1", pose = "saludo" },
     } },
-    tienda_cajas = { titulo = "CAJAS", requiere = "cajas", pasos = {
-        { texto = "¡YA HAY CAJAS! 18 SOBRES MÁS BARATOS QUE SUELTOS. ÁBRELAS EN LA MESA O GUÁRDALAS CERRADAS PARA REVENDERLAS MÁS ADELANTE.",
-          apunta = "sec_cajas", pose = "pulgar" },
+    tienda_cajas = { titulo = "PRODUCTOS", requiere = "cajas", pasos = {
+        { texto = "¡HAN LLEGADO CAJAS Y ETB! LA CAJA TRAE 18 SOBRES MÁS BARATOS; LA ETB, 9 SOBRES Y FUNDAS. ÁBRELAS EN LA MESA O GUÁRDALAS CERRADAS PARA REVENDERLAS.",
+          apunta = "prod_caja", pose = "pulgar" },
+        { texto = "CADA SET TIENE SU ESTANTERÍA: ARRIBA ELIGES EL SET, Y EN MIX ESTÁN LAS FUNDAS Y LOS TOPS.",
+          apunta = "tset_", pose = "piensa" },
     } },
 
     movil = { titulo = "TU MÓVIL", pasos = {
@@ -77,7 +79,7 @@ return {
           apunta = "m_set_", pose = "saludo" },
     } },
     app_set = { titulo = "MERCADO", pasos = {
-        { texto = "CADA SET VA POR SECCIONES: SOBRES Y CAJAS DE 1ª EDICIÓN, REIMPRESIONES CUANDO LAS HAYA, Y LAS CARTAS.",
+        { texto = "CADA SET VA POR SECCIONES: SOBRES Y SELLADO (CAJAS, ETB...) DE 1ª EDICIÓN, REIMPRESIONES CUANDO LAS HAYA, Y LAS CARTAS.",
           apunta = "m_sec_", pose = "saludo" },
         { texto = "LA 1ª EDICIÓN SOLO SE VENDE EN LA TIENDA UNOS DÍAS. LUEGO LLEGAN LAS REIMPRESIONES, Y CADA UNA TIENE SU PRECIO.",
           pose = "piensa" },

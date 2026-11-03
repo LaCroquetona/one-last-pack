@@ -24,6 +24,7 @@ Estrategias: `nada`, `abreRapido`, `abreMovil`, `lanzamiento` (compra el día de
 - `SEMILLAS=12`: 12 partidas por estrategia.
 - `RITMO=9`: 9 sobres por minuto, como un jugador rápido.
 - `MINUTOS=20`: minutos de directo al día.
+- `PRODUCTOS=no`: `meneses` no compra ETB, tins ni blísters (para comparar).
 - `TRAZA=1`: cada 10 días, dinero, seguidores, propinas y venta. `TRAZA=todas`: el día 20 de cada partida.
 
 La referencia que uso: un buen jugador tiene para unas 2 cajas el día 20 y un novato no se arruina.

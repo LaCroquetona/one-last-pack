@@ -57,6 +57,7 @@ return {
           return false
       end },
     { id = "caja", nombre = "BOX BREAK", texto = "Abre una caja de sobres" },
+    { id = "etb", nombre = "ELITE TRAINER", texto = "Abre una ETB" },
     { id = "vendedor", nombre = "DE SEGUNDA MANO", texto = "Compra algo a un vendedor del móvil" },
     { id = "encargo", nombre = "CUMPLIDOR", texto = "Termina un encargo" },
     { id = "dinero100", nombre = "PRIMEROS 100 €", texto = "Ten 100 € en la cartera",

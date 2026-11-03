@@ -14,6 +14,8 @@ local ui = require "src.ui"
 local nav = require "src.nav"
 local caja = require "src.caja"
 local muebles = require "src.muebles"
+local pr_dib = require "src.productos"
+local productos = require "datos.productos"
 
 local tienda = {}
 
@@ -22,7 +24,8 @@ local tipo = sobres.lista[1]
 local PANEL_X, PANEL_Y, PANEL_W, PANEL_H = 314, 28, 314, 258
 local PRECIO_FUNDAS = 100
 local PRECIO_TOPS = 150      -- 10 top loaders
-local seccion = "sobres"     -- "sobres" o "cajas"
+local prodSel                -- producto elegido del set (nil: el sobre); en MIX "fundas" o "tops"
+local mix = false            -- viendo la estanteria MIX
 
 local function porcentaje(peso, total)
     local v = math.floor(peso / total * 1000 + 0.5) / 10
@@ -79,12 +82,13 @@ local function estado()
     return "AGOTADO EN TIENDAS", p.grisclaro
 end
 
--- La tienda es una estanteria: cada mueble lleva 4 sets, arriba sus sobres
--- colgados, en medio fundas y tops y abajo sus cajas apiladas. Con mas sets
--- hay mas muebles y se pasa con las flechas
-local POR_MUEBLE = 4
+-- La tienda es una estanteria por set (pestañas arriba) y otra MIX con lo de
+-- todos los sets. En la del set: arriba ganchos (sobres, blister y uno libre),
+-- en medio 3 huecos (tins, ETB y uno libre) y abajo las cajas y el hueco del
+-- case. Los huecos son los mismos que los del armario
 local M = { x = 22, y = 58, w = 266, h = 284, d = 24 }
-local B1, B2 = M.y + 84, M.y + 150
+local B1, B2 = M.y + 78, M.y + 172
+local SUELO = M.y + M.h
 local L = 16
 -- cuando se compro cada cosa, para que se zarandee
 local zarandeo = {}
@@ -96,19 +100,6 @@ local function giro(id)
     if t > 2 then zarandeo[id] = nil return 0 end
     return math.sin(t * 18) * 0.35 * math.exp(-t * 3.2)
 end
-
-local function grupo()
-    local lista = conocidos()
-    local pos = 1
-    for i, s in ipairs(lista) do
-        if s == tipo then pos = i end
-    end
-    local desde = math.floor((pos - 1) / POR_MUEBLE) * POR_MUEBLE + 1
-    return lista, desde, math.min(#lista, desde + POR_MUEBLE - 1)
-end
-
-local function ganchoX(k) return M.x + muebles.dz(M.d) + 30 + (k - 1) * 62 end
-local function cajaX(k) return M.x + 36 + (k - 1) * 62 end
 
 local function marco(x, y, w, h)
     love.graphics.setColor(p.lima)
@@ -122,105 +113,201 @@ local function letrero(x, y, texto, color)
     fuentes.texto(texto, x - w / 2, y + 4, 1, color or p.grisclaro, "center", w)
 end
 
-local function dibujarMueble()
-    local lista, desde, hasta = grupo()
+-- productos que ya se ven en la tienda
+local function visible(prod)
+    return not prod.desbloqueo or desbloqueos.hay(prod.desbloqueo)
+end
+
+local function mueble(cartel, color)
     local sD = muebles.dz(M.d)
     muebles.mueble(M.x, M.y, M.w, M.h, M.d, 6)
     muebles.perforado(M.x + sD + 4, M.y + 4, M.w - sD - 6, M.h - M.d - 6, 8)
     muebles.balda(M.x, B1, M.w, M.d)
     muebles.balda(M.x, B2, M.w, M.d)
-    muebles.bloque(M.x + 70, M.y - 22, 126, 14, 4, muebles.tonos(p.rojo, 1, 1.3, 0.6))
-    local n = math.max(1, math.ceil(#lista / POR_MUEBLE))
-    local num = math.floor((desde - 1) / POR_MUEBLE) + 1
-    fuentes.texto(n > 1 and ("TIENDA " .. num .. "/" .. n) or "TIENDA", M.x + 70, M.y - 18, 1, p.amarillo, "center", 126)
+    muebles.bloque(M.x + 70, M.y - 22, 126, 14, 4, muebles.tonos(color, 1, 1.3, 0.6))
+    fuentes.texto(cartel, M.x + 70, M.y - 18, 1, p.amarillo, "center", 126)
+end
 
+local function gancho(bx, by, que)
+    local hx, hy = muebles.agujero(bx, by, L)
+    muebles.gancho(bx, by, L)
+    que(hx, hy)
+    muebles.punta(bx, by, L)
+    return hx, hy
+end
+
+-- huecos de la balda del medio y del suelo
+local HX0 = M.x + muebles.dz(M.d) + 6
+local function huecoMedio(i) return HX0 + (i - 1) * 76 end
+
+-- lo que no se vende hoy: mañana, agotado o el dia en que sale
+local function sinVenta(s, x, y, plural)
+    if mercado.salido(s.set) then
+        letrero(x, y, plural and "AGOTADOS" or "AGOTADO")
+    else
+        letrero(x, y, "DÍA " .. calendario.plan[s.set][1].desde)
+    end
+end
+
+local function dibujarSet()
+    local s = tipo
+    local col = s.colores
+    mueble(sets[s.set].nombre:upper(), col.base)
+    local sD = muebles.dz(M.d)
+    local salido = mercado.salido(s.set)
     -- sobres colgados
-    for k = 1, hasta - desde + 1 do
-        local s = lista[desde + k - 1]
-        local bx, by = ganchoX(k), M.y + 6
-        local hx, hy = muebles.agujero(bx, by, L)
-        local precio = mercado.enTienda(s)
-        muebles.gancho(bx, by, L)
+    local precio = mercado.enTienda(s)
+    local hx = gancho(M.x + sD + 30, M.y + 4, function(gx, gy)
         if precio then
             local quedan = mercado.stock(s)
-            if quedan > 0 then
-                muebles.colgados(s.id, hx, hy, math.min(4, quedan), giro(s.id))
-            else
-                letrero(hx, hy + 14, "MAÑANA")
-            end
-            muebles.etiqueta(hx, B1 + 1, ui.dinero(precio))
-        elseif mercado.salido(s.set) then
+            if quedan > 0 then muebles.colgados(s.id, gx, gy, math.min(4, quedan), giro(s.id))
+            else letrero(gx, gy + 14, "MAÑANA") end
+        elseif salido then
             love.graphics.push()
-            love.graphics.translate(hx, hy + 22)
+            love.graphics.translate(gx, gy + 22)
             love.graphics.rotate(-0.35)
             muebles.rect(p.rojo, -26, -5, 52, 10)
             fuentes.texto("AGOTADO", -26, -2, 1, p.blanco, "center", 52)
             love.graphics.pop()
-            muebles.etiqueta(hx, B1 + 1, "REVENTA", p.grisosc, p.grisclaro)
         else
-            letrero(hx, hy + 14, "DÍA " .. calendario.plan[s.set][1].desde)
+            letrero(gx, gy + 14, "DÍA " .. calendario.plan[s.set][1].desde)
         end
-        muebles.punta(bx, by, L)
-        ui.zona("tipo_" .. s.id, hx - 18, M.y + 2, 36, B1 - M.y - 6)
-        if s == tipo and seccion == "sobres" then marco(hx - 19, M.y + 2, 38, B1 - M.y - 4) end
-    end
+    end)
+    if precio then muebles.etiqueta(hx, B1 + 1, ui.dinero(precio))
+    elseif salido then muebles.etiqueta(hx, B1 + 1, "REVENTA", p.grisosc, p.grisclaro) end
+    ui.zona("tipo_" .. s.id, hx - 18, M.y + 2, 36, B1 - M.y - 6)
+    if not prodSel then marco(hx - 19, M.y + 2, 38, B1 - M.y - 4) end
 
-    -- fundas y tops colgados
+    -- cada producto en su sitio: gancho, hueco de la balda o suelo
+    local prods = {}
+    for _, prod in ipairs(mercado.productosDe(s)) do prods[prod.id] = visible(prod) and prod or nil end
+    local function datosProd(prod)
+        local pr = mercado.precioProd(prod, s)
+        return pr, pr and mercado.stockProd(prod, s) or 0
+    end
+    -- blister: gancho mas separado
+    local bl = prods.blister
+    if bl then
+        local pr, quedan = datosProd(bl)
+        local bx = gancho(M.x + sD + 104, M.y + 4, function(gx, gy)
+            if pr and quedan > 0 then pr_dib.blister(s.id, col, gx, gy, math.min(3, quedan), giro("blister")) end
+            if not (pr and quedan > 0) then
+                if pr then letrero(gx, gy + 14, "MAÑANA") else sinVenta(s, gx, gy + 14, true) end
+            end
+        end)
+        if pr then muebles.etiqueta(bx, B1 + 1, ui.dinero(pr)) end
+        if salido then
+            ui.zona("prod_blister", bx - 34, M.y + 2, 68, B1 - M.y - 6)
+            if prodSel == "blister" then marco(bx - 35, M.y + 2, 70, B1 - M.y - 4) end
+        end
+        pr_dib.hueco(M.x + sD + 160, M.y + 6, 60, B1 - M.y - 10, "LIBRE")
+    else
+        pr_dib.hueco(M.x + sD + 84, M.y + 6, 136, B1 - M.y - 10, "LIBRE")
+    end
+    -- balda del medio: tins, ETB y uno libre
+    for i, pid in ipairs({ "tin", "etb", "libre" }) do
+        local prod = prods[pid]
+        local x = huecoMedio(i)
+        local t0 = B1 + 6
+        if i > 1 then muebles.rect(p.negro, x - 2, B1 + 10, 1, B2 - B1 - 14, 0.25) end
+        if prod then
+            local pr, quedan = datosProd(prod)
+            local n = pr and math.min(prod.cabe, quedan) or 0
+            pr_dib.enHueco(pid, s.id, x, B2, n)
+            if pr then
+                muebles.etiqueta(x + 36, B2 + 1, ui.dinero(pr))
+                if n == 0 then letrero(x + 36, B2 - 30, "MAÑANA") end
+            else
+                sinVenta(s, x + 36, B2 - 30, true)
+            end
+            if salido then
+                ui.zona("prod_" .. pid, x, t0, 74, B2 - t0)
+                if prodSel == pid then marco(x, t0, 74, B2 - t0) end
+            end
+        else
+            pr_dib.hueco(x + 3, t0 + 6, 68, B2 - t0 - 10, "LIBRE")
+        end
+    end
+    -- suelo: cajas y el hueco del case (2 huecos)
+    local cj = prods.caja
+    if cj then
+        local pr, quedan = datosProd(cj)
+        local x = M.x + 4
+        local n = pr and math.min(2, quedan) or 0
+        for i = 0, n - 1 do caja.dibujar(s.id, M.x + 36 + muebles.dz(14) + i, SUELO - 33 - i * 26, 1, {}) end
+        if pr then
+            muebles.etiqueta(M.x + 36, SUELO + 2, ui.dinero(pr))
+            if n == 0 then letrero(M.x + 43, SUELO - 40, "MAÑANA") end
+        else
+            sinVenta(s, M.x + 43, SUELO - 40, true)
+        end
+        if salido then
+            ui.zona("prod_caja", x, B2 + 8, 74, SUELO - B2 - 8)
+            if prodSel == "caja" then marco(x, B2 + 8, 74, SUELO - B2 - 6) end
+        end
+        pr_dib.hueco(M.x + 92, B2 + 30, 150, SUELO - B2 - 34, "CASE: PRÓXIMAMENTE")
+    else
+        pr_dib.hueco(M.x + 12, B2 + 30, 230, SUELO - B2 - 34, "LIBRE")
+    end
+end
+
+-- MIX: lo que no es de un set (fundas y tops) y sitio para lo que vendra
+local function dibujarMix()
+    mueble("MIX", p.morado)
+    local sD = muebles.dz(M.d)
+    local bx = gancho(M.x + sD + 30, M.y + 4, function(gx, gy) muebles.blister(gx, gy, 3, giro("fundas")) end)
+    muebles.etiqueta(bx, B1 + 1, "20 X " .. ui.dinero(PRECIO_FUNDAS))
+    ui.zona("fundas", bx - 18, M.y + 2, 36, B1 - M.y - 6)
+    if prodSel == "fundas" then marco(bx - 19, M.y + 2, 38, B1 - M.y - 4) end
+    if desbloqueos.hay("tops") then
+        bx = gancho(M.x + sD + 84, M.y + 4, function(gx, gy) muebles.bolsaTops(gx, gy, 3, giro("tops")) end)
+        muebles.etiqueta(bx, B1 + 1, "10 X " .. ui.dinero(PRECIO_TOPS))
+        ui.zona("tops", bx - 18, M.y + 2, 36, B1 - M.y - 6)
+        if prodSel == "tops" then marco(bx - 19, M.y + 2, 38, B1 - M.y - 4) end
+    end
+    pr_dib.hueco(M.x + sD + 116, M.y + 6, 104, B1 - M.y - 10, "FUNDAS ESPECIALES")
+    pr_dib.hueco(huecoMedio(1) + 3, B1 + 12, 68, B2 - B1 - 16, "TIN MIX")
+    pr_dib.hueco(huecoMedio(2) + 3, B1 + 12, 144, B2 - B1 - 16, "RECOPILACIONES")
+    pr_dib.hueco(M.x + 12, B2 + 30, 230, SUELO - B2 - 34, "CAJAS ESPECIALES")
+end
+
+-- pestañas: un set cada una (las que aun no salen, en gris) y MIX
+local function pestanas()
+    local lista = conocidos()
+    local nombres, total = {}, 0
+    for i, s in ipairs(lista) do
+        local n = sets[s.set].nombre:upper()
+        if not mercado.salido(s.set) then n = n .. " DÍA " .. calendario.plan[s.set][1].desde end
+        nombres[i] = n
+        total = total + fuentes.ancho(n) + 13
+    end
+    local corto = total > 250
+    local x = M.x
+    for i, s in ipairs(lista) do
+        local n = corto and sets[s.set].codigo or nombres[i]
+        local w = fuentes.ancho(n) + 10
+        local color = (not mix and s == tipo) and p.azul or (mercado.salido(s.set) and p.gris or p.grisosc)
+        ui.boton("tset_" .. s.id, n, x, 20, w, 11, color)
+        x = x + w + 3
+    end
     if desbloqueos.hay("fundas") then
-        local by = B1 + 12
-        local bx = M.x + sD + 46
-        local hx, hy = muebles.agujero(bx, by, L)
-        muebles.gancho(bx, by, L)
-        muebles.blister(hx, hy, 3, giro("fundas"))
-        muebles.punta(bx, by, L)
-        muebles.etiqueta(hx, B2 + 1, "20 X " .. ui.dinero(PRECIO_FUNDAS))
-        ui.zona("fundas", hx - 16, by - 2, 32, B2 - by - 2)
-        if desbloqueos.hay("tops") then
-            bx = M.x + sD + 112
-            hx, hy = muebles.agujero(bx, by, L)
-            muebles.gancho(bx, by, L)
-            muebles.bolsaTops(hx, hy, 3, giro("tops"))
-            muebles.punta(bx, by, L)
-            muebles.etiqueta(hx, B2 + 1, "10 X " .. ui.dinero(PRECIO_TOPS))
-            ui.zona("tops", hx - 16, by - 2, 32, B2 - by - 2)
-        end
-        local tx = M.x + sD + 150
-        fuentes.texto("TIENES", tx, B1 + 20, 1, p.grisclaro)
-        fuentes.texto(partida.fundasLibres .. " FUNDAS", tx, B1 + 30, 1, p.cian)
-        if desbloqueos.hay("tops") then fuentes.texto(partida.topsLibres .. " TOPS", tx, B1 + 40, 1, p.celeste) end
-        fuentes.texto("TOCA PARA COMPRAR", tx, B1 + 52, 1, p.gris)
-        if ui.encima == "tops" then
-            ui.tooltip("Top loaders", p.celeste, { { "Plástico rígido encima de la funda" }, { "Elige en el armario desde qué rareza se ponen solos", p.grisclaro } })
-        end
+        ui.boton("tmix", "MIX", x, 20, fuentes.ancho("MIX") + 10, 11, mix and p.azul or p.gris)
     end
-
-    -- cajas apiladas en el suelo del mueble
-    if desbloqueos.hay("cajas") then
-        local suelo = M.y + M.h
-        for k = 1, hasta - desde + 1 do
-            local s = lista[desde + k - 1]
-            local cx = cajaX(k) + muebles.dz(14)
-            local precio = mercado.precioCaja(s)
-            local pila = precio and math.min(3, mercado.stockCajas(s)) or 0
-            for i = 0, pila - 1 do
-                caja.dibujar(s.id, cx + (i % 2), suelo - 14 - 19 - i * 26, 1, {})
-            end
-            if precio then
-                muebles.etiqueta(cajaX(k), suelo + 2, ui.dinero(precio))
-                if pila == 0 then letrero(cx, suelo - 40, "MAÑANA") end
-            elseif mercado.salido(s.set) then
-                letrero(cx, suelo - 40, "AGOTADAS")
-            end
-            if mercado.salido(s.set) then
-                ui.zona("ctipo_" .. s.id, cx - 30, B2 + 8, 60, suelo - B2 - 8)
-                if s == tipo and seccion == "cajas" then marco(cx - 31, B2 + 8, 62, suelo - B2 - 6) end
-            end
-        end
+    -- flechas al set de al lado
+    if not mix then
+        local pos
+        for i, s in ipairs(lista) do if s == tipo then pos = i end end
+        if pos and pos > 1 then ui.boton("tset_" .. lista[pos - 1].id, "<", 2, 186, 12, 30, p.azul) end
+        if pos and pos < #lista then ui.boton("tset_" .. lista[pos + 1].id, ">", 298, 186, 12, 30, p.azul)
+        elseif desbloqueos.hay("fundas") then ui.boton("tmix", ">", 298, 186, 12, 30, p.azul) end
+    elseif #lista > 0 then
+        ui.boton("tset_" .. lista[#lista].id, "<", 2, 186, 12, 30, p.azul)
     end
+end
 
-    -- flechas a los muebles de los lados
-    if desde > 1 then ui.boton("tipo_" .. lista[desde - 1].id, "<", 2, 186, 12, 30, p.azul) end
-    if hasta < #lista then ui.boton("tipo_" .. lista[hasta + 1].id, ">", 298, 186, 12, 30, p.azul) end
+local function dibujarMueble()
+    if mix then dibujarMix() else dibujarSet() end
+    pestanas()
 end
 
 -- lo que trae cada hueco del sobre: una barra con un trozo por rareza
@@ -269,48 +356,98 @@ local function cabecera(nombre, precio, color)
     if precio then fuentes.texto(ui.dinero(precio), PANEL_X, PANEL_Y + 7, 2, p.amarillo, "right", PANEL_W - 8) end
 end
 
-local function fichaCaja()
-    cabecera("CAJA " .. sets[tipo.set].nombre:upper(), mercado.precioCaja(tipo), tipo.colores)
-    local C = sobres.caja
+-- lo que lleva un producto, en lineas
+local function contenido(prod, s)
+    local l = { { prod.sobres .. " SOBRES CERRADOS DEL " .. sets[s.set].nombre:upper(), p.blanco } }
+    if prod.fundas then table.insert(l, { "Y " .. prod.fundas .. " FUNDAS", p.cian }) end
+    if prod.tops then table.insert(l, { "Y " .. prod.tops .. " TOP LOADERS", p.celeste }) end
+    return l
+end
+
+local function fichaProd(prod)
+    local s = tipo
+    local precio = mercado.precioProd(prod, s)
+    cabecera(prod.nombre .. " " .. sets[s.set].nombre:upper(), precio, s.colores)
     local texto, color = estado()
     chip(texto, PANEL_X + 8, PANEL_Y + 32, color)
-    local tengo, t1 = partida.cajasDe(tipo.id), partida.cajasDe(tipo.id, true)
+    local tengo, t1 = partida.prodDe(prod.id, s.id), partida.prodDe(prod.id, s.id, true)
     local y = PANEL_Y + 50
-    local lineas = {
-        { C.sobres .. " SOBRES CERRADOS DEL " .. sets[tipo.set].nombre:upper(), p.blanco },
-        { "SALE UN " .. math.floor(C.descuento * 100 + 0.5) .. "% MÁS BARATA QUE SUS SOBRES SUELTOS", p.lima },
-        { "LLEGAN " .. C.porDia .. " CAJAS AL DÍA MIENTRAS EL SET ESTÁ EN LA TIENDA", p.grisclaro },
-        { "CERRADA SUBE O BAJA COMO SUS SOBRES CERRADOS", p.grisclaro },
-        { "LAS DE 1ª EDICIÓN GUARDADAS SUELEN SUBIR CON EL TIEMPO", p.amarillo },
-        { "TIENES " .. tengo .. (tengo == 1 and " CAJA" or " CAJAS") .. (t1 > 0 and (" (" .. t1 .. " DE 1ª ED)") or ""), p.blanco },
-        { "SE ABREN EN LA MESA Y SE VENDEN EN EL MÓVIL", p.gris },
-    }
+    local lineas = contenido(prod, s)
+    if prod.id == "caja" then
+        local C = sobres.caja
+        table.insert(lineas, { "SALE UN " .. math.floor(C.descuento * 100 + 0.5) .. "% MÁS BARATA QUE SUS SOBRES SUELTOS", p.lima })
+    end
+    if prod.id == "blister" then
+        table.insert(lineas, { "EN LA MESA SE RASGA Y DEJA SUS SOBRES", p.grisclaro })
+    elseif prod.id ~= "caja" then
+        table.insert(lineas, { "AL ABRIRLA, SUS SOBRES SALEN A LA ESQUINA DE LA MESA", p.grisclaro })
+    end
+    table.insert(lineas, { "LLEGAN " .. (prod.porDia or sobres.caja.porDia) .. " AL DÍA MIENTRAS EL SET ESTÁ EN LA TIENDA", p.grisclaro })
+    table.insert(lineas, { "CERRADO SUBE O BAJA COMO SUS SOBRES CERRADOS", p.grisclaro })
+    table.insert(lineas, { "LO DE 1ª EDICIÓN GUARDADO SUELE SUBIR CON EL TIEMPO", p.amarillo })
+    table.insert(lineas, { "TIENES " .. tengo .. (t1 > 0 and (" (" .. t1 .. " DE 1ª ED)") or ""), p.blanco })
+    table.insert(lineas, { "SE ABRE EN LA MESA Y SE VENDE EN EL MÓVIL", p.gris })
     for _, l in ipairs(lineas) do
         fuentes.texto(l[1], PANEL_X + 10, y, 1, l[2])
         y = y + 11
     end
-    if mercado.salido(tipo.set) then
-        fuentes.texto("VALE CERRADA (1ª ED): " .. ui.dinero(mercado.valorCaja(tipo, true)), PANEL_X + 10, y + 6, 1, p.amarillo)
+    if mercado.salido(s.set) then
+        fuentes.texto("VALE CERRADO (1ª ED): " .. ui.dinero(mercado.valorProd(prod, s, true)), PANEL_X + 10, y + 6, 1, p.amarillo)
     end
+    -- dibujo a la derecha
+    local dx, dy = PANEL_X + PANEL_W - 80, PANEL_Y + PANEL_H - 20
+    pr_dib.enHueco(prod.id, s.id, dx, dy, 1)
     local by = PANEL_Y + PANEL_H + 8
-    local precio = mercado.precioCaja(tipo)
     if precio then
-        local quedan = mercado.stockCajas(tipo)
-        ui.boton("caja", "COMPRAR CAJA " .. ui.dinero(precio), PANEL_X, by, 208, 16, p.morado, quedan > 0 and partida.dinero >= precio)
+        local quedan = mercado.stockProd(prod, s)
+        ui.boton("comprarProd", "COMPRAR " .. prod.nombre .. " " .. ui.dinero(precio), PANEL_X, by, 208, 16, p.morado,
+            quedan > 0 and partida.dinero >= precio)
         fuentes.texto(quedan > 0 and ("QUEDAN " .. quedan .. " HOY") or "MAÑANA MÁS", PANEL_X + 216, by + 5, 1,
             quedan > 0 and p.grisclaro or p.naranja)
-    elseif mercado.salido(tipo.set) then
-        fuentes.texto("YA NO SE VENDEN EN LA TIENDA", PANEL_X, by + 5, 1, p.grisclaro)
+    elseif mercado.salido(s.set) then
+        fuentes.texto("YA NO SE VENDE EN LA TIENDA", PANEL_X, by + 5, 1, p.grisclaro)
     end
     ui.boton("abrir", "A LA MESA", PANEL_X, by + 22, 100, 16, p.azul, tengo > 0)
 end
 
+local function fichaMix()
+    cabecera("MIX", nil, { base = p.morado, rayas = p.azul })
+    local y = PANEL_Y + 34
+    local lineas = {
+        { "LO QUE NO ES DE UN SET", p.blanco },
+        { "FUNDAS: 20 POR " .. ui.dinero(PRECIO_FUNDAS) .. ". PROTEGEN LAS CARTAS", p.cian },
+    }
+    if desbloqueos.hay("tops") then
+        table.insert(lineas, { "TOP LOADERS: 10 POR " .. ui.dinero(PRECIO_TOPS) .. ". PLÁSTICO RÍGIDO ENCIMA DE LA FUNDA", p.celeste })
+    end
+    table.insert(lineas, { "-" })
+    table.insert(lineas, { "TIENES " .. partida.fundasLibres .. " FUNDAS" .. (desbloqueos.hay("tops") and (" Y " .. partida.topsLibres .. " TOPS") or ""), p.blanco })
+    table.insert(lineas, { "TOCA UN GANCHO PARA COMPRAR", p.grisclaro })
+    table.insert(lineas, { "-" })
+    table.insert(lineas, { "PRÓXIMAMENTE: PRODUCTOS DE VARIOS SETS", p.gris })
+    for _, l in ipairs(lineas) do
+        if l[1] ~= "-" then fuentes.texto(l[1], PANEL_X + 10, y, 1, l[2]) end
+        y = y + 11
+    end
+    local by = PANEL_Y + PANEL_H + 8
+    ui.boton("fundas", "20 FUNDAS " .. ui.dinero(PRECIO_FUNDAS), PANEL_X, by, 100, 16, p.cian, partida.dinero >= PRECIO_FUNDAS)
+    if desbloqueos.hay("tops") then
+        ui.boton("tops", "10 TOPS " .. ui.dinero(PRECIO_TOPS), PANEL_X + 106, by, 100, 16, p.celeste, partida.dinero >= PRECIO_TOPS)
+    end
+end
+
 function tienda.dibujar()
     if not calendario.conocido(tipo.set, mercado.dia()) then tipo = sobres.lista[1] end
-    if not desbloqueos.hay("cajas") then seccion = "sobres" end
+    if mix and not desbloqueos.hay("fundas") then mix = false end
+    local prod = prodSel and productos[prodSel]
+    if prod and (not mercado.salido(tipo.set) or (prod.desbloqueo and not desbloqueos.hay(prod.desbloqueo))) then prodSel, prod = nil, nil end
     dibujarMueble()
-    if seccion == "cajas" then
-        fichaCaja()
+    if mix then
+        fichaMix()
+        return
+    end
+    if prod then
+        fichaProd(prod)
         return
     end
 
@@ -392,13 +529,9 @@ function tienda.dibujar()
     if aviso then fuentes.texto(aviso[1], PANEL_X, fila + 4, 1, aviso[2]) end
 end
 
--- donde esta colgado un tipo de sobre (para las chispas al comprar)
-local function sitio(t)
-    local lista, desde = grupo()
-    for i = desde, math.min(#lista, desde + POR_MUEBLE - 1) do
-        if lista[i] == t then return muebles.agujero(ganchoX(i - desde + 1), M.y + 6, L) end
-    end
-    return 150, 100
+-- donde esta colgado el sobre (para las chispas al comprar)
+local function sitio()
+    return muebles.agujero(M.x + muebles.dz(M.d) + 30, M.y + 4, L)
 end
 
 local function comprar(cantidad, boton)
@@ -407,7 +540,7 @@ local function comprar(cantidad, boton)
     sonido.tocar("moneda")
     local x = boton == "comprar1" and PANEL_X + 50 or PANEL_X + 156
     fx.texto(x, PANEL_Y + PANEL_H, "-" .. ui.dinero(pagado), p.rojo)
-    local sx, sy = sitio(tipo)
+    local sx, sy = sitio()
     fx.explosion(sx, sy + 20, p.amarillo, 10 * cantidad, 80)
     zarandeo[tipo.id] = love.timer.getTime()
     partida.guardar()
@@ -429,19 +562,23 @@ function tienda.click(id)
         pagar(partida.comprarReventa(tipo, id == "reventa1"))
     elseif id == "abrir" then
         nav.abrir()
-    elseif id == "caja" then
-        local pagado = partida.comprarCaja(tipo)
+    elseif id == "comprarProd" then
+        local prod = productos[prodSel]
+        local pagado = prod and partida.comprarProd(prod, tipo)
         if pagado then
             sonido.tocar("moneda")
-            fx.texto(PANEL_X + 104, PANEL_Y + PANEL_H + 8, "-" .. ui.dinero(pagado) .. "  +1 CAJA", p.amarillo)
+            fx.texto(PANEL_X + 104, PANEL_Y + PANEL_H + 8, "-" .. ui.dinero(pagado) .. "  +1 " .. prod.nombre, p.amarillo)
             fx.sacudir(3)
+            zarandeo[prod.id] = love.timer.getTime()
             partida.guardar()
         end
-    elseif id == "sec_sobres" or id == "sec_cajas" then
-        seccion = id:sub(5)
-    elseif id:match("^ctipo_") then
-        tipo = sobres[id:sub(7)]
-        seccion = "cajas"
+    elseif id:match("^prod_") then
+        prodSel = id:sub(6)
+    elseif id == "tmix" then
+        mix, prodSel = true, nil
+    elseif id:match("^tset_") then
+        tipo = sobres[id:sub(6)]
+        mix, prodSel = false, nil
     elseif id == "tops" then
         if partida.comprarTops(10, PRECIO_TOPS) then
             zarandeo.tops = love.timer.getTime()
@@ -449,7 +586,7 @@ function tienda.click(id)
         end
     elseif id:match("^tipo_") then
         tipo = sobres[id:sub(6)]
-        seccion = "sobres"
+        mix, prodSel = false, nil
     elseif id == "fundas" then
         if partida.comprarFundas(20, PRECIO_FUNDAS) then
             zarandeo.fundas = love.timer.getTime()

@@ -227,6 +227,13 @@ local ESTRATEGIAS = {
         comprarTodo()
         for _, x in ipairs(enTienda()) do
             while partida.comprarCaja(x.t) do end
+            -- y los demas productos (ETB, tins, blisters): se abren al momento
+            if os.getenv("PRODUCTOS") ~= "no" then
+                for _, prod in ipairs(mercado.productosDe(x.t, true)) do
+                    while partida.comprarProd(prod, x.t) do end
+                    while partida.vaciarProd(prod.id, x.t) do end
+                end
+            end
         end
         for _, t in ipairs(sobres.lista) do
             for _, pr in ipairs({ true, false }) do

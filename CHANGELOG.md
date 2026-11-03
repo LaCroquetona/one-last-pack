@@ -10,6 +10,41 @@ fase 3 = v0.7.2-0.7.4, fase 4 = v0.8.0-0.8.2. Desde la v0.9.0 ya no hay
 fases: se sigue el roadmap. La v0.9.0 se preparó como v0.8.3 y salió con
 otro número.
 
+## v0.10.0 - 2026-11-01 - Productos nuevos
+
+- **Productos sellados**: blíster de 2 sobres, tin del set (5 sobres y 10
+  tops; de momento en el S1 y el S2) y ETB (9 sobres y 10 fundas). Cada
+  producto es una línea de `datos/productos.lua` y la tienda, la mesa, el
+  armario y el mercado leen de ahí: uno nuevo es una línea más. La caja es
+  uno más de la lista.
+- **Precios**: blíster S1 4 €, tin S1 12 € y ETB S1 20 € (el resto en
+  proporción). Lo que llevan a precio base no pasa del 80% de lo que
+  cuestan (S1 90%), como los sobres. Llegan cada día mientras el set está en
+  la tienda y tienen su 1ª edición, como las cajas.
+- **Tienda por set**: una pestaña por set (los que aún no salen, en gris y
+  con su día) y otra MIX. La estantería de cada set tiene arriba los
+  sobres y el blíster, en medio los tins y las ETB y abajo las cajas, con
+  huecos libres para lo que vendrá (el case). En MIX están las fundas y los
+  tops. Ficha de cada producto con lo que lleva, lo que vale cerrado y
+  COMPRAR.
+- **Mesa**: selector de set en la columna (TODO o un set). En un set salen
+  sus sobres de 1ª edición y de reimpresión por separado y sus blísters. El
+  blíster se rasga al tocarlo y deja sus 2 sobres. La ETB y el tin se abren
+  como la caja: tiemblan, se abren y sus sobres salen volando a la esquina
+  en abanico. Las fundas y los tops se quedan sueltos en la mesa hasta que
+  los arrastras a tu caja. RECOGER MESA lo guarda todo.
+- **Armario SELLADO**: ahora es un armario de 3 estantes de 4 huecos, como
+  en la vida real: cada cosa va al primer hueco libre o se junta con lo
+  mismo si cabe (20 sobres, 5 blísters, 4 tins, 2 ETB o 2 cajas por hueco).
+  Si se llena sale otro armario. ORDENAR POR SET y ORDENAR POR TIPO lo
+  recolocan una vez. Al tocar un hueco: lo que vale, cuántas mandar,
+  SACAR A LA MESA, APARTAR y SACAR SUS SOBRES. Ahora se aparta por
+  cantidad.
+- **Mercado**: la sección de cajas pasa a SELLADO, con una fila por
+  producto para venderlo y los vendedores que revenden ETB, tins y
+  blísters.
+- Logro nuevo: ELITE TRAINER (abre una ETB). 21 logros.
+
 ## v0.9.5 - 2026-10-28 - Cartas de fuera de set y MASTER SET
 
 - **Fuera de set**: las secretas ya no cuentan para el 100% del álbum. Van

@@ -1,4 +1,5 @@
 local sobres = require "datos.sobres"
+local productos = require "datos.productos"
 local sets = require "datos.sets"
 local rarezas = require "datos.rarezas"
 local datosMercado = require "datos.mercado"
@@ -589,6 +590,7 @@ local function textoCosa(c)
     local ed = c.primera and "1ª ED" or "REIMPR."
     if c.que == "sobre" then return "SOBRE " .. ed end
     if c.que == "caja" then return "CAJA " .. ed end
+    if c.que == "prod" then return productos[c.prod].nombre .. " " .. ed end
     return c.primera and "1ª EDICIÓN" or "NORMAL"
 end
 
@@ -632,8 +634,8 @@ end
 
 -- lo que se puede mirar de un set; las de reimpresion solo si ya ha habido una
 local SECCIONES = {
-    { "s1", "SOBRES 1ª ED" }, { "c1", "CAJAS 1ª ED" },
-    { "sr", "SOBRES REIMPR." }, { "cr", "CAJAS REIMPR." },
+    { "s1", "SOBRES 1ª ED" }, { "c1", "SELLADO 1ª ED" },
+    { "sr", "SOBRES REIMPR." }, { "cr", "SELLADO REIMPR." },
     { "cartas", "CARTAS DEL SET" },
 }
 
@@ -668,17 +670,24 @@ local function seccionSobres(tipo, primera, x, y, w)
     return listaOfertas(vendedores.deSobre(tipo, primera), x, y + 4, w, "SE VENDEN HOY", "NADIE VENDE SOBRES HOY")
 end
 
+-- lo sellado del set: una fila por producto (caja, ETB, tin, blister)
 local function seccionCajas(tipo, primera, x, y, w)
-    local tengo = partida.cajasDe(tipo.id, primera)
-    local valor = mercado.trasComision(mercado.valorCaja(tipo, primera))
-    fuentes.texto("VENDER UNA CAJA TE DA", x, y, 1, p.grisclaro)
-    fuentes.texto("TIENES " .. tengo, x, y, 1, p.grisclaro, "right", w)
-    fuentes.texto(ui.dinero(valor), x, y + 9, 2, primera and p.amarillo or p.blanco)
-    y = y + 24
-    ui.boton("m_vcaja" .. (primera and "1" or "r"), "VENDER UNA CAJA", x, y, w, 13, p.morado, tengo > 0)
-    y = y + 17
-    fuentes.texto("YA CON LA COMISIÓN DEL " .. math.floor(mercado.comision() * 100 + 0.5) .. "%", x, y, 1, p.gris)
-    return listaOfertas(vendedores.deCaja(tipo, primera), x, y + 14, w, "SE VENDEN HOY", "NADIE VENDE CAJAS HOY")
+    local suf = primera and "1" or "r"
+    fuentes.texto("VENDER UNO TE DA (CON COMISIÓN)", x, y, 1, p.gris)
+    y = y + 11
+    local ofertas = {}
+    for _, prod in ipairs(mercado.productosDe(tipo)) do
+        local tengo = partida.prodDe(prod.id, tipo.id, primera)
+        local valor = mercado.trasComision(mercado.valorProd(prod, tipo, primera))
+        ui.caja(x, y, w, 20, p.grisosc)
+        fuentes.texto(prod.nombre, x + 4, y + 3, 1, p.blanco)
+        fuentes.texto("TIENES " .. tengo, x + 4, y + 12, 1, p.grisclaro)
+        fuentes.texto(ui.dinero(valor), x, y + 3, 1, primera and p.amarillo or p.blanco, "right", w - 54)
+        ui.boton("m_vp_" .. prod.id .. "_" .. suf, "VENDER", x + w - 50, y + 4, 46, 12, p.morado, tengo > 0)
+        y = y + 22
+        for _, o in ipairs(vendedores.deProd(prod, tipo, primera)) do table.insert(ofertas, o) end
+    end
+    return listaOfertas(ofertas, x, y + 4, w, "SE VENDEN HOY", "NADIE VENDE NADA SELLADO HOY")
 end
 
 local function seccionCartas(s, x, y, w)
@@ -1666,9 +1675,11 @@ function movil.click(id)
             notificar("SOBRE COMPRADO: -" .. ui.dinero(pagado), p.amarillo)
             partida.guardar()
         end
-    elseif id:match("^m_vcaja") then
+    elseif id:match("^m_vp_") then
         local tipo = sobres[setVista]
-        cobro(partida.venderCaja(tipo, id:sub(-1) == "1") or 0, "CAJA VENDIDA")
+        local pid, ed = id:match("^m_vp_(.+)_(%w)$")
+        local prod = productos[pid]
+        cobro(partida.venderProd(prod, tipo, ed == "1") or 0, prod.nombre .. " VENDIDA")
     elseif id:match("^m_vender") then
         local tipo = sobres[setVista]
         local primera = id:sub(-1) == "1"
