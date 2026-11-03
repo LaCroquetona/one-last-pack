@@ -668,8 +668,10 @@ local function moverProd(pid, tipoId, primera, d)
         if primera then partida.cajas1[tipoId] = partida.cajasDe(tipoId, true) + d end
     else
         local k = claveProd(pid, tipoId)
+        -- la de 1ª se mira antes de cambiar el total (prodDe la recorta al total)
+        local p1 = partida.prodDe(pid, tipoId, true)
         partida.prods[k] = partida.prodDe(pid, tipoId) + d
-        if primera then partida.prods1[k] = partida.prodDe(pid, tipoId, true) + d end
+        if primera then partida.prods1[k] = p1 + d end
         if partida.prods[k] <= 0 then partida.prods[k], partida.prods1[k] = nil, nil end
     end
     tocar()
@@ -831,6 +833,17 @@ function partida.huecos()
     end
     while #H > 0 and H[#H] == false do table.remove(H) end
     return H
+end
+
+-- recolocar a mano: lo del hueco "de" pasa al hueco "a" (si habia algo, se cambian)
+function partida.moverHueco(de, a)
+    local H = partida.huecos()
+    if de == a or not H[de] then return false end
+    for i = #H + 1, a do H[i] = false end
+    H[de], H[a] = H[a], H[de]
+    while #H > 0 and H[#H] == false do table.remove(H) end
+    tocar()
+    return true
 end
 
 -- ordena el armario una vez (por set o por tipo); luego se sigue llenando como venga
