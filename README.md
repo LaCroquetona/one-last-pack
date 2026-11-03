@@ -72,6 +72,7 @@ Casi todo lo que se ajusta está en `datos/`, separado del código:
 - `datos/variantes.lua`: las cartas de fuera de set: nombre, color, brillo y suspense.
 - `datos/sets.lua`: los sets y lo que vale cada rareza en cada uno.
 - `datos/sobres.lua`: precio, huecos y probabilidades de cada sobre, god pack, piedad, cajas y con qué se empieza.
+- `datos/productos.lua`: los productos sellados (blíster, tin, ETB, caja): qué llevan, precio, cuántos llegan al día y cuántos caben en un hueco.
 - `datos/calendario.lua`: cada cuánto sale un set, cuánto dura su tirada y sus reimpresiones.
 - `datos/mercado.lua`: cómo se mueven los precios (rachas, noticias, vintage, burbujas, comisión, compradores).
 - `datos/directo.lua` y `datos/chat.lua`: espectadores, propinas, venta en directo y las frases del chat.
@@ -81,7 +82,7 @@ Casi todo lo que se ajusta está en `datos/`, separado del código:
 
 En `src/`:
 
-- `mesa.lua`, `apertura.lua`, `caja.lua` y `encima.lua`: la mesa, abrir sobres, las cajas y lo que se pinta a resolución real (lo que se arrastra).
+- `mesa.lua`, `apertura.lua`, `caja.lua`, `productos.lua` y `encima.lua`: la mesa, abrir sobres, las cajas, el dibujo de los demás productos sellados y lo que se pinta a resolución real (lo que se arrastra).
 - `muebles.lua`: estanterías, baldas, ganchos, blísteres y álbumes en 3D, con la misma perspectiva que la caja (tienda, mesa y armario).
 - `directo.lua` y `emojis.lua`: el directo y su chat.
 - `movil.lua`, `grafica.lua` y `vendedores.lua`: el móvil con todas sus apps.
