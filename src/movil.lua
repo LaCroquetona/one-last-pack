@@ -679,12 +679,41 @@ local function seccionCajas(tipo, primera, x, y, w)
     for _, prod in ipairs(mercado.productosDe(tipo)) do
         local tengo = partida.prodDe(prod.id, tipo.id, primera)
         local valor = mercado.trasComision(mercado.valorProd(prod, tipo, primera))
-        ui.caja(x, y, w, 20, p.grisosc)
+        ui.caja(x, y, w, 28, p.grisosc)
         fuentes.texto(prod.nombre, x + 4, y + 3, 1, p.blanco)
-        fuentes.texto("TIENES " .. tengo, x + 4, y + 12, 1, p.grisclaro)
+        fuentes.texto("TIENES " .. tengo, x + 4, y + 11, 1, p.grisclaro)
         fuentes.texto(ui.dinero(valor), x, y + 3, 1, primera and p.amarillo or p.blanco, "right", w - 54)
-        ui.boton("m_vp_" .. prod.id .. "_" .. suf, "VENDER", x + w - 50, y + 4, 46, 12, p.morado, tengo > 0)
-        y = y + 22
+        -- su mercado: como ha ido la ultima semana y la linea del ultimo mes
+        local cambio = mercado.cambioProd(prod, tipo, primera, 7)
+        if cambio then
+            local pc = math.floor(cambio * 100 + (cambio >= 0 and 0.5 or -0.5))
+            local txt = (pc > 0 and "+" or "") .. pc .. "% 7D"
+            fuentes.texto(txt, x, y + 11, 1, pc > 0 and p.lima or (pc < 0 and p.rojo or p.grisclaro), "right", w - 54)
+        end
+        local _, h1, hr = mercado.historialProd(prod, tipo)
+        local h = primera and h1 or hr
+        if h and #h >= 2 then
+            local desde = math.max(1, #h - 29)
+            local mn, mx = math.huge, 0
+            for i = desde, #h do if h[i] > 0 then mn, mx = math.min(mn, h[i]), math.max(mx, h[i]) end end
+            if mx > 0 then
+                local lw, ly, lh = w - 58, y + 19, 6
+                local pts = {}
+                for i = desde, #h do
+                    if h[i] > 0 then
+                        table.insert(pts, x + 4 + (i - desde) / math.max(1, #h - desde) * lw)
+                        table.insert(pts, ly + lh - (mx > mn and (h[i] - mn) / (mx - mn) or 0.5) * lh + 0.5)
+                    end
+                end
+                if #pts >= 4 then
+                    lg.setColor(primera and p.amarillo or p.blanco)
+                    lg.setLineWidth(1)
+                    lg.line(pts)
+                end
+            end
+        end
+        ui.boton("m_vp_" .. prod.id .. "_" .. suf, "VENDER", x + w - 50, y + 8, 46, 12, p.morado, tengo > 0)
+        y = y + 30
         for _, o in ipairs(vendedores.deProd(prod, tipo, primera)) do table.insert(ofertas, o) end
     end
     return listaOfertas(ofertas, x, y + 4, w, "SE VENDEN HOY", "NADIE VENDE NADA SELLADO HOY")

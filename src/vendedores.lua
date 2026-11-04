@@ -3,6 +3,7 @@
 -- que guardarlas: solo se guarda cuanto les has comprado hoy.
 local datos = require "datos.vendedores"
 local sobres = require "datos.sobres"
+local productos = require "datos.productos"
 local rarezas = require "datos.rarezas"
 local mercado = require "src.mercado"
 local partida = require "src.partida"
@@ -84,7 +85,7 @@ local function referencia(tipo, primera, caja)
     end
     local s = mercado.sellado(tipo, primera)
     if not s then return nil end
-    if caja then return s * sobres.caja.sobres * datos.cajaReventa, "sellado" end
+    if caja then return mercado.valorProd(productos.caja, tipo, primera) / sobres.caja.valor * datos.cajaReventa, "sellado" end
     return s, "sellado"
 end
 
@@ -109,9 +110,9 @@ function vendedores.deProd(prod, tipo, primera)
     if precio and (primeraTienda or false) == (primera or false) then
         ref = mercado.precioProd(prod, tipo)
     else
-        local s = mercado.sellado(tipo, primera)
-        if not s then return {} end
-        ref = s * prod.sobres * datos.cajaReventa + (prod.fundas or 0) * 5 + (prod.tops or 0) * 15
+        if not mercado.sellado(tipo, primera) then return {} end
+        -- lo que vale en su mercado (con su tendencia), sin la rebaja de venderlo
+        ref = mercado.valorProd(prod, tipo, primera) / sobres.caja.valor * datos.cajaReventa
     end
     return ofertas(prod.id .. tipo.id .. (primera and 1 or 0), ref, "caja", datos.ofertas.caja, datos.stock.caja,
         { que = "prod", prod = prod.id, tipo = tipo.id, primera = primera })

@@ -294,12 +294,7 @@ end
 
 -- lo que vale una caja cerrada: sus sobres cerrados a precio de mercado
 function mercado.valorCaja(tipo, primera)
-    local v = mercado.sellado(tipo, primera) or mercado.sellado(tipo, not primera) or tipo.precio
-    v = v * sobres.caja.sobres * sobres.caja.valor
-    -- mientras la tienda las vende, venderla nunca da mas de lo que cuesta nueva
-    local nueva = mercado.precioCaja(tipo)
-    if nueva then v = math.min(v, nueva * 0.9) end
-    return math.floor(v / 10 + 0.5) * 10
+    return mercado.valorProd(productos.caja, tipo, primera)
 end
 
 -- productos de un set que se venden (sin la caja si sinCaja)
@@ -337,16 +332,50 @@ function mercado.gastarProd(prod, tipo)
     mercado.estado.prods[k] = math.max(0, (mercado.estado.prods[k] or 0) - 1)
 end
 
--- lo que vale cerrado: sus sobres cerrados a precio de mercado y lo que trae
-function mercado.valorProd(prod, tipo, primera)
-    if prod.id == "caja" then return mercado.valorCaja(tipo, primera) end
+-- Mercado propio de cada producto sellado: su valor sale del set (lo que valen
+-- sus sobres cerrados y lo que trae) y encima lleva su propia tendencia, que
+-- sube y baja sola de un dia a otro (nunca por lo que haga el jugador)
+local function tendenciaProd(prod, tipo)
+    local t = (mercado.estado.prodMerc or {})[claveProd(prod, tipo)]
+    return t and math.exp(t.f) or 1
+end
+
+-- lo que vale cerrado segun el set, sin su tendencia
+local function baseProd(prod, tipo, primera)
+    if prod.id == "caja" then
+        local v = mercado.sellado(tipo, primera) or mercado.sellado(tipo, not primera) or tipo.precio
+        return v * sobres.caja.sobres * sobres.caja.valor
+    end
     local v = mercado.sellado(tipo, primera) or mercado.sellado(tipo, not primera) or tipo.precio
-    v = v * prod.sobres * sobres.caja.valor + (prod.fundas or 0) * productos.valorFunda + (prod.tops or 0) * productos.valorTop
+    return v * prod.sobres * sobres.caja.valor + (prod.fundas or 0) * productos.valorFunda + (prod.tops or 0) * productos.valorTop
+end
+
+-- lo que vale cerrado hoy
+function mercado.valorProd(prod, tipo, primera)
+    local v = baseProd(prod, tipo, primera) * tendenciaProd(prod, tipo)
     -- mientras la tienda lo vende, venderlo nunca da mas de lo que cuesta nuevo
     local nuevo = mercado.precioProd(prod, tipo)
     if nuevo then v = math.min(v, nuevo * 0.9) end
     return math.floor(v / 10 + 0.5) * 10
 end
+
+-- historial de un producto (dia del primero, 1ª edicion, reimpresion)
+function mercado.historialProd(prod, tipo)
+    local t = (mercado.estado.prodMerc or {})[claveProd(prod, tipo)]
+    if not t then return nil end
+    return t.h0, t.h1, t.hr
+end
+
+-- cuanto ha cambiado en los ultimos dias (0,1 = +10%), o nil sin historial
+function mercado.cambioProd(prod, tipo, primera, dias)
+    local _, h1, hr = mercado.historialProd(prod, tipo)
+    local h = primera and h1 or hr
+    if not h or #h < 2 then return nil end
+    local antes = h[math.max(1, #h - (dias or 7))]
+    if not antes or antes <= 0 or h[#h] <= 0 then return nil end
+    return h[#h] / antes - 1
+end
+
 
 function mercado.gastarStock(tipo, n)
     local s = mercado.estado.stock
@@ -891,6 +920,37 @@ local function hacia(actual, meta, seguir)
     return math.max(1, math.exp(l))
 end
 
+-- un dia mas en el mercado de cada producto: la tendencia tiene inercia (rachas)
+-- y vuelve poco a poco a 0
+local function avanzarProds(dia)
+    local e = mercado.estado
+    e.prodMerc = e.prodMerc or {}
+    local R = datos.productos
+    for _, tipo in ipairs(sobres.lista) do
+        if e.sellados[tipo.id] then
+            for _, prod in ipairs(mercado.productosDe(tipo)) do
+                local k = claveProd(prod, tipo)
+                local t = e.prodMerc[k]
+                if not t then
+                    t = { f = 0, v = 0, h0 = dia, h1 = {}, hr = {} }
+                    e.prodMerc[k] = t
+                else
+                    t.v = t.v * R.inercia + normal() * R.ruido
+                    local f = t.f * R.vuelta + t.v
+                    t.f = limitar(f, R.max)
+                    -- en el tope la racha se acaba
+                    if t.f ~= f then t.v = -t.v * 0.5 end
+                end
+                table.insert(t.h1, mercado.valorProd(prod, tipo, true))
+                table.insert(t.hr, mercado.sellado(tipo, false) and mercado.valorProd(prod, tipo, false) or 0)
+                local q = recortar(t.h1)
+                recortar(t.hr)
+                t.h0 = t.h0 + q
+            end
+        end
+    end
+end
+
 function mercado.pasarDia()
     local e = mercado.estado
     deHoy = {}
@@ -941,6 +1001,7 @@ function mercado.pasarDia()
             s.h0 = s.h0 + q
         end
     end
+    avanzarProds(dia)
 
     return deHoy
 end
