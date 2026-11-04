@@ -11,10 +11,10 @@
 -- desbloqueo: el de datos/desbloqueos.lua con el que sale (nil: desde el principio)
 -- sale = false: hecho, pero aun no se vende
 local lista = {
-    { id = "blister", nombre = "BLÍSTER", sitio = "gancho", sobres = 2, precio = 1, extra = 0, porDia = 4, cabe = 5 },
-    { id = "tin", nombre = "TIN", sitio = "balda", sobres = 5, tops = 10, precio = 1, extra = 200, porDia = 3, cabe = 4,
+    { id = "blister", nombre = "BLÍSTER", sitio = "gancho", sobres = 2, precio = 1, extra = 0, porDia = 2, cabe = 5 },
+    { id = "tin", nombre = "TIN", sitio = "balda", sobres = 5, tops = 10, precio = 1, extra = 200, porDia = 1, cabe = 4,
       sets = { s1 = true, s2 = true }, desbloqueo = "cajas" },
-    { id = "etb", nombre = "ETB", sitio = "balda", sobres = 9, fundas = 10, precio = 10 / 9, extra = 0, porDia = 2, cabe = 2,
+    { id = "etb", nombre = "ETB", sitio = "balda", sobres = 9, fundas = 10, precio = 10 / 9, extra = 0, porDia = 1, cabe = 2,
       desbloqueo = "cajas" },
     -- la caja de siempre: su precio, stock y valor estan en datos/sobres.lua (sobres.caja)
     { id = "caja", nombre = "CAJA", sitio = "suelo", sobres = 18, cabe = 2, desbloqueo = "cajas" },
