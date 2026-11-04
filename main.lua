@@ -379,6 +379,7 @@ end
 
 function love.textinput(t)
     if reporte.texto(t) then return end
+    if opciones.texto(t) then return end
     directo.texto(t)
 end
 
@@ -387,6 +388,7 @@ local ORDEN = { "tienda", "mesa", "armario", "movil" }
 function love.keypressed(tecla)
     -- escribiendo un reporte o el nombre del canal las teclas son letras
     if reporte.tecla(tecla) then return end
+    if opciones.tecla(tecla) then return end
     if directo.tecla(tecla) then return end
     reporte.apuntar("tecla " .. tecla)
     if transicion.activa() then
