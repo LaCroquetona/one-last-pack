@@ -29,8 +29,34 @@ local DIBUJOS = {
     diamante = { ".bcccb.", "bcwccwb", "bcccccb", ".bcccb.", "..bcb..", "...b...", "......." },
     cohete = { ".....ww", "....wcw", "...www.", ".awww..", ".www...", "oow....", "yo....." },
     stonks = { "k......", "k.....l", "k....l.", "k.l.l..", "kl.l...", "k......", "kkkkkkk" },
+    llora = { "..yyyyy..", ".yyyyyyy.", "yykyyykyy", "ybyyyyyby", "ybyyyyyby", "yyykkkyyy", "yykyyykyy", ".yyyyyyy.", "..yyyyy.." },
+    gafas = { "..yyyyy..", ".yyyyyyy.", "kkkkkkkkk", "ykkkykkky", "yykyyykyy", "yyyyyyyyy", "yykyyykyy", ".yykkkyy.", "..yyyyy.." },
+    sobre = { "wwwwwww", "rrrrrrr", "rwrwrwr", "rrrrrrr", "rryyyrr", "rryoyrr", "rryyyrr", "rrrrrrr", "wwwwwww" },
+    carta = { "yyyyyyy", "ycccccy", "ycbbbcy", "ycbwbcy", "ycccccy", "ywwwwwy", "ywkkkwy", "ywwwwwy", "yyyyyyy" },
+    trofeo = { "y.yyy.y", "yyyyyyy", ".yyyyy.", "..yyy..", "...y...", "..yyy..", ".ooooo." },
+    rayo = { "....yy.", "...yy..", "..yy...", ".yyyyy.", "...yy..", "..yy...", ".yy...." },
+    billete = { "ggggggggg", "glllllllg", "gllgggllg", "glllllllg", "ggggggggg" },
+    pulgar = { "...y...", "..yy...", "..yy...", "yyyyyy.", "yyyyyyy", "yyyyyy.", "yyyyy.." },
+    abajo = { "yyyyy..", "yyyyyy.", "yyyyyyy", "yyyyyy.", "..yy...", "..yy...", "...y..." },
+    manos = { "...w...", "..www..", "..www..", ".wwwww.", ".wwwww.", "wwwwwww", ".w...w." },
+    dado = { "wwwwwww", "wkwwwkw", "wwwwwww", "wwwkwww", "wwwwwww", "wkwwwkw", "wwwwwww" },
+    bomba = { "....o.y", "...k...", "..kkk..", ".kkkkk.", ".kwkkk.", ".kkkkk.", "..kkk.." },
+    cerebro = { ".vvvvv.", "vvwvvvv", "vvvvwvv", "vwvvvvv", "vvvvvwv", ".vvvvv.", "..v.v.." },
 }
-local TEXTOS = { ["67"] = p.lima, W = p.cian, GG = p.amarillo, L = p.rojo, OMG = p.violeta, POG = p.lima, ["100"] = p.rojo }
+local TEXTOS = { ["67"] = p.lima, W = p.cian, GG = p.amarillo, L = p.rojo, OMG = p.violeta, POG = p.lima, ["100"] = p.rojo,
+    F = p.blanco, RIP = p.grisclaro, EZ = p.lima, GL = p.cian, ZZZ = p.celeste, ["?!"] = p.naranja }
+
+-- emotes de Twitch (y palabras sueltas) que se cambian por los nuestros en el
+-- chat real; en minusculas
+local DE_TWITCH = {
+    lul = "risa", kekw = "risa", lmao = "risa", omegalul = "risa", ["4head"] = "risa", lol = "risa", xd = "risa",
+    pogchamp = "flipa", pog = "flipa", poggers = "flipa", pogu = "flipa", notlikethis = "flipa", wow = "flipa",
+    ["<3"] = "corazon", kappa = "payaso", pepega = "payaso", clown = "payaso",
+    biblethump = "llora", sadge = "llora", pepehands = "llora", feelsbadman = "llora",
+    monkas = "ojos", residentsleeper = "ZZZ", ez = "EZ", gg = "GG", w = "W", l = "L", f = "F", rip = "RIP",
+    kreygasm = "fuego", fire = "fuego", hypers = "cohete", catjam = "rana", stonks = "stonks", ["67"] = "67",
+    ["6-7"] = "67", gl = "GL", coolcat = "gafas", ["b)"] = "gafas", ["8)"] = "gafas",
+}
 
 local imagenes = {}
 local function imagen(k)
@@ -47,6 +73,43 @@ local function imagen(k)
     img:setFilter("nearest", "nearest")
     imagenes[k] = img
     return img
+end
+
+-- pinta un emoji en (x, y) a escala e (para los que van dentro del chat)
+function emojis.pintar(k, x, y, e, a)
+    e = e or 1
+    if TEXTOS[k] then
+        local c = TEXTOS[k]
+        fuentes.texto(k, x, y + 1, e, { c[1], c[2], c[3], a or 1 })
+    elseif DIBUJOS[k] then
+        lg.setColor(1, 1, 1, a or 1)
+        lg.draw(imagen(k), x, y, 0, e, e)
+    end
+end
+
+-- lo que ocupa a lo ancho (escala 1)
+function emojis.ancho(k)
+    if TEXTOS[k] then return fuentes.ancho(k) end
+    return DIBUJOS[k] and #DIBUJOS[k][1] or 0
+end
+
+function emojis.existe(k)
+    return TEXTOS[k] ~= nil or DIBUJOS[k] ~= nil
+end
+
+-- separa un mensaje del chat real: devuelve el texto sin los emotes que
+-- conocemos y la lista de emojis nuestros que les tocan (como mucho 6)
+function emojis.deTwitch(texto)
+    local lista, resto = {}, {}
+    for palabra in texto:gmatch("%S+") do
+        local k = DE_TWITCH[palabra:lower()]
+        if k then
+            if #lista < 6 then table.insert(lista, k) end
+        else
+            table.insert(resto, palabra)
+        end
+    end
+    return table.concat(resto, " "), lista
 end
 
 local vivos = {}
