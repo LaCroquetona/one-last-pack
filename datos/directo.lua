@@ -57,6 +57,8 @@ return {
         -- rara no pague mas que el sobre. Lo gordo (viral) cuenta con toda la
         -- gente: un god pack o una secreta en directo es un clip viral
         tope = 22, despuesTope = 0.1,
+        -- desde esta propina (centimos) sale destacada arriba del chat unos segundos
+        destacada = 150, segundosDestacada = 8,
         viral = { secreta = true, chase = true, godpack = true },
     },
 
@@ -95,15 +97,31 @@ return {
                  baja = 0.012, max = 3, margen = 0.04 },
         -- seguidores extra si al comprador le toca algo bueno (holo o mejor)
         seguidoresSuerte = 3,
+        -- que piden (pesos): un sobre, varios del mismo set (2 a "maxVarios"),
+        -- un blister entero o una ETB (solo si los tienes). Los de varios
+        -- sobres o productos esperan "masTiempo" veces mas
+        pedir = { sobre = 70, varios = 16, blister = 9, etb = 5 },
+        maxVarios = 4, masTiempo = 1.5,
         textos = {
             es = { compra = { "me pillo un {s}", "VENDEME UN {s}", "quiero un {s} pls", "un {s} para mi", "abreme un {s} que lo pago",
                               "yo compro un {s}", "{s} para el menda", "me llevo un {s} bro", "pago un {s} pa ver que sale", "un {s} y que salga la chase" },
+                   varios = { "me pillo {n} de {s}", "dame {n} {s} que hoy cobro", "{n} sobres de {s} pa mi", "abreme {n} de {s} seguidos",
+                              "pack de {n} {s}, me la juego", "{n} {s} y si no sale nada lloro" },
+                   blister = { "me llevo un blister de {s}", "abre un blister de {s} pa mi", "blister de {s} entero, lo pago",
+                               "quiero el blister de {s}", "el blister de {s} es mio" },
+                   etb = { "ME PILLO UNA ETB DE {s}", "abreme una ETB de {s} entera", "ETB de {s} pa mi, sin miedo",
+                           "pago la ETB de {s}, hoy me arruino", "ETB {s} y que salga la chase" },
+                   otro = { "otro mas!", "sigue sigue", "el siguiente es el bueno", "venga el otro", "vamos con el siguiente", "uno mas" },
                    bien = { "LETS GOOO QUE ES MIO", "NO PUEDE SER MI CARTAAA", "GOAT GOAT GOAT", "vale esto ya lo pago", "MADRE MIA QUE SUERTE", "te compro otro ya" },
                    mal = { "bueno otra vez sera", "L tremenda", "todo bulk bro", "mi cartera llora", "ni una rara jajaja", "el siguiente sale fijo" },
                    caducada = { "bueno me voy que tardas", "se me ha quitado la gana", "otro dia lo compro" },
                    rechazada = { "vale vale no me lo vendas", "me has hecho la cobra", "pues me voy a otro canal" } },
             en = { compra = { "ill buy a {s}", "SELL ME A {s}", "one {s} for me pls", "open a {s} for me", "taking a {s}",
                               "i want a {s}", "{s} please", "ill pay for a {s}", "one {s} lets go", "{s} for me bro" },
+                   varios = { "ill take {n} {s}", "{n} {s} packs for me", "open {n} {s} in a row", "{n} {s} lets gamble" },
+                   blister = { "ill take a {s} blister", "open a {s} blister for me", "whole {s} blister, paying", "the {s} blister is mine" },
+                   etb = { "IM BUYING A {s} ETB", "open a whole {s} ETB for me", "{s} ETB for me, no fear", "paying for the {s} ETB" },
+                   otro = { "next one!", "keep going", "next one hits", "come on the next", "one more" },
                    bien = { "LETS GOOO ITS MINE", "NO WAY MY CARD", "GOATED PULL", "worth every cent", "INSANE LUCK", "buying another one" },
                    mal = { "unlucky", "massive L", "all bulk bro", "my wallet is crying", "not even a rare lol", "next one hits for sure" },
                    caducada = { "too slow im out", "nvm", "maybe next stream" },
@@ -119,8 +137,21 @@ return {
         { id = "coleccion", nombre = "COLECCIÓN", proximamente = true },
     },
 
-    -- nombres del chat: trozo + trozo (+ numero a veces)
+    -- nombres del chat: trozo + trozo (+ numero a veces) o uno entero de
+    -- "enteros" (los mas graciosos, para que no salgan todo el rato)
     nombres = {
+        enteros = { "ManosDeMantequilla", "BulkLord", "SobreAdicto2009", "ElDelToploader", "RasgaSobres", "HoloEnLaSopa",
+            "SinFundaNiNa", "TuPrimoElDeLaSecreta", "PapaDeLaChase", "MiMadreNoLoSabe", "ComunesConQueso", "xX_BulkSlayer_Xx",
+            "SoloMiroNoCompro", "GradeameEsta", "PSA10DeCorazon", "NoLoAbrasHuelelo", "AbuelaGamer", "TitoDelBulk",
+            "SecretaEnElBano", "CeroHolos", "MaldicionDelBulk", "MiPagaEnSobres", "HipotecaEnSobres", "VendoRinonPorChase",
+            "CroquetaHolografica", "TortillaFullArt", "FanDelBichoAzul", "FundaDobleTriple", "OlorASobreNuevo",
+            "ProbabilidadCero", "PiedadPorFavor", "GodPackOBust", "NPC_de_la_Tienda", "ElQueLlegaTarde", "AFK_desde_2019",
+            "MasSuerteQueTu", "ElDelOtroCanal", "ComproTuBulk", "TopLoaderHumano", "CartaDoblada", "SobrePesado",
+            "ManifestandoSecreta", "ElSobreMeMira", "RizzDeCarton", "AuraDeFunda", "BinderVacio", "MiAlbumLlora",
+            "ProfeDeBulk", "SuegraDelSobre", "CuentaAtrasDeLaChase", "NoEnfundoYQue", "ElBulkEsArte", "JuegoConLasComunes",
+            "PatrocinadoPorMiAbuela", "TengoDeberesPeroBueno", "ElReyDelBlister", "LataDeTin", "EtbEnElSalon",
+            "Croquetina_Fan", "CajaDeZapatosTCG", "MirandoDesdeElBus", "SobreDeLaSuerte", "EstoEsInversion",
+            "HoloOMuerte", "NoSePeroSiSe", "LadronDeFundas", "DueloDeBulk", "MiPerroAbreMejor", "ElSobreEstaFrio" },
         a = { "xX", "el", "la", "mr", "don", "lil", "big", "pro", "sir", "mini", "super", "the", "real", "not", "tito", "abuelo",
               "doña", "mega", "ultra", "baby", "tia", "profe", "capi", "dr", "miss", "uncle", "its", "just", "yo_soy" , "porro" ,"petardo" , "Elba", "Elena"},
         b = { "Sobrero", "Pakito", "Holo", "Rizz", "Skibidi", "Sigma", "Aura", "Bicho", "Pack", "Carta", "Foil", "Chase",

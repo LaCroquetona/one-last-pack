@@ -141,6 +141,8 @@ end
 
 -- sello de 1ª edicion si tienes alguna copia que lo sea
 local function extraCarta(id)
+    -- en un album, la marca de su edicion (no la de las copias de la otra)
+    if albumEd then return { primera = albumEd == "1", top = conTop(id) } end
     return { primera = partida.deEdicion(id, true) > 0, top = conTop(id) }
 end
 
@@ -674,13 +676,26 @@ local function dibujarSellado()
         for i = 2, 4 do muebles.rect(p.negro, hx(i) - 1, techo + 4, 1, ESTS[e] - techo - 6, 0.25) end
     end
     local sigue = false
+    -- lo que llevas arrastrando a otro hueco
+    local arr = ui.arrastrando()
+    local deIdx = arr and arr:match("^hsel_(%d+)$") and tonumber(arr:sub(6))
     for j = 1, POR_ARMARIO do
         local idx = (paginaSellado - 1) * POR_ARMARIO + j
         local h = H[idx]
         local e, i = math.floor((j - 1) / 4) + 1, (j - 1) % 4 + 1
         local x, y = hx(i), ESTS[e]
         local techo = e == 1 and A.y + 6 or ESTS[e - 1] + 6
-        if h then
+        local encima = ui.mx >= x + 2 and ui.mx < x + HW - 2 and ui.my >= techo + 2 and ui.my < y
+        if deIdx and encima and idx ~= deIdx then
+            lg.setColor(p.lima[1], p.lima[2], p.lima[3], 0.25)
+            lg.rectangle("fill", x + 2, techo + 1, HW - 4, y - techo - 2)
+            lg.setColor(1, 1, 1)
+        end
+        if h and idx == deIdx then
+            -- el que llevas en la mano deja su hueco a medias
+            prDib.hueco(x + 3, techo + 6, HW - 8, y - techo - 10, "")
+            ui.zona("hsel_" .. idx, x + 2, techo + 2, HW - 4, y - techo - 2)
+        elseif h then
             local pid, tipoId, primera = partesClave(h.k)
             prDib.enHueco(pid, tipoId, x, y, h.n)
             local cap = partida.capacidadHueco(pid)
@@ -699,7 +714,13 @@ local function dibujarSellado()
             end
         else
             prDib.hueco(x + 3, techo + 6, HW - 8, y - techo - 10, "LIBRE")
+            ui.zona("hlib_" .. idx, x + 2, techo + 2, HW - 4, y - techo - 2)
         end
+    end
+    -- en la mano
+    if deIdx and H[deIdx] then
+        local pid, tipoId = partesClave(H[deIdx].k)
+        prDib.enHueco(pid, tipoId, ui.mx - HW / 2, ui.my + 24, H[deIdx].n)
     end
     if huecoSel then
         local pid, tipoId, primera = partesClave(huecoSel)
@@ -1382,6 +1403,11 @@ function armario.coger(id, x, y)
         end
         return true
     end
+    -- un hueco del armario SELLADO: se arrastra a otro (o se toca)
+    if id:match("^hsel_") then
+        ui.cogerSi(id, x, y)
+        return true
+    end
     if not id:match("^c%d") then return false end
     ui.cogerSi(id, x, y)
     return true
@@ -1409,6 +1435,14 @@ end
 function armario.soltar(c, x, y)
     if not c.moviendo then
         armario.click(c.id)
+        return
+    end
+    if c.id:match("^hsel_") then
+        local destino = ui.zonaEn(x, y, "hsel_") or ui.zonaEn(x, y, "hlib_")
+        if destino and partida.moverHueco(tonumber(c.id:sub(6)), tonumber(destino:match("%d+$"))) then
+            sonido.tocar("giro")
+            partida.guardar()
+        end
         return
     end
     local cid = tonumber(c.id:sub(2))

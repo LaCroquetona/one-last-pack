@@ -16,6 +16,9 @@ local sonido = require "src.sonido"
 local fx = require "src.fx"
 local ui = require "src.ui"
 local emojis = require "src.emojis"
+local productos = require "datos.productos"
+local twitch = require "src.twitch"
+local opciones = require "src.opciones"
 
 local lg = love.graphics
 local utf8 = require "utf8"
@@ -41,6 +44,12 @@ local function nombreAlAzar()
     local N = datos.nombres
     local r = love.math.random()
     local nombre
+    if N.enteros and r < 0.22 then
+        nombre = azar(N.enteros)
+        if love.math.random() < 0.25 then nombre = nombre .. love.math.random(1, 99) end
+        return nombre
+    end
+    r = love.math.random()
     if r < 0.3 then
         nombre = azar(N.a) .. "_" .. azar(N.b)
     elseif r < 0.7 then
@@ -162,7 +171,13 @@ local function idiomaMensaje()
     return idioma
 end
 
+-- con SOLO TWITCH en opciones (y conectado) el chat del juego no habla
+local function callado()
+    return opciones.soloTwitch()
+end
+
 local function decir(categoria, retraso, extra)
+    if callado() then return end
     local texto = frase(idiomaMensaje(), categoria)
     if not texto then return end
     table.insert(cola, { t = retraso or 0, nombre = nombreAlAzar(), color = colorAlAzar(), texto = texto, extra = extra })
@@ -178,6 +193,29 @@ local function cuantos(esperado)
     local n = math.floor(esperado)
     if love.math.random() < esperado - n then n = n + 1 end
     return n
+end
+
+-- cadena: varios del chat copian lo mismo seguido (un texto o un emoji)
+local EMOJI_CADENA = { holo = "fuego", fullart = "flipa", secreta = "corona", chase = "diamante", godpack = "cohete", mal = "calavera" }
+local function cadena(cat)
+    if callado() or not d or d.esp < 6 then return end
+    local idioma = partida.canal.idioma
+    local lista = datos.textos[idioma].cadena[cat]
+    if not lista then return end
+    local n = math.min(7, 3 + cuantos(d.esp * 0.04))
+    local texto, emote = nil, nil
+    if love.math.random() < 0.5 then texto = azar(lista) else emote = EMOJI_CADENA[cat] end
+    for i = 1, n do
+        local m = { t = 0.3 + i * 0.25 + love.math.random() * 0.15, nombre = nombreAlAzar(), color = colorAlAzar() }
+        if texto then
+            m.texto = texto
+        else
+            m.texto = ""
+            m.emotes = {}
+            for _ = 1, love.math.random(1, 3) do table.insert(m.emotes, emote) end
+        end
+        table.insert(cola, m)
+    end
 end
 
 -- propinas y seguidores
@@ -360,14 +398,32 @@ end
 
 -- avisos de la apertura
 
-function directo.rasgar(godpack)
+function directo.rasgar(godpack, primera)
     if not d then return end
     d.quieto = 0
     if d.esp >= 3 then rafaga("rasgar", cuantos(math.min(6, d.esp * 0.08)), 1) end
+    if primera and d.esp >= 2 and love.math.random() < 0.5 then rafaga("primera", 1 + cuantos(d.esp * 0.03), 1) end
     if godpack then
         d.subidon = d.subidon + datos.subidon.godpack
         rafaga("godpack", math.min(datos.chat.maxReaccion, 2 + cuantos(d.esp * 0.5)), 2)
         if d.esp >= 1 then emojis.lanzar({ "fuego", "estrella", "corona", "67", "GG", "flipa", "cohete", "OMG", "POG" }, 4 + math.floor(d.esp * 0.2), 2.5) end
+        cadena("godpack")
+    end
+end
+
+-- abres un producto sellado en directo (blister, tin, ETB): cada uno con lo suyo
+local SUBIDON_PRODUCTO = { blister = 0.08, tin = 0.18, etb = 0.25 }
+local EMOJIS_PRODUCTO = { blister = { "sobre", "manos", "dado" }, tin = { "sobre", "estrella", "gafas", "W" },
+    etb = { "sobre", "fuego", "flipa", "trofeo", "W", "cohete" } }
+function directo.producto(pid)
+    if pid == "caja" then return directo.caja() end
+    if not d then return end
+    d.quieto = 0
+    d.subidon = d.subidon + (SUBIDON_PRODUCTO[pid] or 0.1)
+    if d.esp >= 1 then
+        local peso = pid == "etb" and 0.25 or (pid == "tin" and 0.18 or 0.1)
+        rafaga(pid, math.min(datos.chat.maxReaccion, 1 + cuantos(d.esp * peso)), pid == "blister" and 1.2 or 2)
+        emojis.lanzar(EMOJIS_PRODUCTO[pid] or { "sobre" }, 1 + math.floor(d.esp * peso * 0.4), 1.5)
     end
 end
 
@@ -417,6 +473,20 @@ function directo.carta(def, nueva)
     if chase and d.esp >= 1 then emojis.lanzar({ "corona", "estrella", "diamante", "100" }, 3, 1.5) end
     if chase and d.esp >= 1 then rafaga("chase", math.min(C.maxReaccion, 1 + cuantos(d.esp * 0.3)), 2) end
     if nueva and d.esp >= 6 and love.math.random() < 0.3 then decir("nueva", 0.8) end
+    -- la que buscabas: el chat lo celebra
+    local enc = partida.encontradas
+    if enc and enc[#enc] == def.id and d.buscada ~= def.id and d.esp >= 1 then
+        d.buscada = def.id
+        rafaga("buscada", math.min(C.maxReaccion, 1 + cuantos(d.esp * 0.2)), 1.5)
+        emojis.lanzar({ "trofeo", "estrella", "W" }, 2 + math.floor(d.esp * 0.05), 1.5)
+    end
+    -- repetidas de las de siempre: alguno se da cuenta
+    if not nueva and r.nivel <= 3 and d.esp >= 5 and partida.copias(def.id) >= 3 and love.math.random() < 0.06 then
+        decir("repetida", 0.6)
+    end
+    -- lo gordo: el chat se pone a copiar lo mismo
+    local probCadena = chase and 1 or ({ holo = 0.2, fullart = 0.55, secreta = 0.9 })[rid]
+    if probCadena and love.math.random() < probCadena then cadena(chase and "chase" or rid) end
     -- las buenas traen mirones y propinas al momento
     local S = datos.subidon
     local P = datos.propinas
@@ -500,50 +570,147 @@ local function sobresEnVenta()
     return lista
 end
 
-local function nuevoPedido()
+-- lo que puedes vender ahora de un tipo de sobre: sobres sueltos (guardados,
+-- de la caja abierta y de blisters) y productos enteros
+local function sobresDe(t)
+    local caja = partida.cajaAbierta
+    local n = partida.disponibles(t.id) + partida.prodDisponibles("blister", t.id) * productos.blister.sobres
+    if caja and caja.tipo == t.id then n = n + caja.quedan end
+    return n + partida.cajasDisponibles(t.id) * sobres.caja.sobres
+end
+
+local function pedidoDe(nombre)
+    for _, pe in ipairs(d.pedidos) do if pe.nombre == nombre then return pe end end
+end
+
+-- nombre: si lo pide alguien de tu chat de Twitch (!comprar)
+local function nuevoPedido(nombre, color)
     local lista = sobresEnVenta()
     if #lista == 0 then return end
-    local t = lista[love.math.random(#lista)]
+    -- que se puede pedir y con que peso
+    local W = V.pedir
+    local opciones_, total = {}, 0
+    local function poner_(o, peso)
+        table.insert(opciones_, { o = o, peso = peso })
+        total = total + peso
+    end
+    for _, t in ipairs(lista) do
+        poner_({ t = t, n = 1 }, W.sobre / #lista)
+        local hay = sobresDe(t)
+        if hay >= 2 then poner_({ t = t, n = love.math.random(2, math.min(V.maxVarios, hay)) }, W.varios / #lista) end
+    end
+    for _, t in ipairs(sobres.lista) do
+        for _, pid in ipairs({ "blister", "etb" }) do
+            if partida.prodDisponibles(pid, t.id) > 0 then poner_({ t = t, n = productos[pid].sobres, prod = pid }, W[pid]) end
+        end
+    end
+    local r = love.math.random() * total
+    local elegido = opciones_[#opciones_].o
+    for _, x in ipairs(opciones_) do
+        r = r - x.peso
+        if r <= 0 then elegido = x.o break end
+    end
+    local t = elegido.t
     local margen = V.margen[1] + love.math.random() * (V.margen[2] - V.margen[1])
         + math.min(V.margenMax, d.esp * V.margenPorEspectador) + d.hype * V.hype.margen
     margen = 1 + (margen - 1) * partida.efecto("aro")
     local idioma = partida.canal.idioma
-    local texto = azar(V.textos[idioma].compra):gsub("{s}", sets[t.set].codigo)
-    local pe = { tipo = t.id, codigo = sets[t.set].codigo, margen = margen, t = V.segundos,
-                 nombre = nombreAlAzar(), color = colorAlAzar() }
+    local codigo = sets[t.set].codigo
+    local clave = elegido.prod or (elegido.n > 1 and "varios" or "compra")
+    local texto = azar(V.textos[idioma][clave]):gsub("{s}", codigo):gsub("{n}", tostring(elegido.n))
+    local largo = elegido.n > 1
+    local pe = { tipo = t.id, codigo = codigo, margen = margen, t = V.segundos * (largo and V.masTiempo or 1),
+                 nombre = nombre or nombreAlAzar(), color = color or colorAlAzar(), n = elegido.n, hechos = 0,
+                 prod = elegido.prod, real = nombre ~= nil }
     table.insert(d.pedidos, pe)
-    table.insert(cola, { t = 0, nombre = pe.nombre, color = pe.color, texto = texto })
+    if not nombre then table.insert(cola, { t = 0, nombre = pe.nombre, color = pe.color, texto = texto }) end
     sonido.tocar("nueva", 1.4)
+    return pe
 end
 
--- precio que pagaria ahora un pedido
+-- lo que pone en la lista: S1, 3X S1, BL S1, ETB S1
+function directo.codigoPedido(pe)
+    if pe.prod == "blister" then return "BL " .. pe.codigo end
+    if pe.prod == "etb" then return "ETB " .. pe.codigo end
+    if (pe.n or 1) > 1 then return (pe.n - (pe.hechos or 0)) .. "X " .. pe.codigo end
+    return pe.codigo
+end
+
+-- precio que pagaria ahora un pedido (por sobre; un producto, entero)
 function directo.precioPedido(pe, primera)
     local t
-    for _, s in ipairs(sobres.lista) do if s.id == pe.tipo then t = s end end
+    for _, s_ in ipairs(sobres.lista) do if s_.id == pe.tipo then t = s_ end end
+    if pe.prod then
+        if primera == nil then primera = partida.sinApartar(pe.prod, t.id, false) <= 0 end
+        local v = mercado.valorProd(productos[pe.prod], t, primera) / sobres.caja.valor
+        return math.floor(v * pe.margen / 10 + 0.5) * 10
+    end
     if primera == nil then primera = edicionQueSale(t) end
     return math.floor(precioSobre(t, primera) * pe.margen / 10 + 0.5) * 10
+end
+
+-- lo que pone en la lista: un producto, entero; varios sobres, lo que queda
+function directo.totalPedido(pe)
+    local precio = directo.precioPedido(pe)
+    if pe.prod then return precio end
+    return precio * ((pe.n or 1) - (pe.hechos or 0))
 end
 
 function directo.pedidos()
     return d and d.pedidos or {}
 end
 
+local function cobrar(pe, precio, texto)
+    pe.cobrado = (pe.cobrado or 0) + precio
+    partida.dinero = partida.dinero + precio
+    partida.canal.ventas = (partida.canal.ventas or 0) + 1
+    d.ventas, d.ingresos = d.ventas + 1, d.ingresos + precio
+    poner({ sistema = true, texto = texto .. pe.nombre:upper() .. ": +" .. ui.dinero(precio), color = p.lima, nace = d.t })
+    sonido.tocar("moneda", 1.1)
+    fx.monedas(570, 200, 10, 120, 200)
+end
+
+-- abres un blister o una ETB que alguien ha comprado: se cobra entero y sus
+-- sobres son del comprador
+function directo.abrirProducto(pid, tipoId, primera)
+    if not d or d.tipo ~= "venta" or not d.vendiendo then return nil end
+    for _, pe in ipairs(d.pedidos) do
+        if pe.prod == pid and pe.tipo == tipoId and not pe.empezado then
+            pe.empezado = true
+            pe.prepago = productos[pid].sobres
+            cobrar(pe, directo.precioPedido(pe, primera), (pid == "etb" and "ETB" or "BLÍSTER") .. " VENDIDO A ")
+            partida.guardar()
+            return pe
+        end
+    end
+end
+
 -- la mesa empieza a abrir un sobre: si alguien lo ha comprado, cobras y las
 -- cartas son suyas (devuelve el pedido o nil)
 function directo.reservar(tipo, primera)
     if not d or d.tipo ~= "venta" or not d.vendiendo then return nil end
+    -- primero los sobres de un blister o una ETB ya pagados
     for i, pe in ipairs(d.pedidos) do
-        if pe.tipo == tipo.id then
-            table.remove(d.pedidos, i)
-            local precio = directo.precioPedido(pe, primera)
-            pe.cobrado = precio
-            partida.dinero = partida.dinero + precio
-            partida.canal.ventas = (partida.canal.ventas or 0) + 1
-            d.ventas, d.ingresos = d.ventas + 1, d.ingresos + precio
+        if pe.tipo == tipo.id and (pe.prepago or 0) > 0 then
+            pe.prepago = pe.prepago - 1
+            pe.hechos = pe.hechos + 1
+            pe.acabado = pe.prepago <= 0
+            pe.deUltimo = 0
+            if pe.acabado then table.remove(d.pedidos, i) end
             d.comprador = pe
-            poner({ sistema = true, texto = "VENDIDO A " .. pe.nombre:upper() .. ": +" .. ui.dinero(precio), color = p.lima, nace = d.t })
-            sonido.tocar("moneda", 1.1)
-            fx.monedas(570, 200, 10, 120, 200)
+            return pe
+        end
+    end
+    for i, pe in ipairs(d.pedidos) do
+        if pe.tipo == tipo.id and not pe.prod then
+            local precio = directo.precioPedido(pe, primera)
+            pe.hechos = (pe.hechos or 0) + 1
+            pe.empezado = true
+            pe.acabado = pe.hechos >= (pe.n or 1)
+            pe.deUltimo = precio
+            if pe.acabado then table.remove(d.pedidos, i) end
+            cobrar(pe, precio, "VENDIDO A ")
+            d.comprador = pe
             partida.guardar()
             return pe
         end
@@ -553,16 +720,27 @@ end
 -- el sobre vendido se guarda sin abrir: se devuelve el dinero y el pedido
 -- vuelve a la lista
 function directo.anularReserva(pe)
-    if not pe or not pe.cobrado then return end
-    local precio = pe.cobrado
-    pe.cobrado = nil
-    partida.dinero = partida.dinero - precio
-    partida.canal.ventas = math.max(0, (partida.canal.ventas or 1) - 1)
+    if not pe or not pe.deUltimo then return end
+    local precio = pe.deUltimo
+    pe.deUltimo = nil
+    if pe.prepago then
+        pe.prepago = pe.prepago + 1
+    else
+        pe.cobrado = (pe.cobrado or 0) - precio
+        partida.dinero = partida.dinero - precio
+        partida.canal.ventas = math.max(0, (partida.canal.ventas or 1) - 1)
+    end
+    pe.hechos = math.max(0, (pe.hechos or 1) - 1)
+    if pe.hechos == 0 and not pe.prepago then pe.empezado = nil end
+    local estaba = pe.acabado
+    pe.acabado = nil
     if not d then return end
-    d.ventas, d.ingresos = math.max(0, d.ventas - 1), d.ingresos - precio
+    if not pe.prepago then
+        d.ventas, d.ingresos = math.max(0, d.ventas - 1), d.ingresos - precio
+        poner({ sistema = true, texto = "VENTA ANULADA: -" .. ui.dinero(precio), color = p.naranja, nace = d.t })
+    end
     d.comprador = nil
-    table.insert(d.pedidos, 1, pe)
-    poner({ sistema = true, texto = "VENTA ANULADA: -" .. ui.dinero(precio), color = p.naranja, nace = d.t })
+    if estaba then table.insert(d.pedidos, 1, pe) end
     partida.guardar()
 end
 
@@ -583,15 +761,31 @@ function directo.finSobre(defs, godpack, tipoId)
     d.comprador = nil
     d.quieto = 0
     local mejor, chase = mejorDe(defs, godpack)
+    local bueno = rarezas[mejor.rareza].nivel >= 4 or chase or godpack
     if rarezas[mejor.rareza].nivel <= 2 and d.esp >= 4 and love.math.random() < 0.5 then emojis.lanzar({ "calavera", "payaso", "L", "risa" }, 2, 1) end
+    if rarezas[mejor.rareza].nivel <= 2 and d.esp >= 8 and love.math.random() < 0.08 then cadena("mal") end
+    -- rachas: varios sobres buenos seguidos animan el directo
+    d.racha = bueno and (d.racha or 0) + 1 or 0
+    if d.racha >= 2 and d.esp >= 1 then
+        rafaga("racha", math.min(datos.chat.maxReaccion, 1 + cuantos(d.esp * 0.12 * math.min(d.racha, 4))), 1.5)
+        emojis.lanzar({ "rayo", "fuego", "cohete" }, 1 + d.racha, 1.2)
+        d.subidon = d.subidon + 0.04 * math.min(d.racha, 4)
+    end
     if comprador then
-        local suerte = rarezas[mejor.rareza].nivel >= 4 or chase or godpack
         local idioma = partida.canal.idioma
-        table.insert(cola, { t = 0.4, nombre = comprador.nombre, color = comprador.color,
-                             texto = azar(V.textos[idioma][suerte and "bien" or "mal"]) })
-        if suerte then
-            ganarSeguidores(V.seguidoresSuerte)
-            d.subidon = d.subidon + 0.2
+        comprador.suerte = comprador.suerte or bueno
+        if comprador.acabado then
+            local suerte = comprador.suerte
+            table.insert(cola, { t = 0.4, nombre = comprador.nombre, color = comprador.color,
+                                 texto = azar(V.textos[idioma][suerte and "bien" or "mal"]) })
+            if suerte then
+                ganarSeguidores(V.seguidoresSuerte)
+                d.subidon = d.subidon + 0.2
+            end
+        else
+            -- aun le quedan sobres
+            table.insert(cola, { t = 0.4, nombre = comprador.nombre, color = comprador.color,
+                                 texto = azar(V.textos[idioma][bueno and "bien" or "otro"]) })
         end
     end
     marcarSobre()
@@ -607,8 +801,62 @@ function directo.finSobre(defs, godpack, tipoId)
     end
 end
 
+-- lo que el juego reconoce en tu chat de Twitch
+local SALUDOS = { "^hola", "^buenas", "^holi", "^hi$", "^hi ", "^hello", "^hey", "^ey", "^wenas", "^saludos" }
+local HYPE = { "pog", "vamo", "lets go", "omg", "gg", "aura", "w ", "^w$", "fire", "goat", "6.7", "brutal", "locura" }
+local COMPRAR = { "^!comprar", "^!buy", "^!compro" }
+
+local function tiene(texto, lista)
+    for _, patron in ipairs(lista) do if texto:find(patron) then return true end end
+    return false
+end
+
+-- un mensaje (o un aviso de raid o sub) de tu chat real
+function directo.mensajeReal(m)
+    if not d then return end
+    if m.aviso == "raid" then
+        poner({ sistema = true, texto = "RAID DE " .. m.nombre:upper() .. " CON " .. m.cuantos .. " PERSONAS", color = p.violeta, nace = d.t })
+        emojis.lanzar({ "cohete", "fuego", "corazon", "flipa", "W" }, math.min(20, 6 + m.cuantos), 2)
+        d.subidon = d.subidon + math.min(0.6, 0.1 + math.log(m.cuantos + 1) * 0.08)
+        sonido.tocar("nueva")
+        return
+    elseif m.aviso == "sub" then
+        poner({ sistema = true, texto = (m.texto ~= "" and m.texto or (m.nombre .. " SE SUSCRIBE")):upper(), color = p.violeta, nace = d.t })
+        emojis.lanzar({ "corazon", "estrella", "corona" }, 5, 1.2)
+        return
+    end
+    m.nace = d.t
+    poner(m)
+    d.quieto = 0
+    local texto = m.crudo or ""
+    -- emotes que suben por el chat
+    if m.emotes then emojis.lanzar(m.emotes, math.min(3, #m.emotes), 0.5) end
+    -- hype de tu chat: anima un poco el directo (con un tope)
+    if (m.emotes or tiene(texto, HYPE)) and d.t - (d.ultimoHype or -99) > 3 then
+        d.ultimoHype = d.t
+        d.subidon = math.min(d.subidon + 0.02, 2.5)
+        if d.tipo == "venta" then d.hype = math.min(V.hype.max, d.hype + 0.03) end
+    end
+    -- saludos: con el chat mezclado alguien del juego le contesta
+    if tiene(texto, SALUDOS) and not callado() and d.esp >= 1 and love.math.random() < 0.5 then
+        local idioma = partida.canal.idioma
+        local hola = idioma == "es" and { "hola ", "buenas ", "ey ", "bienvenido " } or { "hi ", "welcome ", "hey " }
+        table.insert(cola, { t = 1 + love.math.random() * 2, nombre = nombreAlAzar(), color = colorAlAzar(),
+                             texto = azar(hola) .. m.nombre })
+    end
+    -- !comprar en un directo de venta: compra de verdad (lo que salga)
+    if tiene(texto, COMPRAR) and d.tipo == "venta" and d.vendiendo and #d.pedidos < V.max + 2 and not pedidoDe(m.nombre) then
+        local pe = nuevoPedido(m.nombre, m.color)
+        if pe then
+            poner({ sistema = true, texto = m.nombre:upper() .. " COMPRA " .. directo.codigoPedido(pe), color = p.lima, nace = d.t })
+        end
+    end
+end
+
 -- cada frame (tambien fuera de la mesa: el directo sigue)
 function directo.update(dt, enMesa)
+    -- el chat de Twitch se lee siempre (sin directo se tira)
+    local reales = twitch.update(dt)
     if not d then return end
     emojis.update(dt)
     d.t = d.t + dt
@@ -639,7 +887,7 @@ function directo.update(dt, enMesa)
         -- con las ventas paradas los pedidos esperan (no corre su tiempo)
         for i = #d.pedidos, 1, -1 do
             local pe = d.pedidos[i]
-            if d.vendiendo then pe.t = pe.t - dt end
+            if d.vendiendo and not pe.empezado then pe.t = pe.t - dt end
             if pe.t <= 0 then
                 table.remove(d.pedidos, i)
                 table.insert(cola, { t = 0, nombre = pe.nombre, color = pe.color,
@@ -687,6 +935,9 @@ function directo.update(dt, enMesa)
         decir(cat)
     end
 
+    -- chat real de Twitch
+    for _, m in ipairs(reales) do directo.mensajeReal(m) end
+
     -- los mensajes pendientes van saliendo
     for i = #cola, 1, -1 do
         local m = cola[i]
@@ -699,6 +950,11 @@ function directo.update(dt, enMesa)
                 d.propinas = d.propinas + m.propina
                 partida.canal.propinas = partida.canal.propinas + m.propina
                 sonido.tocar("moneda", 1.2)
+                -- las gordas salen destacadas arriba del chat un rato
+                if m.propina >= datos.propinas.destacada then
+                    d.destacada = { m = m, hasta = d.t + datos.propinas.segundosDestacada }
+                    emojis.lanzar({ "moneda", "billete", "corazon" }, 3, 0.8)
+                end
                 if enMesa then fx.monedas(570, 200, math.min(30, 4 + m.propina / 100), 120, 200) end
                 partida.guardar()
             elseif m.sigue then
@@ -708,8 +964,8 @@ function directo.update(dt, enMesa)
                 partida.guardar()
             end
             m.nace = d.t
-            -- sin nadie mirando no escribe nadie
-            if m.sistema or m.sigue or m.propina or directo.espectadores() > 0 then poner(m) end
+            -- sin nadie mirando no escribe nadie (salvo tu chat de verdad)
+            if m.sistema or m.sigue or m.propina or m.real or directo.espectadores() > 0 then poner(m) end
         end
     end
 end
@@ -889,8 +1145,10 @@ local function lineasMensaje(m, w)
         return { { { m.nombre, m.color }, { " " .. suyo, p.lima } } }
     end
     local cabeza = m.nombre .. ":"
-    local cuerpo = m.texto
+    local cuerpo = m.texto or ""
     if m.propina then cuerpo = ui.dinero(m.propina) .. " " .. cuerpo end
+    -- solo emojis: el nombre y los emojis en la misma fila
+    if cuerpo == "" and m.emotes then return { { emotes = m.emotes, cabeza = { cabeza, m.color } } } end
     local todas = partir(cabeza .. " " .. cuerpo, w)
     -- la primera linea lleva el nombre de color
     local res = {}
@@ -902,7 +1160,24 @@ local function lineasMensaje(m, w)
             res[i] = { { l, m.propina and p.amarillo or p.blanco } }
         end
     end
+    if m.emotes then table.insert(res, { emotes = m.emotes }) end
     return res
+end
+
+local function altoLinea(l)
+    return l.emotes and 10 or 7
+end
+
+-- una fila de emojis (con el nombre delante si va solo)
+local function pintarEmotes(l, x, y)
+    if l.cabeza then
+        fuentes.texto(l.cabeza[1], x, y + 2, 1, l.cabeza[2])
+        x = x + fuentes.ancho(l.cabeza[1]) + 3
+    end
+    for _, k in ipairs(l.emotes) do
+        emojis.pintar(k, x, y, 1)
+        x = x + emojis.ancho(k) + 2
+    end
 end
 
 local function dibujarChat(x, y, w, h)
@@ -963,13 +1238,37 @@ local function dibujarChat(x, y, w, h)
         for i, pd in ipairs(d.pedidos) do
             local fy = y + 25 + i * 10
             local parpadeo = pd.t < 20 and math.floor(pd.t * 3) % 2 == 0
-            fuentes.texto(pd.codigo, x + 6, fy, 1, p.amarillo)
-            fuentes.texto(ui.dinero(directo.precioPedido(pd)), x + 24, fy, 1, p.lima)
-            fuentes.texto(string.format("%d:%02d", math.floor(pd.t / 60), math.floor(pd.t % 60)), x, fy, 1,
-                parpadeo and p.rojo or p.blanco, "right", w - (rechazar and 20 or 8))
-            if rechazar then botonRechazar("dir_rechazar_" .. i, x + w - 14, fy - 2) end
+            local cod = directo.codigoPedido(pd)
+            fuentes.texto(cod, x + 6, fy, 1, p.amarillo)
+            fuentes.texto(ui.dinero(directo.totalPedido(pd)), x + 10 + math.max(14, fuentes.ancho(cod)), fy, 1, p.lima)
+            if pd.empezado then
+                local falta = pd.prepago and (pd.prepago .. " SOBRES") or "ABRIENDO"
+                fuentes.texto(falta, x, fy, 1, p.cian, "right", w - 8)
+            else
+                fuentes.texto(string.format("%d:%02d", math.floor(pd.t / 60), math.floor(pd.t % 60)), x, fy, 1,
+                    parpadeo and p.rojo or p.blanco, "right", w - (rechazar and 20 or 8))
+                if rechazar then botonRechazar("dir_rechazar_" .. i, x + w - 14, fy - 2) end
+            end
         end
         tope = y + 25 + alto
+    end
+
+    -- propina gorda destacada, fija arriba un rato
+    local de = d.destacada
+    if de and d.t < de.hasta then
+        local m = de.m
+        local lineas = partir(m.texto or "", w - 14)
+        local alto = 12 + #lineas * 7
+        lg.setColor(p.amarillo[1], p.amarillo[2], p.amarillo[3], 0.22)
+        lg.rectangle("fill", x + 2, tope, w - 4, alto)
+        lg.setColor(p.amarillo)
+        lg.rectangle("line", x + 2.5, tope + 0.5, w - 5, alto - 1)
+        fuentes.texto(m.nombre, x + 6, tope + 3, 1, m.color or p.blanco)
+        fuentes.texto(ui.dinero(m.propina), x, tope + 3, 1, p.amarillo, "right", w - 8)
+        for k, l in ipairs(lineas) do fuentes.texto(l, x + 6, tope + 3 + k * 7, 1, p.blanco) end
+        tope = tope + alto + 2
+    elseif de then
+        d.destacada = nil
     end
 
     -- mensajes de abajo arriba
@@ -978,7 +1277,8 @@ local function dibujarChat(x, y, w, h)
     for i = #chat, 1, -1 do
         local m = chat[i]
         local lineas = lineasMensaje(m, ancho)
-        local alto = #lineas * 7 + 2
+        local alto = 2
+        for _, l in ipairs(lineas) do alto = alto + altoLinea(l) end
         if fondo - alto < tope then break end
         fondo = fondo - alto
         local entra = m.nace and math.min(1, (d.t - m.nace) / 0.15) or 1
@@ -987,8 +1287,10 @@ local function dibujarChat(x, y, w, h)
             lg.setColor(p.amarillo[1], p.amarillo[2], p.amarillo[3], 0.15)
             lg.rectangle("fill", x + 2, fondo - 1, w - 4, alto)
         end
-        for k, l in ipairs(lineas) do
-            fuentes.trozos(l, x + 4 + dx, fondo + (k - 1) * 7, 1)
+        local ly = fondo
+        for _, l in ipairs(lineas) do
+            if l.emotes then pintarEmotes(l, x + 4 + dx, ly) else fuentes.trozos(l, x + 4 + dx, ly, 1) end
+            ly = ly + altoLinea(l)
         end
     end
     emojis.dibujar(x, tope, w, y + h - tope)
@@ -1042,6 +1344,12 @@ local function dibujarPanel(x, y, w, h)
         end
     end
 
+    -- tu chat de Twitch (se conecta en OPCIONES)
+    local twy = ty + 12 + #datos.tipos * 13
+    local conectado = twitch.estado == "conectado"
+    local txt = twitch.estado == "apagado" and "CONECTAR TWITCH" or ("TWITCH: " .. (conectado and "CONECTADO" or "..."))
+    ui.boton("dir_twitch", txt, x + 6, twy, w - 12, 11, conectado and p.morado or p.grisosc)
+
     botonEmpezar(x + 6, y + h - 28, w - 12)
 end
 
@@ -1074,12 +1382,15 @@ function directo.click(id)
     elseif id == "dir_vender" then
         if d then d.vendiendo = not d.vendiendo end
     elseif id:match("^dir_rechazar_") then
-        local pe = d and table.remove(d.pedidos, tonumber(id:sub(14)))
+        local i = tonumber(id:sub(14))
+        local pe = d and d.pedidos[i] and not d.pedidos[i].empezado and table.remove(d.pedidos, i)
         if pe then
             table.insert(cola, { t = 0, nombre = pe.nombre, color = pe.color,
                                  texto = azar(V.textos[partida.canal.idioma].rechazada) })
             sonido.tocar("latido")
         end
+    elseif id == "dir_twitch" then
+        opciones.abrir()
     elseif id:match("^dir_tipo_") then
         tipoElegido = id:sub(10)
     else

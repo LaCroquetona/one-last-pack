@@ -117,7 +117,7 @@ function apertura.empezar(tipo, primera, desde)
         if mejor.nivel >= 4 then fx.destello(mejor.color, 0.3) end
         partida.guardar()
         estado = "resumen"
-        directo.rasgar(godpack)
+        directo.rasgar(godpack, primeraActual)
     if godpack then logros.marcar("godpack") end
         for _, c in ipairs(mano) do directo.carta(c.def, c.nueva) end
         directo.finSobre(defs, godpack, tipo.id)
@@ -229,7 +229,7 @@ local function rasgar()
     fx.sacudir(6)
     fx.destello({1, 1, 1}, 0.8)
     fx.explosion(CX, CY - 70, {1, 1, 1}, 40, 160)
-    directo.rasgar(godpack)
+    directo.rasgar(godpack, primeraActual)
     if godpack then logros.marcar("godpack") end
     if godpack then
         fx.destello(rarezas.secreta.color, 1)

@@ -87,6 +87,12 @@ return {
         caidaRumor = 0.1,
     },
 
+    -- mercado de cada producto sellado (blister, tin, ETB, caja): sobre lo que
+    -- vale segun su set lleva su propia tendencia. Cada dia: impulso =
+    -- impulso * inercia + ruido; tendencia = tendencia * vuelta + impulso, sin
+    -- pasar de x"max" ni de /"max"
+    productos = { inercia = 0.8, ruido = 0.015, vuelta = 0.96, max = 1.3 },
+
     -- sobres que llegan a la tienda cada dia
     stock = { lanzamiento = 10, impresion = 20, reimpresion = 25 },
 

@@ -138,7 +138,7 @@ function dev.click(id)
         -- de los sets que ya han salido: blister, tin, ETB y caja
         for _, t in ipairs(sobres.lista) do
             if mercado.salido(t.set) then
-                for _, prod in ipairs(mercado.productosDe(t)) do partida.meterProd(prod.id, t.id, false, 2) end
+                for _, prod in ipairs(mercado.productosDe(t)) do partida.meterProd(prod.id, t.id, not mercado.hayNormales(t.set), 2) end
             end
         end
         partida.guardar()

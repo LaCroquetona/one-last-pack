@@ -10,6 +10,53 @@ fase 3 = v0.7.2-0.7.4, fase 4 = v0.8.0-0.8.2. Desde la v0.9.0 ya no hay
 fases: se sigue el roadmap. La v0.9.0 se preparó como v0.8.3 y salió con
 otro número.
 
+## v0.10.1 - 2026-11-02 - Chat vivo y Twitch
+
+- **Twitch**: el juego lee el chat de tu canal por IRC, sin iniciar sesión.
+  Se pone en OPCIONES (o con CONECTAR TWITCH en el panel del directo) y se
+  vuelve a conectar solo al abrir el juego. CHAT DEL JUEGO: MEZCLADO (tu
+  chat y el del juego juntos) o SOLO TWITCH (el del juego se calla; los
+  espectadores y las propinas siguen como siempre). Emotes como KEKW, LUL,
+  PogChamp o <3 se cambian por emojis del juego. Antispam: tope de mensajes
+  por segundo, uno cada 2 segundos por persona y fuera los repetidos.
+- **El juego reconoce tu chat**: los saludos tienen respuesta (en
+  MEZCLADO), los emotes y el hype animan un poco el directo, las raids y
+  los subs salen avisados con fiesta de emojis y, en la venta de sobres,
+  `!comprar` es una compra de verdad con el nombre de quien la escribe.
+- **El chat reacciona más**: frases propias al abrir blíster, tin y ETB;
+  rachas de sobres buenos (y un pelín más de gente), la carta que
+  buscabas, los sobres de 1ª edición y las repetidas. Más frases en cada
+  rareza.
+- **Cadenas**: cuando sale algo gordo, el chat se pone a copiar lo mismo
+  (un texto o un emoji en fila).
+- **Propinas destacadas**: las de 1,50 € o más se quedan arriba del chat
+  unos segundos con su mensaje.
+- **Emojis**: 13 dibujos nuevos (llorando, gafas, sobre, carta, trofeo,
+  rayo, billete, pulgares, manos, dado, bomba y cerebro) y F, RIP, EZ, GL y
+  ZZZ. Los emojis también van dentro de los mensajes.
+- **Nombres del chat** mucho más graciosos (ManosDeMantequilla, BulkLord,
+  SobreAdicto2009...).
+- **Venta de varios**: en el directo de venta piden 2 a 4 sobres del mismo
+  set, un blíster entero o una ETB. Los sobres se cobran uno a uno al
+  abrirlos; el blíster o la ETB, enteros al abrirlos, y lo que sale de
+  dentro es del comprador. Una vez empezados no caducan.
+- **Mercado de cada producto**: blíster, tin, ETB y caja tienen su propio
+  precio, que sale del valor del set y lleva su propia tendencia (sube y
+  baja sola, como mucho un 30%). En el móvil, cada producto con su línea
+  del último mes y cuánto ha cambiado en 7 días.
+- **Mesa**: los blísters salen de los ganchos y cuelgan a tamaño real de
+  una barra debajo de los sobres (si hay de varios sets se solapan). La
+  balda de arriba es más larga y honda, y lo sellado va más al fondo.
+- **Armario SELLADO**: lo de un hueco se arrastra a otro (si está lleno,
+  se cambian).
+- **Arreglos**: al sacar un producto de 1ª edición (tin, ETB, blíster) el
+  siguiente pasaba a ser de reimpresión, y por eso salían cartas de
+  reimpresión y su álbum antes de tiempo. En el álbum de reimpresión, las
+  cartas que tienes de las dos ediciones salían marcadas como de 1ª. El
+  sobre que coges del tapete seguía contando en su gancho. DEV > +2 DE
+  CADA PRODUCTO respeta la edición que hay en la tienda.
+- **Tienda**: llega menos cada día (2 blísters, 1 tin y 1 ETB por set).
+
 ## v0.10.0 - 2026-11-01 - Productos nuevos
 
 - **Productos sellados**: blíster de 2 sobres, tin del set (5 sobres y 10
