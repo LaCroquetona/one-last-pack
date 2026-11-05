@@ -2,6 +2,7 @@ local cartas = require "datos.cartas"
 local rarezas = require "datos.rarezas"
 local elementos = require "datos.elementos"
 local p = require "datos.paleta"
+local datosFundas = require "datos.fundas"
 local fuentes = require "src.fuentes"
 local bicho = require "src.bicho"
 
@@ -607,19 +608,56 @@ local function altoEn(x, y, h)
     return math.sqrt((bx - ax) ^ 2 + (by - ay) ^ 2)
 end
 
-local function toploader(x, y, sx, sy, rot, gx, gy)
+local ORO = { osc = { 0.50, 0.32, 0.10 }, oro = { 0.84, 0.62, 0.16 } }
+local function caja(c, a, x, y, w, h)
+    lg.setColor(c[1], c[2], c[3], a)
+    lg.rectangle("fill", x, y, w, h)
+end
+
+-- id: true (transparente) o un top de datos/fundas.lua (color, pegatina o magnetico)
+local function toploader(x, y, sx, sy, rot, gx, gy, id)
     local cx, cy = lg.transformPoint(x, y)
     preparar3D(gx, gy, cx, cy, altoEn(x, y, H * math.abs(sy)), 0, 0, 0, 0)
     lg.push()
     lg.translate(x, y)
     lg.rotate(rot)
     lg.scale(sx, sy)
+    local d = id ~= true and datosFundas.top[id]
+    local tw, th = W + 6, H + 7
+    local x0, y0 = -W / 2 - 3, -H / 2 - 4
+    if d and d.estilo == "magnetico" then
+        caja(p.negro, 1, x0 - 1, y0 - 1, tw + 2, 2) caja(p.negro, 1, x0 - 1, y0 + th - 1, tw + 2, 3)
+        caja(p.negro, 1, x0 - 1, y0, 2, th) caja(p.negro, 1, x0 + tw - 1, y0, 2, th)
+        lg.setColor(ORO.oro)
+        lg.setLineWidth(1 / math.max(math.abs(sx), 0.01))
+        lg.rectangle("line", x0 + 0.5, y0 + 0.5, tw - 1, th - 1)
+        lg.setLineWidth(1)
+        caja(p.blanco, 0.08, x0 + 1, y0 + 1, tw - 2, th - 2)
+        caja(p.blanco, 0.2, x0 + 3, y0 + 2, 2, th - 4)
+        lg.pop()
+        lg.setShader()
+        lg.setColor(1, 1, 1)
+        return
+    end
+    if d then
+        local c = d.color
+        local a = d.estilo == "color" and 0.55 or 0.3
+        caja(c, a + 0.2, x0, y0, tw, 2) caja(c, a, x0, y0 + th - 4, tw, 4)
+        caja(c, a, x0, y0, 2, th) caja(c, a, x0 + tw - 2, y0, 2, th)
+        if d.pegatina then
+            local C = d.pegatina
+            caja(C.base, 1, -8, y0 + th - 6, 16, 5)
+            for k = -8, 7, 3 do caja(C.rayas, 1, k, y0 + th - 6, 1, 5) end
+            caja(C.borde, 1, -8, y0 + th - 6, 16, 1)
+        end
+    end
     lg.setColor(1, 1, 1, 0.1)
     lg.rectangle("fill", -W / 2 - 3, -H / 2 - 4, W + 6, H + 7)
     lg.setColor(1, 1, 1, 0.3)
     lg.rectangle("fill", -W / 2 - 3, -H / 2 - 4, W + 6, 2)
     lg.rectangle("fill", W / 2 - 1, -H / 2 - 2, 2, H + 3)
-    lg.setColor(p.blanco[1], p.blanco[2], p.blanco[3], 0.75)
+    local lc = (d and d.color) or p.blanco
+    lg.setColor(lc[1], lc[2], lc[3], 0.75)
     lg.setLineWidth(1 / math.max(math.abs(sx), 0.01))
     lg.rectangle("line", -W / 2 - 3, -H / 2 - 4, W + 6, H + 7)
     lg.setLineWidth(1)
@@ -628,7 +666,9 @@ local function toploader(x, y, sx, sy, rot, gx, gy)
     lg.setColor(1, 1, 1)
 end
 
-local function funda(x, y, sx, sy, rot, gx, gy)
+-- id: true (transparente) o una funda de datos/fundas.lua: de frente solo se
+-- nota en el filo, con el color de su diseno
+local function funda(x, y, sx, sy, rot, gx, gy, id)
     local cx, cy = lg.transformPoint(x, y)
     preparar3D(gx, gy, cx, cy, altoEn(x, y, H * math.abs(sy)), 0, 0, 0, 0)
     lg.push()
@@ -639,9 +679,16 @@ local function funda(x, y, sx, sy, rot, gx, gy)
     lg.rectangle("fill", -W / 2 - 1, -H / 2 - 1, W + 2, H + 2)
     lg.setColor(1, 1, 1, 0.22)
     lg.polygon("fill", -W / 2 + 4, -H / 2, -W / 2 + 10, -H / 2, -W / 2 + 2, H / 2, -W / 2 - 1, H / 2, -W / 2 - 1, -H / 2 + 10)
-    lg.setColor(p.cian[1], p.cian[2], p.cian[3], 0.85)
+    local d = id ~= true and datosFundas[id]
+    local fc = d and d.color or p.cian
+    lg.setColor(fc[1], fc[2], fc[3], d and 1 or 0.85)
     lg.setLineWidth(1 / math.max(math.abs(sx), 0.01))
     lg.rectangle("line", -W / 2 - 1, -H / 2 - 1, W + 2, H + 2)
+    if d then
+        -- doble filo: se nota mas que la transparente
+        lg.setColor(fc[1], fc[2], fc[3], 0.45)
+        lg.rectangle("line", -W / 2, -H / 2, W, H)
+    end
     lg.setLineWidth(1)
     lg.pop()
     lg.setShader()
@@ -701,8 +748,8 @@ function carta.dibujar(def, x, y, sx, sy, rot, bocaArriba, h, enFunda, extra)
         lg.draw(sello, x, y - alza, rot, sx, sy, W / 2 - (metal and 28 or SELLO.x), H / 2 - (metal and 31 or SELLO.y))
     end
     lg.setShader()
-    if enFunda then funda(x, y - alza, sx, sy, rot, gx, gy) end
-    if extra.top then toploader(x, y - alza, sx, sy, rot, gx, gy) end
+    if enFunda then funda(x, y - alza, sx, sy, rot, gx, gy, enFunda) end
+    if extra.top then toploader(x, y - alza, sx, sy, rot, gx, gy, extra.top) end
 end
 
 -- carta que aun no tienes: hueco oscuro con la silueta del bicho
