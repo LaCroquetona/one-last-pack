@@ -49,7 +49,10 @@ En PC se juega con ratón; en Android, igual pero tocando.
 - Velocidad de apertura: con la mejora MANOS RÁPIDAS, el botón >> de arriba a la izquierda del tapete la cambia (también en plena apertura).
 - Guardar un sobre sin abrir: botón GUARDAR, arrastrarlo a la caja, ESC o clic derecho.
 - Cajas: se arrastran al tapete para abrirlas. Tocando una cerrada sale SACAR SOBRES.
+- Blísters: cuelgan de la barra de abajo de la mesa; se tocan para rasgarlos.
+- Armario SELLADO: arrastra lo de un hueco a otro para colocarlo a tu manera (si el otro está lleno, se cambian).
 - Directo: en la mesa, ponle nombre al canal y dale a EMPEZAR DIRECTO. Ir al móvil o pasar el día lo corta.
+- Twitch: en OPCIONES (o CONECTAR TWITCH en el directo) escribe tu canal y dale a CONECTAR; tu chat sale en el del juego. En la venta de sobres, `!comprar` en tu chat es una compra de verdad.
 - D: pasar el día. Rueda o arrastrar: scroll en el móvil. Retroceso: atrás en el móvil.
 - F11 o Alt+Enter: pantalla completa. ESC: volver al menú.
 - F1: herramientas de desarrollador.
@@ -85,6 +88,7 @@ En `src/`:
 - `mesa.lua`, `apertura.lua`, `caja.lua`, `productos.lua` y `encima.lua`: la mesa, abrir sobres, las cajas, el dibujo de los demás productos sellados y lo que se pinta a resolución real (lo que se arrastra).
 - `muebles.lua`: estanterías, baldas, ganchos, blísteres y álbumes en 3D, con la misma perspectiva que la caja (tienda, mesa y armario).
 - `directo.lua` y `emojis.lua`: el directo y su chat.
+- `twitch.lua`: el chat de Twitch por IRC (solo lectura, en un hilo aparte).
 - `movil.lua`, `grafica.lua` y `vendedores.lua`: el móvil con todas sus apps.
 - `tienda.lua`, `armario.lua`, `menu.lua`, `opciones.lua`, `reporte.lua` y `errores.lua`: el resto de pantallas.
 - `mercado.lua` y `calendario.lua`: el mercado y las fechas de cada set.
