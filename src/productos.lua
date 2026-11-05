@@ -54,7 +54,8 @@ end
 -- detras de la burbuja; carton del set con cabecera y pie.
 productos.BLISTER = { W = 66, H = 64 }
 
-local function blisterUno(id, col, x, y, l)
+-- vacio: ya abierto (la burbuja sin sobres y rota)
+local function blisterUno(id, col, x, y, l, vacio)
     local W, H = productos.BLISTER.W, productos.BLISTER.H
     rect(p.negro, x - 1, y - 1, W + 2, H + 2)
     rect(col.base, x, y, W, H, 1, l)
@@ -71,8 +72,14 @@ local function blisterUno(id, col, x, y, l)
     local bx, by, bw, bh = x + 2, y + 12, W - 4, 46
     rect(p.negro, bx, by, bw, bh, 0.55)
     lg.setColor(l, l, l)
-    lg.draw(sobre.imagen(id), bx + 1, by + 1)
-    lg.draw(sobre.imagen(id), bx + bw - 31, by + 1)
+    if vacio then
+        rect(p.negro, bx + 2, by + bh - 10, bw - 4, 8, 0.6)
+        rect(p.blanco, bx + 4, by + bh - 4, 10, 1, 0.5)
+        rect(p.blanco, bx + bw - 16, by + bh - 7, 12, 1, 0.5)
+    else
+        lg.draw(sobre.imagen(id), bx + 1, by + 1)
+        lg.draw(sobre.imagen(id), bx + bw - 31, by + 1)
+    end
     rect(p.blanco, bx, by, bw, 1, 0.6)
     rect(p.blanco, bx, by, 1, bh, 0.45)
     rect(p.blanco, bx + 3, by + 4, 1, bh - 12, 0.5)
@@ -85,14 +92,14 @@ local function blisterUno(id, col, x, y, l)
 end
 
 -- colgados del agujero (hx, hy), en pila recta como los sobres
-function productos.blister(id, col, hx, hy, n, giro)
+function productos.blister(id, col, hx, hy, n, giro, vacio)
     local W, H = productos.BLISTER.W, productos.BLISTER.H
     lg.push()
     lg.translate(hx, hy)
     lg.rotate(giro or 0)
     rect(p.negro, -W / 2 + 3, 1, W, H, 0.3)
     for k = (n or 1) - 1, 0, -1 do
-        blisterUno(id, col, -W / 2, -3 - k * 2, 1 - k * 0.12)
+        blisterUno(id, col, -W / 2, -3 - k * 2, 1 - k * 0.12, vacio)
     end
     lg.pop()
     lg.setColor(1, 1, 1)
@@ -288,7 +295,7 @@ function productos.enHueco(pid, tipoId, x, y, n, giro)
 end
 
 -- uno solo, centrado en (x, y), al tamaño e (la mesa y lo que llevas en la mano)
-function productos.uno(pid, tipoId, x, y, e, rot)
+function productos.uno(pid, tipoId, x, y, e, rot, vacio)
     local col = colores(tipoId)
     local W, H = 40, 34
     if pid == "tin" then W, H = 30, 16 end
@@ -298,7 +305,7 @@ function productos.uno(pid, tipoId, x, y, e, rot)
     lg.rotate(rot or 0)
     lg.scale(e, e)
     if pid == "blister" then
-        productos.blister(tipoId, col, 0, -H / 2 + 3, 1, 0)
+        productos.blister(tipoId, col, 0, -H / 2 + 3, 1, 0, vacio)
     elseif pid == "tin" then
         productos.tin(col, -W / 2, -H / 2)
     else
@@ -341,11 +348,13 @@ function productos.dibujarAnim(a, cx, cy)
     local encima = require "src.encima"
     local col = colores(a.tipo)
     local t = a.t
-    local x, y, e, rot, abierta, alfa = cx, cy, E, 0, false, 1
+    -- el blister ya es grande: se queda a 2
+    local EE = a.prod == "blister" and 2 or E
+    local x, y, e, rot, abierta, alfa = cx, cy, EE, 0, false, 1
     if t < CAE then
         local q = fx.salidaRebote(t / CAE)
         x, y = fx.lerp(a.x0, cx, q), fx.lerp(a.y0, cy, q)
-        e = fx.lerp(1.5, E, q)
+        e = fx.lerp(1.5, EE, q)
         rot = (1 - q) * 0.4
     elseif t < CAE + TIEMBLA then
         local f = (t - CAE) / TIEMBLA
@@ -353,7 +362,7 @@ function productos.dibujarAnim(a, cx, cy)
         x = cx + r:random(-1, 1) * math.floor(f * 3 + 0.5)
         y = cy + r:random(-1, 1) * math.floor(f * 2 + 0.5)
         rot = (r:random() * 2 - 1) * 0.04 * f
-        e = E + f * 0.25
+        e = EE + f * 0.25
         fx.aura(cx, cy, col.letras, 60 + f * 50, f * 0.7)
     else
         abierta = true
@@ -363,7 +372,7 @@ function productos.dibujarAnim(a, cx, cy)
             fx.rayos(cx, cy - 30, col.letras, 160, 0.25 * (1 - t2 / ABRE), t)
         else
             local q = math.min(1, (t2 - ABRE) / VA)
-            e, alfa = E * (1 - 0.3 * q), 1 - q
+            e, alfa = EE * (1 - 0.3 * q), 1 - q
         end
     end
     local t2 = t - CAE - TIEMBLA
@@ -378,7 +387,7 @@ function productos.dibujarAnim(a, cx, cy)
             productos.etb(col, -W / 2, -H / 2, 1, { abierta = abierta })
             lg.pop()
         elseif alfa > 0 then
-            productos.uno(a.prod, a.tipo, x, y, e, rot)
+            productos.uno(a.prod, a.tipo, x, y, e, rot, abierta and a.prod == "blister")
         end
         -- los sobres salen de uno en uno hacia el abanico
         if abierta then
