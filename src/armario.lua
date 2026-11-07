@@ -17,6 +17,9 @@ local muebles = require "src.muebles"
 local productos = require "datos.productos"
 local prDib = require "src.productos"
 local mesa = require "src.mesa"
+local desbloqueos = require "src.desbloqueos"
+local fundario = require "src.fundario"
+local inspeccionar = require "src.inspeccionar"
 
 local lg = love.graphics
 
@@ -1055,7 +1058,15 @@ function armario.dibujar()
     panelSobres()
     if modo == "album" then panelAlbum() else panelSeleccion() end
     panelFundas()
-    ui.boton("venderLote", "VENDER EN LOTE...", 6, 336, 118, 16, p.naranja, partida.totalCartas() > 0)
+    local conFundario = desbloqueos.hay("fundas")
+    ui.boton("venderLote", conFundario and "VENDER LOTE" or "VENDER EN LOTE...", 6, 336, conFundario and 72 or 118, 16, p.naranja, partida.totalCartas() > 0)
+    if conFundario then
+        ui.boton("fundario", "FUNDARIO", 80, 336, 44, 16, p.morado)
+        if ui.encima == "fundario" then
+            local n, total = fundario.cuenta(false)
+            ui.tooltip("Fundario", p.amarillo, { { n .. "/" .. total .. " FUNDAS CON DISEÑO" }, { "Las que has conseguido", p.grisclaro } })
+        end
+    end
     if ui.encima == "venderLote" then
         ui.tooltip("Vender muchas de golpe", p.amarillo, { { "Eliges qué: repes, 1ª edición, fundas, set" } })
     end
@@ -1270,6 +1281,16 @@ local function clickLote(id)
 end
 
 function armario.click(id)
+    if id == "fundario" then
+        fundario.abrir()
+        return
+    end
+    -- la carta grande del panel: INSPECCIONAR
+    if id == "sel" and seleccion then
+        local c = copiaVista(seleccion)
+        inspeccionar.abrir(seleccion, c and c.u)
+        return
+    end
     if id:match("^alb_") then
         local set, ed = id:match("^alb_(.+)_(%w)$")
         setActivo, albumEd = set, ed
@@ -1380,9 +1401,12 @@ function armario.click(id)
             partida.guardar()
         end
     elseif id:match("^[ca]%d") then
+        local enAlbum = id:sub(1, 1) == "a"
         armario.seleccionar(tonumber(id:sub(2)))
         if modo == "album" then modo = "copias" end
         abrirBandeja(seleccion)
+        -- en el album, tocar una carta la abre en grande
+        if enAlbum and seleccion then inspeccionar.abrir(seleccion) end
     elseif id:match("^r_") then
         rarezaAbierta = id:sub(3)
     end

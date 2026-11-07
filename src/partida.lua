@@ -1,6 +1,7 @@
 local cartas = require "datos.cartas"
 local sobres = require "datos.sobres"
 local productos = require "datos.productos"
+local datosFundas = require "datos.fundas"
 local rarezas = require "datos.rarezas"
 local datosMercado = require "datos.mercado"
 local premios = require "datos.premios"
@@ -12,7 +13,11 @@ local datosEncargos = require "datos.encargos"
 
 local partida = {}
 
+-- varias partidas: la 1 es la de siempre (partida.lua), las demas partida2.lua, partida3.lua
+partida.RANURAS = 3
+partida.ranura = 1
 local ARCHIVO = "partida.lua"
+local function archivoDe(n) return n == 1 and "partida.lua" or ("partida" .. n .. ".lua") end
 -- v6: cada copia se guarda por separado. Las partidas v5 se convierten al cargar
 local VERSION = 6
 
@@ -59,6 +64,14 @@ function partida.nueva()
     partida.opciones = { fundaDesde = 4, topDesde = 5 }
     partida.fundasLibres = 20
     partida.topsLibres = 0
+    -- fundas y tops con diseno: cuantas tienes de cada id (las basicas, arriba)
+    partida.fundasDiseno, partida.topsDiseno = {}, {}
+    -- los disenos conseguidos alguna vez (fundario) y lo que ensena cada cajita
+    partida.fundario = { f = {}, t = {} }
+    partida.cajitas = {}
+    -- funda del MIX que esta a la venta: { id, hasta } y las que ya han salido
+    partida.temporada = nil
+    partida.temporadas = {}
     -- sobres y cajas apartados: no salen en la mesa ("s:set1:1" = sobres de 1ª ed del set 1)
     partida.apartados = {}
     partida.premios = {}
@@ -71,7 +84,8 @@ function partida.nueva()
     partida.cajas, partida.cajas1 = {}, {}
     -- productos sellados (blister, tin, ETB): "etb:set1" = cuantos; prods1 los de 1ª ed
     partida.prods, partida.prods1 = {}, {}
-    partida.sueltos = { fundas = 0, tops = 0 }   -- fundas y tops de un producto, sueltos en la mesa
+    -- fundas y tops de un producto, sueltos en la mesa (fundaId/topId: su diseno; nil la basica)
+    partida.sueltos = { fundas = 0, tops = 0 }
     partida.huecosArmario = {}   -- armario SELLADO: { k = "etb:set1:1", n } por hueco (false: libre)
     partida.red = { racha = 0, dia = -99 }   -- red de rescate (partida.rescate)
     partida.cajaAbierta = nil    -- caja empezada en la mesa (tipo, quedan, primera, prod: si no es caja)
@@ -282,20 +296,28 @@ end
 function partida.revisarPremios(set, avisar)
     local tienes, primeras, total = partida.progreso(set)
     local tipo = sobres[sets[set].sobre]
-    local function dar(clave, premio, texto)
+    local function dar(clave, premio, texto, funda)
         if partida.premios[clave] then return end
         partida.premios[clave] = true
         if avisar == false then return end
         local ed = not mercado.hayNormales(set)
-        partida.meterSobres(tipo.id, premio.sobres, ed)
+        if premio.sobres then partida.meterSobres(tipo.id, premio.sobres, ed) end
         if premio.dinero then partida.dinero = partida.dinero + premio.dinero * tipo.precio end
-        table.insert(partida.premiosNuevos, { texto = texto, sobres = premio.sobres, dinero = premio.dinero and premio.dinero * tipo.precio, set = set })
+        if funda then partida.sumarFundas(funda[1], funda[2]) end
+        table.insert(partida.premiosNuevos, { texto = texto, sobres = premio.sobres, dinero = premio.dinero and premio.dinero * tipo.precio, set = set,
+                                              funda = funda })
     end
+    local chase = datosFundas["chase" .. (tipo.id:match("%d+") or "")]
     for _, h in ipairs(premios.hitos) do
         if tienes >= math.ceil(total * h.parte) then
             dar(set .. "_" .. h.parte, h, h.parte >= 1 and ("¡" .. sets[set].nombre:upper() .. " COMPLETO!") or
-                (math.floor(h.parte * 100) .. "% DEL " .. sets[set].nombre:upper()))
+                (math.floor(h.parte * 100) .. "% DEL " .. sets[set].nombre:upper()),
+                (h.parte >= 1 and chase) and { chase.id, datosFundas.premioChase } or nil)
         end
+    end
+    -- la funda dorada, por el MASTER SET (una vez por set)
+    if tienes >= total and partida.master(set) then
+        dar(set .. "_master", {}, "¡MASTER SET DEL " .. sets[set].nombre:upper() .. "!", { "dorada", datosFundas.premioDorada })
     end
     if premios.primera and primeras >= total then
         dar(set .. "_primera", premios.primera, "¡" .. sets[set].nombre:upper() .. " COMPLETO EN 1ª EDICIÓN!")
@@ -397,10 +419,43 @@ end
 
 -- fundas
 
-function partida.enfundarCopia(c)
-    if c.f or partida.fundasLibres <= 0 then return false end
-    partida.fundasLibres = partida.fundasLibres - 1
-    c.f = true
+-- id: true (basica, la colgada) o el id de un diseno de datos/fundas.lua
+function partida.fundasDe(id)
+    if id == true or id == nil then return partida.fundasLibres end
+    return partida.fundasDiseno[id] or 0
+end
+
+function partida.topsDe(id)
+    if id == true or id == nil then return partida.topsLibres end
+    return partida.topsDiseno[id] or 0
+end
+
+-- suma (o resta) fundas o tops de un diseno
+function partida.sumarFundas(id, n, esTop)
+    if id == true or id == nil then
+        if esTop then partida.topsLibres = partida.topsLibres + n else partida.fundasLibres = partida.fundasLibres + n end
+        return
+    end
+    local t = esTop and partida.topsDiseno or partida.fundasDiseno
+    local v = (t[id] or 0) + n
+    t[id] = v > 0 and v or nil
+    if n > 0 then partida.fundario[esTop and "t" or "f"][id] = true end
+end
+
+-- disenos que tienes ahora (con alguna libre), en el orden de datos/fundas.lua
+function partida.disenosLibres(esTop)
+    local l = {}
+    for _, d in ipairs(esTop and datosFundas.tops or datosFundas.lista) do
+        if partida[esTop and "topsDe" or "fundasDe"](d.id) > 0 then table.insert(l, d.id) end
+    end
+    return l
+end
+
+function partida.enfundarCopia(c, id)
+    id = id or true
+    if c.f or partida.fundasDe(id) <= 0 then return false end
+    partida.sumarFundas(id, -1)
+    c.f = id
     partida.avanzarEncargo("enfundar", nil, c.u)
     tocar()
     return true
@@ -409,18 +464,77 @@ end
 function partida.desenfundarCopia(c)
     if not c.f then return false end
     partida.quitarTop(c)
-    partida.fundasLibres = partida.fundasLibres + 1
+    partida.sumarFundas(c.f, 1)
     c.f = nil
     tocar()
     return true
 end
 
+-- cambia la funda de una copia por otra (la que tenia vuelve a su caja)
+function partida.cambiarFunda(c, id)
+    if c.f == id then return false end
+    if not c.f then return partida.enfundarCopia(c, id) end
+    if partida.fundasDe(id) <= 0 then return false end
+    partida.sumarFundas(c.f, 1)
+    partida.sumarFundas(id, -1)
+    c.f = id
+    tocar()
+    return true
+end
+
+function partida.cambiarTop(c, id)
+    if c.t == id then return false end
+    if not c.t then return partida.ponerTop(c, id) end
+    if partida.topsDe(id) <= 0 then return false end
+    partida.sumarFundas(c.t, 1, true)
+    partida.sumarFundas(id, -1, true)
+    c.t = id
+    tocar()
+    return true
+end
+
+-- compra un pack de fundas o tops con diseno
+function partida.comprarDiseno(id, n, precio, esTop)
+    if partida.dinero < precio then return false end
+    partida.dinero = partida.dinero - precio
+    partida.sumarFundas(id, n, esTop)
+    tocar()
+    return true
+end
+
+-- la funda del MIX de ahora (nil si aun no hay)
+function partida.fundaTemporada()
+    local t = partida.temporada
+    if t and t.hasta >= mercado.dia() then return t.id, t.hasta - mercado.dia() + 1 end
+end
+
+-- cada 3-4 dias sale una funda nueva en el MIX: primero las que no han salido
+-- y, cuando ya han salido todas, alguna vuelve de vez en cuando
+function partida.revisarTemporada()
+    local dia = mercado.dia()
+    local t = partida.temporada
+    if t and t.hasta >= dia then return nil end
+    local nuevas = {}
+    for _, id in ipairs(datosFundas.mix) do
+        if not partida.temporadas[id] then table.insert(nuevas, id) end
+    end
+    local id = nuevas[1]
+    if not id then
+        repeat id = datosFundas.mix[love.math.random(#datosFundas.mix)] until #datosFundas.mix < 2 or not t or id ~= t.id
+    end
+    local T = datosFundas.temporada
+    partida.temporada = { id = id, hasta = dia + love.math.random(T[1], T[2]) - 1 }
+    partida.temporadas[id] = true
+    return id
+end
+
 -- top loader: va encima de la funda. Sin funda tambien se puede, pero la
 -- carta se puede rayar (quien lo pone avisa)
-function partida.ponerTop(c)
-    if c.t or partida.topsLibres <= 0 then return false end
-    partida.topsLibres = partida.topsLibres - 1
-    c.t = true
+function partida.ponerTop(c, id)
+    id = id or true
+    if c.t or partida.topsDe(id) <= 0 then return false end
+    partida.sumarFundas(id, -1, true)
+    c.t = id
     partida.avanzarEncargo("top", nil, c.u)
     tocar()
     return true
@@ -428,7 +542,7 @@ end
 
 function partida.quitarTop(c)
     if not c.t then return false end
-    partida.topsLibres = partida.topsLibres + 1
+    partida.sumarFundas(c.t, 1, true)
     c.t = nil
     tocar()
     return true
@@ -436,8 +550,8 @@ end
 
 -- al vender o enviar una copia vuelven su funda y su top loader
 local function devolverProteccion(c)
-    if c.f then partida.fundasLibres = partida.fundasLibres + 1 end
-    if c.t then partida.topsLibres = partida.topsLibres + 1 end
+    if c.f then partida.sumarFundas(c.f, 1) end
+    if c.t then partida.sumarFundas(c.t, 1, true) end
 end
 
 function partida.comprarTops(cantidad, precio)
@@ -715,9 +829,33 @@ local function sacarProd(pid, tipoId, primera)
     return primera
 end
 
-local function lleva(prod)
-    if prod.fundas then partida.sueltos.fundas = partida.sueltos.fundas + prod.fundas end
-    if prod.tops then partida.sueltos.tops = partida.sueltos.tops + prod.tops end
+-- el diseno de las fundas y los tops que trae un producto de un set: la ETB
+-- el motivo de su set (1 de cada 10, holo o plata) y el tin tops de su color
+local function disenosDe(prod, tipoId)
+    local i = tonumber(tipoId:match("%d+")) or 1
+    local f, t
+    if prod.fundas and prod.id == "etb" then
+        for _, d in ipairs(datosFundas.lista) do
+            if d.familia == "etb" and d.set == "s" .. i then f = d.id end
+        end
+        if love.math.random() < datosFundas.etbEspecial then f = love.math.random() < 0.5 and "holo" or "plata" end
+    end
+    if prod.tops and prod.id == "tin" then t = "color" .. i end
+    return f, t
+end
+
+local function lleva(prod, tipoId)
+    local f, t = disenosDe(prod, tipoId)
+    local s = partida.sueltos
+    -- si quedaban sueltas de otro diseno, esas se guardan antes
+    if prod.fundas then
+        if s.fundas > 0 and s.fundaId ~= f then partida.guardarSueltos("fundas") end
+        s.fundas, s.fundaId = s.fundas + prod.fundas, f
+    end
+    if prod.tops then
+        if s.tops > 0 and s.topId ~= t then partida.guardarSueltos("tops") end
+        s.tops, s.topId = s.tops + prod.tops, t
+    end
 end
 
 -- se abre en la mesa: sus sobres se quedan en la esquina y se sacan de ahi;
@@ -730,7 +868,7 @@ function partida.abrirProd(pid, tipo, primera)
     local vieja = partida.cajaAbierta
     if vieja and vieja.quedan > 0 then partida.meterSobres(vieja.tipo, vieja.quedan, vieja.primera) end
     partida.cajaAbierta = { tipo = tipo.id, quedan = prod.sobres, primera = primera or nil, prod = pid ~= "caja" and pid or nil }
-    lleva(prod)
+    lleva(prod, tipo.id)
     tocar()
     return true
 end
@@ -751,8 +889,9 @@ function partida.vaciarProd(pid, tipo, primera)
     primera = sacarProd(pid, tipo.id, primera)
     if primera == nil then return nil end
     partida.meterSobres(tipo.id, prod.sobres, primera)
-    partida.fundasLibres = partida.fundasLibres + (prod.fundas or 0)
-    partida.topsLibres = partida.topsLibres + (prod.tops or 0)
+    local f, t = disenosDe(prod, tipo.id)
+    if prod.fundas then partida.sumarFundas(f or true, prod.fundas) end
+    if prod.tops then partida.sumarFundas(t or true, prod.tops, true) end
     return prod.sobres
 end
 
@@ -761,7 +900,13 @@ function partida.guardarSueltos(que)
     local n = partida.sueltos[que] or 0
     if n <= 0 then return 0 end
     partida.sueltos[que] = 0
-    if que == "fundas" then partida.fundasLibres = partida.fundasLibres + n else partida.topsLibres = partida.topsLibres + n end
+    if que == "fundas" then
+        partida.sumarFundas(partida.sueltos.fundaId or true, n)
+        partida.sueltos.fundaId = nil
+    else
+        partida.sumarFundas(partida.sueltos.topId or true, n, true)
+        partida.sueltos.topId = nil
+    end
     tocar()
     return n
 end
@@ -1476,6 +1621,12 @@ function partida.pasarDia()
         end
     end
     local noticias = mercado.pasarDia()
+    local d = partida.desbloqueos
+    local nueva = (d == nil or d.todo or d.fundas == true) and partida.revisarTemporada()
+    if nueva then
+        local _, dias = partida.fundaTemporada()
+        mercado.anadirNoticia({ texto = "NUEVA FUNDA EN EL MIX: " .. datosFundas[nueva].nombre .. ". SOLO " .. dias .. " DÍAS", tono = "info" })
+    end
     partida.generarOfertas()
     partida.apuntarCartera()
     return noticias
@@ -1584,7 +1735,7 @@ function partida.guardar()
 end
 
 local CAMPOS = { "dinero", "abiertos", "inv", "uid", "guardados", "guardados1", "anuncios",
-    "orden", "mesa", "seguidas", "opciones", "fundasLibres", "cartera", "premios", "canal", "mejoras", "encargos", "ofertasEncargo", "cajas", "cajas1", "prods", "prods1", "sueltos", "huecosArmario", "cajaAbierta", "topsLibres", "apartados", "vendidos", "logros", "tutorial", "desbloqueos", "sequia", "tiradas", "pistas", "guia", "buscadas", "red" }
+    "orden", "mesa", "seguidas", "opciones", "fundasLibres", "cartera", "premios", "canal", "mejoras", "encargos", "ofertasEncargo", "cajas", "cajas1", "prods", "prods1", "sueltos", "huecosArmario", "cajaAbierta", "topsLibres", "apartados", "vendidos", "logros", "tutorial", "desbloqueos", "sequia", "tiradas", "pistas", "guia", "buscadas", "red", "fundasDiseno", "topsDiseno", "fundario", "cajitas", "temporada", "temporadas" }
 
 -- la partida como se guarda (tambien para los reportes de bugs)
 function partida.texto()
@@ -1649,9 +1800,10 @@ local function desdeV5(datos)
     return datos
 end
 
-local function leer()
-    if not love.filesystem.getInfo(ARCHIVO) then return nil end
-    local ok, trozo = pcall(love.filesystem.load, ARCHIVO)
+local function leer(archivo)
+    archivo = archivo or ARCHIVO
+    if not love.filesystem.getInfo(archivo) then return nil end
+    local ok, trozo = pcall(love.filesystem.load, archivo)
     if not ok or not trozo then return nil end
     local bien, datos = pcall(trozo)
     if not bien or type(datos) ~= "table" or not datos.mercado then return nil end
@@ -1663,6 +1815,39 @@ end
 function partida.existe()
     if existe == nil then existe = leer() ~= nil end
     return existe
+end
+
+-- cambia de partida (no carga: eso lo hace partida.cargar)
+function partida.elegirRanura(n)
+    if pendiente then partida.guardarYa() end
+    partida.ranura = n
+    ARCHIVO = archivoDe(n)
+    existe = nil
+    love.filesystem.write("ranura.txt", tostring(n))
+end
+
+function partida.ranuraGuardada()
+    local n = tonumber(love.filesystem.read("ranura.txt") or "")
+    return (n and n >= 1 and n <= partida.RANURAS) and math.floor(n) or 1
+end
+
+-- dia y dinero de una partida guardada, sin cargarla (nil si esta vacia)
+function partida.resumen(n)
+    local datos = leer(archivoDe(n))
+    if not datos then return nil end
+    if datos.version == VERSION then
+        return { dia = datos.mercado.dia or 1, dinero = datos.dinero or 0 }
+    end
+    return { dia = 1, dinero = 0 }
+end
+
+-- copia tal cual otra partida en la actual
+function partida.copiarDe(n)
+    local texto = love.filesystem.read(archivoDe(n))
+    if not texto then return false end
+    love.filesystem.write(ARCHIVO, texto)
+    existe = nil
+    return partida.cargar()
 end
 
 -- deja el inventario coherente: marca de anuncio y de mesa solo en las que lo estan
@@ -1722,6 +1907,18 @@ function partida.cargar()
     -- partidas de antes de los premios: lo que ya tenias cuenta como cobrado
     if datos.premios == nil then
         for _, s in ipairs(sets.lista) do partida.revisarPremios(s.id, false) end
+    end
+    -- partidas de antes de las fundas con diseno: los sets ya completos dan su
+    -- funda de la chase (y la dorada si es MASTER SET), una sola vez
+    if datos.fundasDiseno == nil then
+        for i, s in ipairs(sets.lista) do
+            local ch = datosFundas["chase" .. i]
+            if ch and partida.premios[s.id .. "_1"] then partida.sumarFundas(ch.id, datosFundas.premioChase) end
+            if partida.premios[s.id .. "_1"] and partida.master(s.id) then
+                partida.premios[s.id .. "_master"] = true
+                partida.sumarFundas("dorada", datosFundas.premioDorada)
+            end
+        end
     end
     partida.encargosHechos, partida.encargosCaducados = {}, {}
     partida.encontradas = {}

@@ -467,6 +467,7 @@ local function anadirNoticia(n)
     while #e.noticias > MAX_NOTICIAS do table.remove(e.noticias) end
     return n
 end
+mercado.anadirNoticia = anadirNoticia
 
 -- eventos: los dias que una noticia hace que se venda mas (barras de volumen)
 local function anadirEvento(tipo, meta, efecto, dias)
