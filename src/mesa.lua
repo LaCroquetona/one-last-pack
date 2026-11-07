@@ -14,6 +14,10 @@ local sobre = require "src.sobre"
 local caja = require "src.caja"
 local productos = require "datos.productos"
 local prDib = require "src.productos"
+local datosFundas = require "datos.fundas"
+local fundasDib = require "src.fundas"
+local fundario = require "src.fundario"
+local inspeccionar = require "src.inspeccionar"
 local muebles = require "src.muebles"
 local encima = require "src.encima"
 local logros = require "src.logros"
@@ -32,16 +36,23 @@ local mesa = {}
 local CAJA = { x = 4, y = 24, w = 108, h = 330 }
 local TAPETE = { x = 116, y = 24, w = 386, h = 330 }
 local DIRECTO = { x = 506, y = 24, w = 130, h = 330 }
--- arriba la balda de las cajas cerradas; debajo el tablero con 6 ganchos de
--- sobres (3 x 2), la barra de los blisters (a tamaño real) y las fundas y los tops
+-- arriba la balda de las cajas cerradas; debajo el tablero en 4 filas: 3
+-- ganchos de sobres, la barra de los blisters (a tamano real), las fundas y los
+-- tops basicos colgados y las cajitas de las fundas y los tops con diseno
 local BALDA = CAJA.y + 60
 local TABLERO = CAJA.y + 80
-local POR_TABLERO = 6
+local POR_TABLERO = 3
 local FILA = 58
-local BLISTERS = { x = CAJA.x + 6, y = TABLERO + 128, w = CAJA.w - 14 }
-local FUNDAS = { x = CAJA.x + 8, y = TABLERO + 196, w = CAJA.w - 16, h = 60 }
+local BLISTERS = { x = CAJA.x + 6, y = TABLERO + 72, w = CAJA.w - 14 }
+local FUNDAS = { x = CAJA.x + 8, y = TABLERO + 140, w = CAJA.w - 16, h = 54 }
+local CAJITAS = { x = CAJA.x + 6, y = TABLERO + 198, w = CAJA.w - 14, h = 50 }
 -- lo de la balda va un poco hacia el fondo para no sobresalir
 local FONDO_BALDA = 5
+-- largo de la balda (con su lateral en perspectiva cabe en la columna) y lo que
+-- ocupa cada pila encima: la caja 34, la ETB 24 y el tin 22
+local BALDA_W = CAJA.w - 12
+local ANCHO_PILA = { caja = 34, etb = 24, tin = 22 }
+local MEDIO_PILA = { caja = 14, etb = 10, tin = 9 }
 -- donde se queda la caja abierta: abajo a la derecha del tapete (no tapa las cartas)
 local ESQUINA = { x = TAPETE.x + TAPETE.w - 36, y = TAPETE.y + 28, e = 1 }
 -- los sobres de una ETB o un tin abiertos, en abanico (en el mismo rincon)
@@ -135,13 +146,13 @@ local function cuantosEntrada(e)
     return partida.sinApartar("s", e.tipo.id, e.primera)
 end
 
--- pagina del tablero (solo con mas de 6 ganchos)
+-- pagina del tablero (solo con mas de 3 ganchos)
 local paginaTablero = 1
 local function paginasTablero()
     return math.max(1, math.ceil(#entradasTodas() / POR_TABLERO))
 end
 
--- lo que se ve en el tablero: caben 6; en TODO, primero lo que tienes y luego
+-- lo que se ve en el tablero: caben 3; en TODO, primero lo que tienes y luego
 -- huecos vacios de sets ya salidos
 local function entradas()
     local todos = entradasTodas()
@@ -385,12 +396,86 @@ local function monton(que, x, y, w, h, estrecho)
     if puede then ui.zona("caja_" .. que, x, y, w, h) end
 end
 
+-- cajitas de fundas y tops con diseno: el diseno de arriba (si se acaba, pasa
+-- al siguiente que tengas)
+local function disenoCajita(esTop)
+    local k = esTop and "t" or "f"
+    local de = esTop and partida.topsDe or partida.fundasDe
+    local cur = partida.cajitas[k]
+    if cur and de(cur) > 0 then return cur end
+    local orden = esTop and datosFundas.tops or datosFundas.lista
+    local pos = 0
+    for i, d in ipairs(orden) do if d.id == cur then pos = i end end
+    local nuevo
+    for i = 1, #orden do
+        local d = orden[(pos + i - 1) % #orden + 1]
+        if de(d.id) > 0 then nuevo = d.id break end
+    end
+    partida.cajitas[k] = nuevo
+    return nuevo
+end
+
+local function zonaCajita(esTop)
+    local cw = math.floor(CAJITAS.w / 2) - 1
+    local x = esTop and CAJITAS.x + cw + 2 or CAJITAS.x
+    return x, CAJITAS.y, cw, CAJITAS.h
+end
+
+local function cajita(esTop)
+    local x, y, w, h = zonaCajita(esTop)
+    local k = esTop and "t" or "f"
+    local cur = disenoCajita(esTop)
+    local d = cur and (esTop and datosFundas.top[cur] or datosFundas[cur])
+    local n = cur and (esTop and partida.topsDe(cur) or partida.fundasDe(cur)) or 0
+    local cogida = mano and mano.cosa == (esTop and "top" or "funda") and mano.id ~= nil
+    local quedan = n - (cogida and mano.id == cur and 1 or 0)
+    local cuantos = #partida.disenosLibres(esTop)
+    -- llevas una carta de la mesa: soltarla aqui la enfunda con este diseno
+    local soltando = mano and mano.cosa == "copia" and d and ui.mx >= x and ui.mx < x + w and ui.my >= y and ui.my < y + h
+    if soltando then muebles.rect(p.lima, x, y, w, h, 0.25) end
+    -- nombre (se toca para verlas todas)
+    muebles.rect(p.negro, x, y, w, 9, 0.6)
+    fuentes.texto(d and d.corto or (esTop and "TOPS" or "FUNDAS"), x, y + 2, 1, d and d.color or p.gris, "center", w)
+    if cuantos > 0 then
+        ui.zona("mesa_cajitanom_" .. k, x, y, w, 9)
+        if ui.encima == "mesa_cajitanom_" .. k and not mano then
+            ui.tooltip(esTop and "Tops con diseño" or "Fundas con diseño", p.amarillo,
+                { { cuantos .. (cuantos == 1 and " DISEÑO" or " DISEÑOS") }, { "Toca para verlos todos", p.grisclaro } })
+        end
+    end
+    -- carton bajo con el diseno de arriba asomando
+    local cx, by = x + w / 2, y + 33
+    if d and quedan > 0 then
+        if esTop then fundario.miniatura(cur, true, cx, by - 6, 0.5)
+        else
+            fundasDib.dibujarDorso(cur, cx + 2, by - 6, 0.55)
+            fundasDib.dibujarDorso(cur, cx, by - 8, 0.55)
+        end
+    end
+    local bw = w - 16
+    muebles.bloque(cx - bw / 2, by, bw, 13, 6, muebles.tonos({ 0.62, 0.44, 0.26 }, 1, 1.25, 0.7))
+    fuentes.texto(d and ("X" .. math.max(0, quedan)) or "VACÍA", cx - bw / 2, by + 4, 1, d and p.blanco or p.grisclaro, "center", bw)
+    local libre = not apertura.bloqueada() and not animCaja
+    if cuantos > 1 then
+        ui.boton("mesa_cajita_" .. k .. "_-1", "<", x, by - 6, 7, 14, p.azul, libre)
+        ui.boton("mesa_cajita_" .. k .. "_1", ">", x + w - 7, by - 6, 7, 14, p.azul, libre)
+    end
+    if d and quedan > 0 and libre then
+        local zid = "cajita_" .. k
+        ui.zona(zid, cx - bw / 2, y + 10, bw, h - 10)
+        if ui.encima == zid and not mano then
+            ui.tooltip(d.nombre, d.color, { { quedan .. " LIBRES" }, { "Arrástrala a una carta", p.grisclaro },
+                { "O suelta aquí una carta de la mesa", p.grisclaro } })
+        end
+    end
+end
+
 local function dibujarCaja()
     -- tablero con ganchos al fondo de la mesa, como el de la tienda
     muebles.bloque(CAJA.x + 2, TABLERO, CAJA.w - 8, CAJA.y + CAJA.h - TABLERO - 2, 8, muebles.tonos(muebles.MADERA, 1.15, 1.5, 0.7))
     muebles.perforado(CAJA.x + 6, TABLERO + 4, CAJA.w - 14, CAJA.y + CAJA.h - TABLERO - 10, 7)
     -- y encima la balda de las cajas cerradas
-    muebles.balda(CAJA.x + 1, BALDA, CAJA.w - 5, 14)
+    muebles.balda(CAJA.x + 1, BALDA, BALDA_W, 14, true)
 
     local bloqueada = apertura.bloqueada()
     -- llevas un sobre: soltarlo aqui lo guarda (el de la caja abierta, todos)
@@ -475,6 +560,7 @@ local function dibujarCaja()
 
     -- blisters: colgados de la barra de abajo a tamaño real; si hay de varios
     -- sets se solapan y el de la izquierda queda delante
+    sitioCajas = {}
     local bls = blistersMesa()
     local BW = prDib.BLISTER.W
     local B = BLISTERS
@@ -485,21 +571,24 @@ local function dibujarCaja()
         muebles.rect(p.grisclaro, B.x, B.y - 1, B.w, 1, 0.6)
         for i = #bls, 1, -1 do
             local tipo = bls[i]
-            local n = partida.prodDisponibles("blister", tipo.id)
+            local cogido = mano and mano.cosa == "cajabox" and mano.prod == "blister" and mano.tipo == tipo.id
+            local n = partida.prodDisponibles("blister", tipo.id) - (cogido and 1 or 0)
             local cx = math.floor(x0 + (i - 1) * paso + BW / 2)
             local hx, hy = muebles.agujero(cx, B.y, 6)
             muebles.gancho(cx, B.y, 6)
-            prDib.blister(tipo.id, tipo.colores, hx, hy, math.min(3, n), 0)
+            if n > 0 then prDib.blister(tipo.id, tipo.colores, hx, hy, math.min(3, n), 0) end
+            sitioCajas["blister_" .. tipo.id] = { x = cx, y = hy + 10, chipY = hy + prDib.BLISTER.H - 16, pid = "blister", tipo = tipo.id }
             muebles.punta(cx, B.y, 6)
             local izq = i == 1 and cx - BW / 2 or math.floor(x0 + (i - 2) * paso + BW)
             local der = cx + BW / 2
             local zid = "blis_" .. tipo.id
-            if not bloqueada and der > izq then ui.zona(zid, izq, hy - 4, der - izq, prDib.BLISTER.H + 4) end
+            if not bloqueada and not animCaja and n > 0 and der > izq then ui.zona(zid, izq, hy - 4, der - izq, prDib.BLISTER.H + 4) end
             if ui.encima == zid and not mano then
                 lg.setColor(1, 1, 1, 0.25)
                 lg.rectangle("line", izq + 0.5, hy - 3.5, der - izq - 1, prDib.BLISTER.H + 3)
                 ui.tooltip("BLÍSTER " .. sets[tipo.set].nombre:upper(), p.blanco,
-                    { { n .. (n == 1 and " BLÍSTER" or " BLÍSTERS") }, { "Tócalo para rasgarlo", p.grisclaro } })
+                    { { n .. (n == 1 and " BLÍSTER" or " BLÍSTERS") }, { "Arrástralo al tapete para abrirlo", p.grisclaro },
+                      { "Tócalo para sacar sus sobres", p.grisclaro } })
             end
             local txt = (filtro == "todo" and #bls > 1) and (sets[tipo.set].codigo .. " X" .. n) or ("BL X" .. n)
             -- en el pie del blister, en lugar de "2 SOBRES"
@@ -512,13 +601,16 @@ local function dibujarCaja()
     end
 
     -- lo sellado grande (cajas, ETB y tins): se arrastra al tapete para abrirlo.
-    -- Caben 4 pilas encima de la balda
-    sitioCajas = {}
-    for i, pila in ipairs(pilasBalda()) do
-        if i > 4 then break end
+    -- Caben las pilas que quepan encima de la balda
+    local izq = CAJA.x + 2 + muebles.dz(FONDO_BALDA)
+    for _, pila in ipairs(pilasBalda()) do
         local pid, tipo = pila.prod.id, pila.tipo
+        local ancho = ANCHO_PILA[pid] or 24
+        -- caben las que caben, cada una con su ancho de verdad
+        if izq + ancho > CAJA.x + 1 + BALDA_W + 1 then break end
         local n = partida.prodDisponibles(pid, tipo.id)
-        local cx, cy = CAJA.x + 18 + (i - 1) * 25 + muebles.dz(FONDO_BALDA), BALDA - 9 - FONDO_BALDA
+        local cx, cy = izq + (MEDIO_PILA[pid] or 10), BALDA - 9 - FONDO_BALDA
+        izq = izq + ancho + 1
         local cogida = mano and mano.cosa == "cajabox" and mano.tipo == tipo.id and mano.prod == pid
         local quedan = n - (cogida and 1 or 0)
         local pila_ = math.min(pid == "caja" and 4 or 3, quedan)
@@ -527,11 +619,11 @@ local function dibujarCaja()
             if pid == "caja" then caja.dibujar(tipo.id, cx + (k % 2), cy - k * 9, 1, { mini = true })
             else prDib.mini(pid, tipo.id, cx + (k % 2), BALDA - FONDO_BALDA - k * alto) end
         end
-        fuentes.texto("X" .. quedan, cx - 12, BALDA + 7, 1, p.blanco, "center", 24)
+        fuentes.texto("X" .. quedan, izq - ancho - 1, BALDA + 7, 1, p.blanco, "center", ancho)
         local top = pid == "caja" and cy - math.max(0, pila_ - 1) * 9 or BALDA - FONDO_BALDA - pila_ * alto + 6
         sitioCajas[pid .. "_" .. tipo.id] = { x = cx, y = top, pid = pid, tipo = tipo.id }
         local zid = pid == "caja" and ("cajabox_" .. tipo.id) or ("prodbox_" .. pid .. "_" .. tipo.id)
-        if not bloqueada and not animCaja and quedan > 0 then ui.zona(zid, cx - 12, top - 10, 24, BALDA - top + 12) end
+        if not bloqueada and not animCaja and quedan > 0 then ui.zona(zid, izq - ancho - 1, top - 10, ancho, BALDA - top + 12) end
         if ui.encima == zid and not mano then
             ui.tooltip(pila.prod.nombre .. " " .. sets[tipo.set].nombre:upper(), p.amarillo,
                 { { quedan .. " SIN ABRIR" }, { "Arrástrala al tapete para abrirla", p.grisclaro }, { "Tócala para sacar sus sobres", p.grisclaro } })
@@ -543,7 +635,7 @@ local function dibujarCaja()
         if s and partida.prodDisponibles(chipCaja.prod, chipCaja.tipo) > 0 and not bloqueada then
             local w = math.min(CAJA.w - 4, math.max(62, fuentes.ancho("SACAR SOBRES") + 10))
             local x = math.max(CAJA.x + 2, math.min(CAJA.x + CAJA.w - w - 2, s.x - w / 2))
-            ui.boton("mesa_sacar", "SACAR SOBRES", x, BALDA + 14, w, 12, p.azul)
+            ui.boton("mesa_sacar", "SACAR SOBRES", x, s.chipY or (BALDA + 14), w, 12, p.azul)
         else
             chipCaja = nil
         end
@@ -559,12 +651,15 @@ local function dibujarCaja()
         else
             monton("funda", F.x, F.y, F.w, F.h)
         end
+        cajita(false)
+        if desbloqueos.hay("tops") then cajita(true) end
     end
 
     -- copias en la mesa
-    -- copias en la mesa: solo al llevar una (el resto del rato, ahi van las fundas)
+    -- copias en la mesa: solo al llevar una (arriba: abajo van las cajitas,
+    -- donde soltarla la enfunda con su diseno)
     if mano and mano.cosa == "copia" then
-        local y = CAJA.y + CAJA.h - 32
+        local y = TABLERO + 30
         muebles.rect(p.negro, CAJA.x + 4, y - 3, CAJA.w - 8, 27, 0.8)
         fuentes.texto("DEL ARMARIO " .. partida.propiasEnMesa() .. "/" .. partida.MAX_MESA, CAJA.x, y, 1, p.grisclaro, "center", CAJA.w)
         fuentes.texto("SUÉLTALA AQUÍ PARA", CAJA.x, y + 8, 1, p.lima, "center", CAJA.w)
@@ -768,6 +863,11 @@ local function dibujarMano()
         lg.setColor(1, 1, 1, 0.18)
         lg.rectangle("fill", -w / 2, -h / 2, w, h)
         local color = esTop and p.celeste or p.cian
+        if mano.id then color = fundasDib.color(mano.id, esTop) end
+        if mano.id and not esTop then
+            lg.setColor(1, 1, 1, 0.85)
+            lg.draw(fundasDib.dorso(mano.id), 0, 0, 0, 2, 2, fundasDib.W / 2, fundasDib.H / 2)
+        end
         lg.setColor(color[1], color[2], color[3], 0.8)
         lg.rectangle("line", -w / 2 + 0.5, -h / 2 + 0.5, w - 1, h - 1)
         if esTop then
@@ -779,7 +879,7 @@ local function dibujarMano()
         lg.pop()
         lg.setColor(1, 1, 1)
         local objetivo = apertura.cartaEn(ui.mx, ui.my)
-        local ya = objetivo and objetivo.copia and (esTop and objetivo.copia.t or (not esTop and objetivo.copia.f))
+        local ya = objetivo and objetivo.copia and not mano.id and (esTop and objetivo.copia.t or (not esTop and objetivo.copia.f))
         if objetivo and not ya then
             fuentes.texto(esTop and "SUELTA PARA PONER TOP" or "SUELTA PARA ENFUNDAR", ui.mx - 50, ui.my + CH + 4, 1, color, "center", 100)
         end
@@ -1061,7 +1161,7 @@ function mesa.update(dt)
             mano.x, mano.y = mx + bx * c - by * sn, my + bx * sn + by * c
         else
             mano.x, mano.y = mx, my
-            local objetivoE = (mano.cosa == "sobre" and ESCALA_COGIDO) or (mano.cosa == "cajabox" and 1.5) or 1
+            local objetivoE = (mano.cosa == "sobre" and ESCALA_COGIDO) or (mano.cosa == "cajabox" and (mano.prod == "blister" and 1.1 or 1.5)) or 1
             mano.escala = fx.lerp(mano.escala, objetivoE, math.min(1, dt * 14))
         end
     end
@@ -1115,20 +1215,17 @@ function mesa.presionar(id, x, y)
         sonido.tocar("encima", 1.0)
         return true
     end
+    -- el blister se coge como una ETB: al tapete se abre, tocado saca sus sobres
+    -- de una cajita se coge una con el diseno de arriba
+    if id == "cajita_f" or id == "cajita_t" then
+        local esTop = id == "cajita_t"
+        mano = { cosa = esTop and "top" or "funda", id = disenoCajita(esTop), x = x, y = y, a = 0, w = 0, vx = 0, escala = 1 }
+        sonido.tocar("encima", 1.2)
+        return true
+    end
     if id and id:match("^blis_") then
-        local tipoId = id:sub(6)
-        local primera
-        if not apertura.bloqueada() then primera = partida.rasgarBlister(tipoId) end
-        if primera ~= nil then
-            directo.abrirProducto("blister", tipoId, primera)
-            directo.producto("blister")
-            local bx, by = ui.mx, ui.my
-            sonido.tocar("rasgar")
-            fx.explosion(bx, by, sobres[tipoId].colores.letras, 18, 80)
-            fx.texto(bx + 30, by - 14, "+" .. productos.blister.sobres .. " SOBRES", p.lima)
-            reporte.apuntar("blister " .. tipoId)
-            partida.guardar()
-        end
+        mano = { cosa = "cajabox", prod = "blister", tipo = id:sub(6), x = x, y = y, a = 0, w = 0, vx = 0, escala = 1, x0 = x, y0 = y }
+        sonido.tocar("encima", 1.1)
         return true
     end
     if id and id:match("^suelto_") then
@@ -1208,7 +1305,15 @@ function mesa.mover(x, y)
     end
 end
 
-local function enfundarCopia(c, x, y)
+local function enfundarCopia(c, x, y, id)
+    -- con diseno: se pone aunque ya tenga funda (la de antes vuelve a su caja)
+    if id then
+        if partida.cambiarFunda(c, id) then
+            brilloFunda(x, y)
+            return true
+        end
+        return false
+    end
     if c.f then return false end
     if partida.fundasLibres <= 0 then
         sinFundas(x, y)
@@ -1229,7 +1334,15 @@ local function avisoRayar(c, x, y)
     fx.texto(x, y - 6, "MEJOR PONLE FUNDA PRIMERO", p.grisclaro, 2.5)
 end
 
-local function ponerTopCopia(c, x, y)
+local function ponerTopCopia(c, x, y, id)
+    if id then
+        if partida.cambiarTop(c, id) then
+            brilloFunda(x, y)
+            avisoRayar(c, x, y)
+            return true
+        end
+        return false
+    end
     if c.t then return false end
     if partida.topsLibres <= 0 then
         sonido.tocar("latido")
@@ -1283,10 +1396,10 @@ function mesa.soltar(x, y)
                 animCaja = { tipo = m.tipo, t = 0, x0 = m.x, y0 = m.y + caja.COLGADO * m.escala, x1 = ESQUINA.x, y1 = ESQUINA.y, e1 = ESQUINA.e,
                              quedan = sobres.caja.sobres }
             else
-                if m.prod == "etb" then
-                    logros.marcar("etb")
-                    -- si alguien del directo la habia comprado, se cobra y sus sobres son suyos
-                    directo.abrirProducto("etb", m.tipo, partida.cajaAbierta and partida.cajaAbierta.primera == true)
+                if m.prod == "etb" then logros.marcar("etb") end
+                if m.prod == "etb" or m.prod == "blister" then
+                    -- si alguien del directo lo habia comprado, se cobra y sus sobres son suyos
+                    directo.abrirProducto(m.prod, m.tipo, partida.cajaAbierta and partida.cajaAbierta.primera == true)
                 end
                 animCaja = { prod = m.prod, tipo = m.tipo, t = 0, x0 = m.x, y0 = m.y + 10, destinos = destinosAbanico(productos[m.prod].sobres) }
             end
@@ -1307,7 +1420,7 @@ function mesa.soltar(x, y)
         local hacer = m.cosa == "top" and ponerTopCopia or enfundarCopia
         local c = apertura.cartaEn(x, y)
         if c and c.copia then
-            if hacer(c.copia, x, y) then c.brillo = 1 end
+            if hacer(c.copia, x, y, m.id) then c.brillo = 1 end
             return
         end
         -- la copia de la mesa de mas arriba en ese punto
@@ -1318,14 +1431,35 @@ function mesa.soltar(x, y)
         end
         if s then
             local copia = partida.copia(s.id, s.u)
-            if copia and hacer(copia, x, y) then s.brillo = 1 end
+            if copia and hacer(copia, x, y, m.id) then s.brillo = 1 end
         end
     elseif m.cosa == "copia" then
         local s = entradaMesa(m.u)
         if not s then return end
+        -- tocada sin arrastrar: INSPECCIONAR (girarla, funda, top, vender)
         if not m.movida then
-            mesaSel = mesaSel ~= s.u and s.u or nil
+            mesaSel = nil
+            inspeccionar.abrir(s.id, s.u, { alArmario = function()
+                if partida.guardarDeMesa(s.u) then
+                    sonido.tocar("giro")
+                    partida.guardar()
+                end
+            end })
             return
+        end
+        -- soltada en una cajita: se enfunda con su diseno y vuelve a su sitio
+        for _, esTop in ipairs({ false, true }) do
+            local cx, cy, cw, ch = zonaCajita(esTop)
+            local id = disenoCajita(esTop)
+            if id and (not esTop or desbloqueos.hay("tops")) and desbloqueos.hay("fundas") and x >= cx and x < cx + cw and y >= cy and y < cy + ch then
+                local c = partida.copia(s.id, s.u)
+                local hacer = esTop and ponerTopCopia or enfundarCopia
+                if c and hacer(c, x, y, id) then
+                    s.brillo = 1
+                    partida.guardar()
+                end
+                return
+            end
         end
         if dentro(CAJA, x, y) then
             if partida.guardarDeMesa(s.u) then
@@ -1349,6 +1483,20 @@ function mesa.click(id)
     local d = id and id:match("^mesa_tablero_(%-?1)$")
     if d then
         paginaTablero = paginaTablero + tonumber(d)
+        return
+    end
+    local k, paso = (id or ""):match("^mesa_cajita_([ft])_(%-?1)$")
+    if k then
+        local esTop = k == "t"
+        local l = partida.disenosLibres(esTop)
+        local pos = 1
+        for i, x in ipairs(l) do if x == disenoCajita(esTop) then pos = i end end
+        partida.cajitas[k] = l[(pos - 1 + tonumber(paso)) % #l + 1]
+        return
+    end
+    k = (id or ""):match("^mesa_cajitanom_([ft])$")
+    if k then
+        fundario.elegir(k == "t", disenoCajita(k == "t"), function(nuevo) partida.cajitas[k] = nuevo end)
         return
     end
     d = id and id:match("^mesa_filtro_(%-?1)$")
