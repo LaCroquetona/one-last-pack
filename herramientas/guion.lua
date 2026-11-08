@@ -136,9 +136,12 @@ return function(t)
     local zt = Z["m" .. partida.mesa[2].u]
     if zt then t.clickEn(zt.x + zt.w / 2, zt.y + zt.h / 2) end
     esperar(3)
-    ok(Z["mesa_vender"] ~= nil, "la carta suelta tiene sus botones")
+    -- desde la 0.10.2 tocarla abre INSPECCIONAR (con VENDER ESTA y AL ARMARIO)
+    ok(Z["insp_vender"] ~= nil and Z["insp_armario"] ~= nil, "la carta suelta tiene sus botones")
     esperar(2)
     foto("18b_botones_carta")
+    love.keypressed("escape")
+    esperar(2)
 
     -- espacio: recoge la mesa y abre el siguiente (con DEV: secreta forzada)
     generador.forzar = "secreta"
@@ -280,7 +283,9 @@ return function(t)
     if zm then t.clickEn(zm.x + zm.w / 2, zm.y + zm.h / 2) end
     esperar(5)
     foto("26_copia_en_mesa")
-    ok(Z["mesa_guardar"] ~= nil, "la copia elegida tiene sus botones")
+    ok(Z["insp_armario"] ~= nil, "la copia elegida tiene sus botones (INSPECCIONAR)")
+    love.keypressed("escape")
+    esperar(2)
 
     -- sin sobres
     for _, tipo in ipairs(require("datos.sobres").lista) do
