@@ -14,7 +14,7 @@ for _, c in ipairs(cartas) do
         todasVar[c.set] = todasVar[c.set] or {}
         todasVar[c.set][c.variante] = todasVar[c.set][c.variante] or {}
         table.insert(todasVar[c.set][c.variante], c)
-    else
+    elseif not c.promo then
         porSet[c.set] = porSet[c.set] or {}
         local r = porSet[c.set]
         r[c.rareza] = r[c.rareza] or {}

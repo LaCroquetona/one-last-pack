@@ -89,17 +89,22 @@ end
 -- tipo: entrada de datos/sobres.lua (ya descontada de los guardados)
 -- primera: si el sobre es de 1ª edicion
 -- desde: { x, y, a, escala } si llega arrastrado (si no, sube desde abajo)
-function apertura.empezar(tipo, primera, desde)
+-- dados (opcional): las cartas ya echadas (sobrecito promo o de torneo; tipo.promo)
+function apertura.empezar(tipo, primera, desde, dados)
     tipoActual, primeraActual = tipo, primera
     entrada = desde
-    -- venta en directo: si alguien del chat ha comprado este sobre, las cartas son suyas
-    paraOtro = directo.reservar(tipo, primera)
-    if not directo.activo() then directo.avisarSinDirecto() end
-    -- si este sobre ya se saco y se guardo sin abrir, trae lo que le toco
     local defs
-    defs, godpack = partida.sacarTirada(tipo.id, primera)
-    if not defs then defs, godpack = generador.sobre(tipo) end
-    if not paraOtro then partida.rescate(defs, tipo) end
+    if dados then
+        defs, godpack, paraOtro = dados, false, nil
+    else
+        -- venta en directo: si alguien del chat ha comprado este sobre, las cartas son suyas
+        paraOtro = directo.reservar(tipo, primera)
+        -- si este sobre ya se saco y se guardo sin abrir, trae lo que le toco
+        defs, godpack = partida.sacarTirada(tipo.id, primera)
+        if not defs then defs, godpack = generador.sobre(tipo) end
+        if not paraOtro then partida.rescate(defs, tipo) end
+    end
+    if not directo.activo() then directo.avisarSinDirecto() end
     mano = {}
     for i, def in ipairs(defs) do
         mano[i] = { def = def, x = CX, y = CY, escala = GRANDE, boca = false, nueva = false }
@@ -120,8 +125,10 @@ function apertura.empezar(tipo, primera, desde)
         directo.rasgar(godpack, primeraActual)
     if godpack then logros.marcar("godpack") end
         for _, c in ipairs(mano) do directo.carta(c.def, c.nueva) end
-        directo.finSobre(defs, godpack, tipo.id)
-        partida.encargoSobre(tipo.id, primera)
+        if not tipo.promo then
+            directo.finSobre(defs, godpack, tipo.id)
+            partida.encargoSobre(tipo.id, primera)
+        end
     end
 end
 
@@ -181,7 +188,7 @@ end
 
 -- el sobre aun se puede guardar sin abrir: cayendo o en el tapete sin rasgar
 function apertura.cancelable()
-    return estado == "entrando" or estado == "sobre"
+    return (estado == "entrando" or estado == "sobre") and not tipoActual.promo
 end
 
 -- el punto (x, y) esta encima del sobre del tapete
@@ -211,7 +218,7 @@ end
 
 -- tipo del ultimo sobre abierto (para sacar otro igual)
 function apertura.ultimoTipo()
-    return tipoActual and tipoActual.id
+    return tipoActual and not tipoActual.promo and tipoActual.id
 end
 
 function apertura.boton(id)
@@ -393,8 +400,10 @@ local function actualizarCarta(dt, mantenido)
                 partida.guardar()
                 local defs = {}
                 for i, m in ipairs(mano) do defs[i] = m.def end
-                directo.finSobre(defs, godpack, tipoActual.id)
-                partida.encargoSobre(tipoActual.id, primeraActual)
+                if not tipoActual.promo then
+                    directo.finSobre(defs, godpack, tipoActual.id)
+                    partida.encargoSobre(tipoActual.id, primeraActual)
+                end
             else
                 fase, tf = "esperando", 0
             end
@@ -551,7 +560,7 @@ local function dibujarLote()
                     { r.nombre, r.color },
                     { "En este lote: " .. L.cuenta[def.id] },
                     { "Copias: " .. partida.copias(def.id) },
-                    { "Valor " .. ui.dinero(mercado.valor(def.id)), p.amarillo },
+                    { mercado.textoValor(def.id), p.amarillo },
                 })
             end
         end
@@ -733,7 +742,7 @@ local function dibujarResumen()
                 ui.tooltip(rarezas.nombre(c.def), r.color, {
                     { r.nombre, r.color },
                     { "Copias: " .. partida.copias(c.def.id) },
-                    { "Valor " .. ui.dinero(mercado.valor(c.def.id, primeraActual)), p.amarillo },
+                    { mercado.textoValor(c.def.id, primeraActual), p.amarillo },
                     { funda and "Enfundada" or "Arrastra una funda encima", funda and p.cian or p.gris },
                 })
             end

@@ -8,6 +8,9 @@
 return {
     -- cada carta se aleja un poco del valor de su rareza (entre estos dos)
     variacion = { 0.8, 1.3 },
+    -- todas las cartas (promos incluidas) valen esto de lo que dicen sets y promos
+    -- (v0.10.3: un 7% menos)
+    valorCartas = 0.93,
     -- la tienda te paga esta parte del valor si vendes al momento (1 = todo)
     ventaRapida = 1.0,
     -- lo que se queda la app por cada venta del movil (cartas y sobres cerrados)

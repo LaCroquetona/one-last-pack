@@ -53,6 +53,11 @@ local function pintar(tipo)
     for x = 1, W - 2, 2 do px(x, sobre.CORTE) end
 end
 
+-- id de la imagen de un sobrecito promo
+function sobre.clavePromo(origen, tipoId)
+    return "pr_" .. origen .. "_" .. tipoId
+end
+
 function sobre.preparar()
     for _, tipo in ipairs(sobres.lista) do
         local img = lg.newCanvas(sobre.ANCHO, sobre.ALTO)
@@ -62,6 +67,20 @@ function sobre.preparar()
         pintar(tipo)
         lg.setCanvas()
         imagenes[tipo.id] = img
+        -- los sobrecitos promo (ETB y caja) y los de torneo de este set
+        for _, origen in ipairs({ "etb", "caja", "torneo", "correo" }) do
+            local pr = lg.newCanvas(sobre.ANCHO, sobre.ALTO)
+            pr:setFilter("nearest", "nearest")
+            lg.setCanvas(pr)
+            lg.clear(0, 0, 0, 0)
+            require("src.promo").pintarSobre(origen, tipo.set, sobre.ANCHO, sobre.ALTO, tipo.colores)
+            if origen == "torneo" then
+                lg.setColor(p.blanco)
+                for x = 1, sobre.ANCHO - 2, 2 do px(x, sobre.CORTE) end
+            end
+            lg.setCanvas()
+            imagenes[sobre.clavePromo(origen, tipo.id)] = pr
+        end
     end
     lg.setColor(1, 1, 1)
     sobre.arriba = lg.newQuad(0, 0, sobre.ANCHO, sobre.CORTE, sobre.ANCHO, sobre.ALTO)

@@ -7,7 +7,7 @@ local function tieneRareza(partida, mercado, nivel, chase)
     for id, l in pairs(partida.inv) do
         if #l > 0 then
             local def = mercado.carta(id)
-            if def and ((chase and def.chase) or (not chase and rarezas[def.rareza].nivel >= nivel)) then return true end
+            if def and not def.promo and ((chase and def.chase) or (not chase and rarezas[def.rareza].nivel >= nivel)) then return true end
         end
     end
     return false
@@ -78,4 +78,22 @@ return {
       si = function(pa) return pa.canal.seguidores >= 1000 end },
     { id = "record", nombre = "LLENO TOTAL", texto = "Ten 25 espectadores a la vez",
       si = function(pa) return (pa.canal.record or 0) >= 25 end },
+    { id = "promo", nombre = "PROMOCIONADO", texto = "Consigue tu primera promo",
+      si = function(pa, me)
+          for id, l in pairs(pa.inv) do
+              local def = me.carta(id)
+              if #l > 0 and def and def.promo and not def.colab and def.promo ~= "canal" then return true end
+          end
+          return false
+      end },
+    { id = "promosSet", nombre = "TODAS LAS PROMOS", texto = "Consigue todas las promos de un set",
+      si = function(pa, me)
+          for _, s in ipairs(require("datos.sets").lista) do
+              local l = me.promosDe(s.id)
+              local n = 0
+              for _, def in ipairs(l) do if pa.copias(def.id) > 0 then n = n + 1 end end
+              if #l > 0 and n >= #l then return true end
+          end
+          return false
+      end },
 }

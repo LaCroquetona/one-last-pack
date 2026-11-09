@@ -3,6 +3,7 @@
 local p = require "datos.paleta"
 local muebles = require "src.muebles"
 local sobre = require "src.sobre"
+local datosSobres = require "datos.sobres"
 local fuentes = require "src.fuentes"
 
 local lg = love.graphics
@@ -54,6 +55,19 @@ end
 -- detras de la burbuja; carton del set con cabecera y pie.
 productos.BLISTER = { W = 66, H = 64 }
 
+-- la promo que se ve en el blister de ese tipo de sobre (la normal, no la ALT)
+local promosBlister = {}
+local function promoBlister(tipoId)
+    if promosBlister[tipoId] == nil then
+        promosBlister[tipoId] = false
+        local tipo = datosSobres[tipoId]
+        for _, def in ipairs(tipo and require("src.mercado").promosDe(tipo.set) or {}) do
+            if def.promo == "blister" and not def.alt then promosBlister[tipoId] = def end
+        end
+    end
+    return promosBlister[tipoId] or nil
+end
+
 -- vacio: ya abierto (la burbuja sin sobres y rota)
 local function blisterUno(id, col, x, y, l, vacio)
     local W, H = productos.BLISTER.W, productos.BLISTER.H
@@ -79,6 +93,17 @@ local function blisterUno(id, col, x, y, l, vacio)
     else
         lg.draw(sobre.imagen(id), bx + 1, by + 1)
         lg.draw(sobre.imagen(id), bx + bw - 31, by + 1)
+        -- su promo, delante de los sobres (se ve a traves del plastico)
+        local def = promoBlister(id)
+        if def then
+            -- pequeña y en diagonal, delante de los sobres
+            local pr = require "src.promo"
+            local mini, ox, oy = pr.mini(def), pr.MINI.W / 2, pr.MINI.H / 2
+            lg.setColor(0, 0, 0, 0.35)
+            lg.draw(mini, x + W / 2 + 2, y + 37, -0.3, 1, 1, ox, oy)
+            lg.setColor(l, l, l)
+            lg.draw(mini, x + W / 2, y + 35, -0.3, 1, 1, ox, oy)
+        end
     end
     rect(p.blanco, bx, by, bw, 1, 0.6)
     rect(p.blanco, bx, by, 1, bh, 0.45)
@@ -88,7 +113,7 @@ local function blisterUno(id, col, x, y, l, vacio)
     rect(p.blanco, bx, by, bw, bh, 0.08)
     -- pie: X2 y el nombre corto
     rect(p.negro, x, y + H - 6, W, 6)
-    fuentes.texto("2 SOBRES", x, y + H - 5, 1, col.letras, "center", W)
+    fuentes.texto(vacio and "2 SOBRES" or "2 SOBRES+PROMO", x, y + H - 5, 1, col.letras, "center", W)
 end
 
 -- colgados del agujero (hx, hy), en pila recta como los sobres
@@ -270,15 +295,15 @@ end
 -- Lo que hay en un hueco de la tienda o del armario (HUECO de ancho), con su
 -- suelo en y: apilado como en la vida real, hasta lo que cabe
 productos.HUECO = 70
-local datosSobres = require "datos.sobres"
 
 local function colores(tipoId) return (datosSobres[tipoId] or datosSobres.lista[1]).colores end
 
 function productos.enHueco(pid, tipoId, x, y, n, giro)
     local col = colores(tipoId)
     lg.setColor(1, 1, 1)
-    if pid == "sobre" then
-        for i = math.min(3, n) - 1, 0, -1 do lg.draw(sobre.imagen(tipoId), x + 18 + i * 2, y - 46 - i * 2) end
+    if pid == "sobre" or pid:match("^pr") then
+        local img = pid == "sobre" and sobre.imagen(tipoId) or sobre.imagen(sobre.clavePromo(pid:sub(3), tipoId))
+        for i = math.min(3, n) - 1, 0, -1 do lg.draw(img, x + 18 + i * 2, y - 46 - i * 2) end
     elseif pid == "blister" then
         productos.blister(tipoId, col, x + 34, y - 72, math.min(2, n), giro or 0)
     elseif pid == "tin" then
@@ -329,6 +354,7 @@ end
 local CAE, TIEMBLA, ABRE, VA = 0.45, 0.9, 0.9, 0.4
 local E = 3
 productos.DURACION = CAE + TIEMBLA + ABRE + VA
+productos.SALTO = CAE + TIEMBLA   -- cuando se abre y empiezan a salir los sobres
 
 -- devuelve true en el frame en que se abre
 function productos.avanzarAnim(a, dt, cx, cy)
