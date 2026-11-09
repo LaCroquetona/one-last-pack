@@ -152,14 +152,70 @@ local function variar(texto, idioma)
     return texto
 end
 
--- una frase de esa situacion que no haya salido hace poco
+-- tienes algo de ese producto (en la mesa, guardado o empezado)
+local function tienesProd(pid)
+    local a = partida.cajaAbierta
+    if a and (a.prod or "caja") == pid then return true end
+    local t = pid == "caja" and partida.cajas or partida.prods
+    for k, n in pairs(t) do
+        if n > 0 and (pid == "caja" or k:match("^" .. pid .. ":")) then return true end
+    end
+    return false
+end
+
+local function hayReimpresion()
+    for _, s in ipairs(mercado.setsSalidos()) do
+        if mercado.fase(s.id) == "reimpresion" then return true end
+    end
+    return false
+end
+
+local function hayPrimera()
+    for _, t in ipairs(sobres.lista) do
+        if partida.sobres(t.id, true) > 0 then return true end
+    end
+    local a = partida.cajaAbierta
+    return a and a.primera or false
+end
+
+-- las frases que dependen de algo solo salen cuando toca
+local CONTEXTO = {
+    { "%f[%a]caja", function() return tienesProd("caja") end }, { "%f[%a]box%f[%A]", function() return tienesProd("caja") end },
+    { "bl[ií]ster", function() return tienesProd("blister") end },
+    { "%f[%a]tin%f[%A]", function() return tienesProd("tin") end }, { "%f[%a]lata%f[%A]", function() return tienesProd("tin") end },
+    { "%f[%a]etb", function() return tienesProd("etb") end },
+    { "1ª ed", hayPrimera }, { "1st ed", hayPrimera }, { "reimpresi", hayReimpresion },
+    { "set 2", function() return mercado.salido(sets.lista[2] and sets.lista[2].id) end },
+    { "esa carta", function() return partida.propiasEnMesa() > 0 end },
+    { "vale esa", function() return partida.propiasEnMesa() > 0 end },
+    { "buena carta", function() return partida.propiasEnMesa() > 0 end },
+    { "bicho ese", function() return partida.propiasEnMesa() > 0 end },
+    { "that one", function() return partida.propiasEnMesa() > 0 end },
+    { "that a good", function() return partida.propiasEnMesa() > 0 end },
+    { "esa la", function() return partida.propiasEnMesa() > 0 end },
+}
+
+function directo.encaja(texto)
+    local t = texto:lower()
+    for _, c in ipairs(CONTEXTO) do
+        if t:find(c[1]) and not c[2]() then return false end
+    end
+    return true
+end
+
+-- las de relleno son las que se filtran (las de reaccion ya van con lo que pasa)
+local FILTRADAS = { pregunta = true, charla = true, espera = true }
+
+-- una frase de esa situacion que no haya salido hace poco (y que venga a cuento)
 local function frase(idioma, categoria)
     local lista = datos.textos[idioma][categoria]
     if not lista then return nil end
     local texto
-    for _ = 1, 8 do
+    for i = 1, 16 do
         texto = azar(lista)
-        if not recientes[texto] then break end
+        local vale = not FILTRADAS[categoria] or directo.encaja(texto)
+        if vale and (i > 8 or not recientes[texto]) then break end
+        if not vale and i == 16 then return nil end
     end
     recordar(texto)
     return limpiar(variar(texto, idioma))
@@ -1394,7 +1450,7 @@ function directo.click(id)
             sonido.tocar("latido")
         end
     elseif id == "dir_twitch" then
-        opciones.abrir()
+        opciones.abrir(function() require("src.tutorial").repetir() end)
     elseif id:match("^dir_tipo_") then
         tipoElegido = id:sub(10)
     else

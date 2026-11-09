@@ -98,6 +98,11 @@ local DE_CHAT = {
     fuego = "fuego", bulk = "calavera", rip = "RIP", top = "TOP", god = "GOD", omg = "OMG", cine = "claqueta",
 }
 
+-- las que son coletilla (se pueden quitar del final sin romper la frase)
+local SUELTAS = {}
+for _, k in ipairs({ "XD", "risa", "F", "GG", "EZ", "POG", "llora", "payaso", "ILLO", "OLE", "UFF", "enfado", "mueca",
+    "YOLO", "W", "L", "AFK", "BRB", "RIP", "OMG", "dormido" }) do SUELTAS[k] = true end
+
 local imagenes = {}
 local function imagen(k)
     if imagenes[k] then return imagenes[k] end
@@ -155,14 +160,31 @@ end
 -- un mensaje del chat del juego: el texto sin las palabras que pasan a emoji
 -- y esos emojis (como mucho 4). Las que van repetidas se quedan en uno
 function emojis.deChat(texto)
-    local lista, resto, vistos = {}, {}, {}
+    local palabras, claves = {}, {}
     for palabra in texto:gmatch("%S+") do
-        local limpia = palabra:lower():gsub("[%.,!%?¡¿:]", "")
-        local k = DE_CHAT[limpia]
-        if k and #lista < 4 then
+        table.insert(palabras, palabra)
+        table.insert(claves, DE_CHAT[(palabra:lower():gsub("[%.,!%?¡¿:]", ""))] or false)
+    end
+    -- se cambian si el mensaje es entero de esas palabras; si no, solo las
+    -- coletillas del final (xd, F, GG...): las que van dentro de la frase
+    -- (aura, fuego, top...) se quedan, para no dejarla rota
+    local desde = #palabras + 1
+    local entero = true
+    for i = #palabras, 1, -1 do
+        if not claves[i] then entero = false break end
+    end
+    if entero then
+        desde = 1
+    else
+        while desde > 1 and claves[desde - 1] and SUELTAS[claves[desde - 1]] do desde = desde - 1 end
+    end
+    local lista, resto, vistos = {}, {}, {}
+    for i, palabra in ipairs(palabras) do
+        local k = claves[i]
+        if i >= desde and #lista < 4 then
             if not vistos[k] then table.insert(lista, k) end
             vistos[k] = true
-        else
+        elseif i < desde then
             table.insert(resto, palabra)
         end
     end
