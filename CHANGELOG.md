@@ -10,6 +10,60 @@ fase 3 = v0.7.2-0.7.4, fase 4 = v0.8.0-0.8.2. Desde la v0.9.0 ya no hay
 fases: se sigue el roadmap. La v0.9.0 se preparó como v0.8.3 y salió con
 otro número.
 
+## v0.10.2 - 2026-11-02 - Fundas con diseño e INSPECCIONAR
+
+- **Varias partidas**: en el menú, PARTIDA 1, 2 y 3, cada una con su día y
+  su dinero. Se puede empezar de cero, ver el tutorial o tocar cosas en una
+  sin perder las otras, y en la 2 y la 3 hay COPIAR LA 1. El juego se
+  acuerda de la última que usaste. La 1 es la de siempre (`partida.lua`).
+- **Fundas con diseño**: la básica sigue siendo la transparente (detrás se
+  ve el dorso de la carta). Las de diseño se notan de frente por el filo
+  del color de la funda y, al girar la carta, por su dibujo. Son solo de
+  estilo: no cambian el precio y no se venden sueltas; al vender la carta,
+  su funda y su top vuelven a su caja.
+  - Tienda del set: pack de 10 lisas o de rayas (al azar) con sus colores.
+  - ETB: 10 fundas con el motivo de su set (llamas, olas, dunas, galaxia,
+    burbujas, nubes, escamas y sol); 1 de cada 10, holo o plata.
+  - MIX: cada 3 o 4 días sale una funda de temporada (ajedrez, lunares,
+    atardecer retro, circuito, camuflaje, tartán, dorso clásico, noche),
+    con aviso en el móvil y su raya en el calendario. Luego se va.
+  - Premios: la de la chase de cada set al completarlo y la dorada por el
+    MASTER SET.
+- **Top loaders con diseño**: del color de su set (los trae el tin), con la
+  pegatina de un set (pack del MIX) y el magnético (marco negro con filo
+  dorado, en el MIX).
+- **Mesa en 4 filas**: 3 ganchos de sobres (con flechas si hay más), los
+  blísters, las fundas y los tops básicos colgados y dos cajitas: fundas y
+  tops con diseño. En cada cajita, < > cambia el de arriba y tocando el
+  nombre sale una rejilla con todos los que tienes (TODAS, SET, MIX,
+  ESPECIALES). Se arrastra a una carta (si ya tenía funda, la de antes
+  vuelve a su caja) o se suelta una carta de la mesa encima de la cajita.
+  El autoenfundado usa siempre lo básico colgado.
+- **INSPECCIONAR**: al tocar una carta de la mesa, la grande del armario o
+  una del álbum, sale en grande y se gira con clic derecho, F, doble toque
+  o arrastrando a los lados. Ficha con COPIA, FUNDA y TOP con flechas, tus
+  copias en fila, VENDER ESTA y AL ARMARIO (las de la mesa).
+- **FUNDARIO** en el armario: los diseños conseguidos y los que faltan, de
+  fundas y de tops, con su logro (10 distintas).
+- **Blíster**: ya no se rasga al tocarlo. Se arrastra al tapete, se abre
+  con animación y sus 2 sobres van al abanico de la esquina. Tocándolo sale
+  SACAR SOBRES. En la venta, si alguien compró el blíster entero se abre
+  para él; si compra un sobre suelto, se vende uno de la esquina.
+- **Precios**: blíster 10 céntimos más barato (S1 3,90 €), tin y ETB algo
+  más baratos (tin S1 11 €, ETB S1 17,60 €). Ahora los productos dan un
+  poco más que su sobre: blíster ~82% (S1 92%), tin y ETB ~85% (S1 95%).
+- **Balda de la mesa**: cada pila con su ancho de verdad (las cajas ya no
+  tapan las ETB) y el mueble con su lateral en perspectiva.
+- **Chat en español** con la jerga de los chats de aquí: F, GG, EZ, pog,
+  sadge, kappa, clip, AFK, BRB, chetado, manco, carrear, tryhard, salseo,
+  funar, illo, quillo, miarma, picha, noniná, fetén, ONE MORE TIME... Las
+  palabras más típicas salen como emoji (XD, F, GG, ILLO, OLE, CLIP,
+  palomitas para el salseo, músculo para lo chetado...).
+- **Emojis**: 35 nuevos (palomitas, claqueta, chancla, tortilla, músculo,
+  enfado, mueca, a mimir, sudor, guiño, hola, pizza, corazón roto, cebolla,
+  bocata, gato, perro, lupa, reloj, regalo, ancla, globo, pato y XD, OLE,
+  ILLO, UFF, +1, TOP, GOD, CLIP, YOLO, OP, BRB y AFK).
+
 ## v0.10.1 - 2026-11-02 - Chat vivo y Twitch
 
 - **Twitch**: el juego lee el chat de tu canal por IRC, sin iniciar sesión.

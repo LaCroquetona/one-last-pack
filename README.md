@@ -19,7 +19,7 @@ Hecho en Lua con LÖVE, a 640x360 en pixel art. Funciona en PC y en Android. El 
 - Directos: espectadores, seguidores, propinas, peticiones del chat (en español o inglés) y directos de venta de sobres, en los que puedes rechazar compras.
 - Mercado que se mueve por días, con memoria: rachas, noticias, burbujas, crashes, 1ª edición con precio propio, reimpresiones y vintage.
 - Móvil del juego con sus apps: cartera, mercado con vendedores de segunda mano, ventas, noticias, calendario, encargos, mejoras y logros.
-- Cajas selladas, fundas y top loaders, colección sellada, premios por completar sets y cartas buscadas.
+- Cajas selladas, fundas y top loaders (también con diseño), INSPECCIONAR para girar las cartas, varias partidas, colección sellada, premios por completar sets y cartas buscadas.
 - Desbloqueos por hitos y un tutorial con una mascota.
 
 | | |
@@ -36,7 +36,7 @@ Desde el código:
 1. Instala [LÖVE 11.5](https://love2d.org).
 2. Arrastra la carpeta del proyecto encima de `love.exe`, o en terminal: `love one-last-pack`.
 
-La partida se guarda sola en `partida.lua` (en Windows, `%APPDATA%/LOVE/one-last-pack/`).
+Hay 3 partidas (PARTIDA 1, 2 y 3 en el menú). Se guardan solas en `partida.lua`, `partida2.lua` y `partida3.lua` (en Windows, `%APPDATA%/LOVE/one-last-pack/`).
 
 ## Controles
 
@@ -46,10 +46,12 @@ En PC se juega con ratón; en Android, igual pero tocando.
 - Mesa: arrastra un sobre de la caja al tapete y mantén pulsado para rasgarlo. Click o espacio revela la siguiente carta.
 - Espacio en la mesa: recoger y abrir el siguiente sobre.
 - Fundas y tops: se arrastran de la caja a una carta cuando el sobre ya está abierto. Un top sin funda también se puede poner, pero la carta se puede rayar.
+- Fundas y tops con diseño: en sus cajitas de la mesa; < > cambia el de arriba y tocando el nombre se ven todos. Se arrastran a una carta, o se suelta la carta encima de la cajita.
+- INSPECCIONAR: toca una carta de la mesa, la grande del armario o una del álbum. Se gira con clic derecho, F, doble toque o arrastrando a los lados; ← → cambian de copia.
 - Velocidad de apertura: con la mejora MANOS RÁPIDAS, el botón >> de arriba a la izquierda del tapete la cambia (también en plena apertura).
 - Guardar un sobre sin abrir: botón GUARDAR, arrastrarlo a la caja, ESC o clic derecho.
 - Cajas: se arrastran al tapete para abrirlas. Tocando una cerrada sale SACAR SOBRES.
-- Blísters: cuelgan de la barra de abajo de la mesa; se tocan para rasgarlos.
+- Blísters: cuelgan de la barra de debajo de los sobres; se arrastran al tapete para abrirlos y tocándolos sale SACAR SOBRES.
 - Armario SELLADO: arrastra lo de un hueco a otro para colocarlo a tu manera (si el otro está lleno, se cambian).
 - Directo: en la mesa, ponle nombre al canal y dale a EMPEZAR DIRECTO. Ir al móvil o pasar el día lo corta.
 - Twitch: en OPCIONES (o CONECTAR TWITCH en el directo) escribe tu canal y dale a CONECTAR; tu chat sale en el del juego. En la venta de sobres, `!comprar` en tu chat es una compra de verdad.
@@ -75,6 +77,7 @@ Casi todo lo que se ajusta está en `datos/`, separado del código:
 - `datos/variantes.lua`: las cartas de fuera de set: nombre, color, brillo y suspense.
 - `datos/sets.lua`: los sets y lo que vale cada rareza en cada uno.
 - `datos/sobres.lua`: precio, huecos y probabilidades de cada sobre, god pack, piedad, cajas y con qué se empieza.
+- `datos/fundas.lua`: las fundas y los tops con diseño: nombre, color, de dónde sale cada uno, packs y premios.
 - `datos/productos.lua`: los productos sellados (blíster, tin, ETB, caja): qué llevan, precio, cuántos llegan al día y cuántos caben en un hueco.
 - `datos/calendario.lua`: cada cuánto sale un set, cuánto dura su tirada y sus reimpresiones.
 - `datos/mercado.lua`: cómo se mueven los precios (rachas, noticias, vintage, burbujas, comisión, compradores).
@@ -93,7 +96,8 @@ En `src/`:
 - `tienda.lua`, `armario.lua`, `menu.lua`, `opciones.lua`, `reporte.lua` y `errores.lua`: el resto de pantallas.
 - `mercado.lua` y `calendario.lua`: el mercado y las fechas de cada set.
 - `carta.lua`, `bicho.lua` y `generador.lua`: cómo se pinta una carta, el generador de bichos y el sorteo de cada sobre.
-- `partida.lua`: el guardado, copia a copia.
+- `fundas.lua`, `fundario.lua` e `inspeccionar.lua`: el dibujo de las fundas con diseño, su rejilla (cajitas de la mesa y FUNDARIO) y la carta en grande que se gira.
+- `partida.lua`: el guardado, copia a copia, y las 3 partidas.
 - `desbloqueos.lua`, `guia.lua`, `tutorial.lua` y `logros.lua`: el progreso.
 - `ui.lua`, `fuentes.lua` (fuente propia de 3x5), `fx.lua`, `sonido.lua`, `nav.lua`, `transicion.lua` y `dev.lua`.
 

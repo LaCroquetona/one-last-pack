@@ -14,11 +14,17 @@ local reporte = require "src.reporte"
 
 local menu = {}
 
-local VERSION = "v0.10.1"
+local VERSION = "v0.10.2"
 reporte.version = VERSION
 local abanico = {}
+local resumenes = {}
+
+local function leerResumenes()
+    for n = 1, partida.RANURAS do resumenes[n] = partida.resumen(n) or false end
+end
 
 function menu.preparar()
+    leerResumenes()
     -- cinco cartas al azar en abanico detras del titulo, siempre con una secreta en medio
     abanico = {}
     local usadas = {}
@@ -49,6 +55,17 @@ function menu.dibujar()
     fuentes.texto(titulo, 0, 40, 6, p.amarillo, "center", 640)
 
     local hay = partida.existe()
+    -- PARTIDA 1, 2 y 3
+    for n = 1, partida.RANURAS do
+        local esta = partida.ranura == n
+        ui.boton("ranura" .. n, "PARTIDA " .. n, 250 + (n - 1) * 77, 214, 72, 16, esta and p.amarillo or p.grisosc)
+    end
+    local r = resumenes[partida.ranura]
+    local cad = r and ("DÍA " .. r.dia .. "  " .. ui.dinero(r.dinero)) or "VACÍA"
+    local cw = fuentes.ancho(cad) + 8
+    love.graphics.setColor(0, 0, 0, 0.75)
+    love.graphics.rectangle("fill", 246 - cw, 214, cw, 16)
+    fuentes.texto(cad, 246 - cw, 219, 1, r and p.blanco or p.gris, "center", cw)
     local y = 236
     if hay then
         ui.boton("continuar", "CONTINUAR", 250, y, 140, 20, p.verde)
@@ -61,6 +78,9 @@ function menu.dibujar()
     ui.boton("pantalla", completa and "VENTANA" or "PANTALLA COMPLETA", 250, y + 26, 140, 20, p.gris)
     ui.boton("reportar", "REPORTAR BUG", 396, y + 26, 80, 20, p.grisosc)
     ui.boton("salir", "SALIR", 250, y + 52, 140, 20, p.gris)
+    if partida.ranura ~= 1 and resumenes[1] then
+        ui.boton("copiar1", "COPIAR LA 1", 396, y + 52, 80, 20, p.grisosc)
+    end
     fuentes.texto("F11 O ALT+ENTER: PANTALLA COMPLETA", 0, 348, 1, p.grisosc, "center", 640)
 
     fuentes.texto(firma.nombre, 8, 348, 1, p.gris)
@@ -68,6 +88,23 @@ function menu.dibujar()
 end
 
 function menu.click(id)
+    local n = id:match("^ranura(%d)$")
+    if n then
+        partida.elegirRanura(tonumber(n))
+        partida.cargar()
+        leerResumenes()
+        return
+    end
+    if id == "copiar1" then
+        ui.confirmar("¿COPIAR LA PARTIDA 1 AQUÍ?", {
+            "LA PARTIDA " .. partida.ranura .. " SE CAMBIA POR UNA COPIA DE LA 1",
+            "LA 1 SE QUEDA COMO ESTÁ",
+        }, "SÍ, COPIAR", function()
+            partida.copiarDe(1)
+            leerResumenes()
+        end)
+        return
+    end
     if id == "continuar" then
         partida.cargar()
         nav.empezar()
@@ -77,7 +114,7 @@ function menu.click(id)
         nav.empezar()
     elseif id == "nueva" then
         if partida.existe() then
-            ui.confirmar("¿BORRAR TU PARTIDA?", {
+            ui.confirmar("¿BORRAR LA PARTIDA " .. partida.ranura .. "?", {
                 "EMPEZARÁS DE CERO CON " .. ui.dinero(sobres.inicio.dinero),
                 "PERDERÁS TODAS TUS CARTAS, SOBRES Y DINERO",
             }, "SÍ, EMPEZAR DE CERO", function()
