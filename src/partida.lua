@@ -1,5 +1,6 @@
 local cartas = require "datos.cartas"
 local sobres = require "datos.sobres"
+local calendario = require "src.calendario"
 local productos = require "datos.productos"
 local datosFundas = require "datos.fundas"
 local rarezas = require "datos.rarezas"
@@ -72,6 +73,19 @@ function partida.nueva()
     -- funda del MIX que esta a la venta: { id, hasta } y las que ya han salido
     partida.temporada = nil
     partida.temporadas = {}
+    -- carpetas propias: { id, nombre, tapa, b = { [bolsillo] = { id, u } } }; la copia lleva k = id de su carpeta
+    partida.carpetas = {}
+    partida.sigCarpeta = 1
+    -- promos: sobrecitos sin abrir ("etb:set1", "caja:set1", "torneo:set1" = cuantos),
+    -- placas del canal (nivel = dia en que llego), dia de la ultima preventa y
+    -- copias compradas de cada colab
+    partida.promoSobres = {}
+    partida.promoMesa = {}      -- sobrecitos de la ETB o la caja que esperan en la mesa: { o, t }
+    partida.correo = {}         -- placas del canal por abrir (nivel), en sobres de correo
+    partida.placas = {}
+    partida.preventaDia = nil
+    partida.colabCompradas = {}
+    partida.promosNuevas = {}  -- avisos para main.lua
     -- sobres y cajas apartados: no salen en la mesa ("s:set1:1" = sobres de 1ª ed del set 1)
     partida.apartados = {}
     partida.premios = {}
@@ -154,7 +168,7 @@ end
 
 -- copias que estan en tu armario y no en un anuncio
 function partida.libres(id, primera)
-    return contar(id, function(c) return not c.a and (primera == nil or (c.p or false) == primera) end)
+    return contar(id, function(c) return not c.a and not c.k and (primera == nil or (c.p or false) == primera) end)
 end
 
 -- las copias de una carta en el orden en que se enseñan:
@@ -188,7 +202,7 @@ function partida.distintas(set)
     local n = 0
     for id in pairs(partida.inv) do
         local def = porId[id]
-        if not set or (def.set == set and not def.fuera) then n = n + 1 end
+        if not set or (def.set == set and not def.fuera and not def.promo) then n = n + 1 end
     end
     return n
 end
@@ -399,6 +413,7 @@ local function quitarCopia(id, u)
     for i, c in ipairs(l) do
         if c.u == u then
             table.remove(l, i)
+            if c.k then partida.sacarCopiaDeCarpeta(c) end
             if c.m then
                 for j, s in ipairs(partida.mesa) do
                     if s.u == u then table.remove(partida.mesa, j) break end
@@ -578,7 +593,7 @@ function partida.venderCopias(id, uids)
     local ganado = 0
     for _, u in ipairs(uids) do
         local c = partida.copia(id, u)
-        if c and not c.a then
+        if c and not c.a and not c.k and not porId[id].noVende then
             ganado = ganado + mercado.ventaRapida(id, c.p)
             mercado.vendida(id, 1)
             devolverProteccion(c)
@@ -597,14 +612,14 @@ end
 local function plan(o)
     local res = {}
     for id in pairs(partida.inv) do
-        if not o.set or porId[id].set == o.set then
+        if (not o.set or porId[id].set == o.set) and not porId[id].noVende then
             local ordenadas = partida.lista(id)
             -- la que se queda en el armario: la mejor (1ª edicion, enfundada)
             -- de las que no estan en el movil
             local guardar
             if not o.todo then
                 for _, c in ipairs(ordenadas) do
-                    if not c.a then guardar = c break end
+                    if not c.a and not c.k then guardar = c break end
                 end
             end
             local vender = {}
@@ -615,7 +630,7 @@ local function plan(o)
                 -- "top" solo con top loader, "todo" todas
                 local pr = o.proteccion or "sin"
                 local tipoP = c.t and "top" or (c.f and "funda" or "sin")
-                if c ~= guardar and not c.a and not c.m and (o.primeras or not c.p) and (pr == "todo" or pr == tipoP) then
+                if c ~= guardar and not c.a and not c.m and not c.k and (o.primeras or not c.p) and (pr == "todo" or pr == tipoP) then
                     table.insert(vender, c.u)
                 end
             end
@@ -844,6 +859,202 @@ local function disenosDe(prod, tipoId)
     return f, t
 end
 
+-- Promos (datos/promos.lua)
+local datosPromos = require "datos.promos"
+
+-- una promo al azar de ese origen y set (por su peso)
+function partida.tiradaPromo(origen, set)
+    local cands, total = {}, 0
+    for _, def in ipairs(mercado.promosDe(set)) do
+        if def.promo == origen then
+            table.insert(cands, def)
+            total = total + def.peso
+        end
+    end
+    local r = love.math.random() * total
+    for _, def in ipairs(cands) do
+        r = r - def.peso
+        if r <= 0 then return def end
+    end
+    return cands[#cands]
+end
+
+function partida.promoSobresDe(origen, tipoId)
+    return partida.promoSobres[origen .. ":" .. tipoId] or 0
+end
+
+function partida.sumarPromoSobre(origen, tipoId, n)
+    local k = origen .. ":" .. tipoId
+    partida.promoSobres[k] = math.max(0, (partida.promoSobres[k] or 0) + n)
+    if partida.promoSobres[k] == 0 then partida.promoSobres[k] = nil end
+    tocar()
+end
+
+-- lo que trae un sobrecito: una promo (el de correo, la placa que toca)
+local function cartasSobrecito(origen, tipoId)
+    if origen == "correo" then
+        local nivel = table.remove(partida.correo, 1)
+        local def = nivel and mercado.placas()[nivel]
+        return def and { def } or nil
+    end
+    return { partida.tiradaPromo(origen, sobres[tipoId].set) }
+end
+
+-- saca un sobrecito guardado para abrirlo: sus cartas
+function partida.sacarPromoSobre(origen, tipoId)
+    if partida.promoSobresDe(origen, tipoId) <= 0 then return nil end
+    partida.sumarPromoSobre(origen, tipoId, -1)
+    return cartasSobrecito(origen, tipoId)
+end
+
+-- el sobrecito i de la mesa: abrirlo (sus cartas) o guardarlo
+function partida.abrirPromoMesa(i)
+    local m = table.remove(partida.promoMesa, i)
+    if not m then return nil end
+    tocar()
+    return cartasSobrecito(m.o, m.t)
+end
+
+function partida.guardarPromoMesa(i)
+    local desde, hasta = i or 1, i or #partida.promoMesa
+    for k = hasta, desde, -1 do
+        local m = table.remove(partida.promoMesa, k)
+        if m then partida.sumarPromoSobre(m.o, m.t, 1) end
+    end
+    tocar()
+end
+
+-- lo que vale un sobrecito cerrado: la media de lo que trae, a precio de hoy
+function partida.valorPromoSobre(origen, tipo)
+    if origen == "torneo" then
+        local precio = mercado.sobreTorneo(tipo)
+        return precio and math.floor(precio / datosPromos.torneo.margen) or 0
+    end
+    local v, pesos = 0, 0
+    for _, def in ipairs(mercado.promosDe(tipo.set)) do
+        if def.promo == origen then
+            v = v + mercado.valor(def.id, true) * def.peso
+            pesos = pesos + def.peso
+        end
+    end
+    return pesos > 0 and math.floor(v / pesos) or 0
+end
+
+function partida.venderPromoSobre(origen, tipo)
+    if origen == "correo" or partida.promoSobresDe(origen, tipo.id) <= 0 then return nil end
+    local cobro = mercado.trasComision(partida.valorPromoSobre(origen, tipo))
+    partida.sumarPromoSobre(origen, tipo.id, -1)
+    partida.dinero = partida.dinero + cobro
+    return cobro
+end
+
+local function avisoPromo(texto)
+    table.insert(partida.promosNuevas, texto)
+end
+
+-- lo que trae un producto ademas de sus sobres: la ETB y la caja, un
+-- sobrecito promo; el blister y el tin, su promo (o su ALT). Devuelve la copia
+-- enMesa: se abre en la mesa (el sobrecito se queda en el tapete y la promo
+-- del blister o del tin la coloca la mesa, partida.promoReciente)
+local function promoProducto(pid, tipo, enMesa)
+    if pid == "etb" or pid == "caja" then
+        if enMesa then
+            table.insert(partida.promoMesa, { o = pid, t = tipo.id })
+        else
+            partida.sumarPromoSobre(pid, tipo.id, 1)
+            avisoPromo("+1 SOBRECITO PROMO (" .. (pid == "etb" and "ETB" or "CAJA") .. "): EN LOS GANCHOS DE LA MESA")
+        end
+    elseif pid == "blister" or pid == "tin" then
+        local def = partida.tiradaPromo(pid, tipo.set)
+        if def then
+            local _, c = partida.anadir(def.id, false)
+            if enMesa then partida.promoReciente = { id = def.id, c = c } end
+            avisoPromo((def.alt and "¡SU ALT! " or "PROMO DEL " .. (pid == "tin" and "TIN" or "BLÍSTER") .. ": ") .. def.nombre:upper())
+            return def, c
+        end
+    end
+end
+partida.promoProducto = promoProducto
+
+-- preventa: una compra grande de una vez mientras un set esta anunciado
+-- y aun no se vende te da su promo (una al dia como mucho)
+function partida.preventa(gastado)
+    if gastado < datosPromos.preventa or partida.preventaDia == mercado.dia() then return nil end
+    for _, s in ipairs(require("datos.sets").lista) do
+        if calendario.conocido(s.id, mercado.dia()) and not mercado.salido(s.id) then
+            for _, def in ipairs(mercado.promosDe(s.id)) do
+                if def.promo == "preventa" then
+                    partida.preventaDia = mercado.dia()
+                    partida.anadir(def.id, false)
+                    avisoPromo("PREVENTA DEL " .. s.nombre:upper() .. ": TE REGALAN SU PROMO " .. def.nombre:upper())
+                    return def
+                end
+            end
+        end
+    end
+end
+
+-- el set anunciado que esta en preventa (o nil)
+function partida.setEnPreventa()
+    for _, s in ipairs(require("datos.sets").lista) do
+        if calendario.conocido(s.id, mercado.dia()) and not mercado.salido(s.id) then return s end
+    end
+end
+
+-- un sobre de torneo del mercado
+function partida.comprarTorneo(tipo)
+    local precio, stock = mercado.sobreTorneo(tipo)
+    if not precio or stock <= 0 or partida.dinero < precio then return nil end
+    partida.dinero = partida.dinero - precio
+    mercado.gastarTorneo(tipo)
+    partida.sumarPromoSobre("torneo", tipo.id, 1)
+    return precio
+end
+
+function partida.venderTorneo(tipo)
+    local precio = mercado.sobreTorneo(tipo)
+    if not precio or partida.promoSobresDe("torneo", tipo.id) <= 0 then return nil end
+    partida.sumarPromoSobre("torneo", tipo.id, -1)
+    local cobro = mercado.trasComision(math.floor(precio / datosPromos.torneo.margen))
+    partida.dinero = partida.dinero + cobro
+    return cobro
+end
+
+-- colabs: solo en el mercado y como mucho unas pocas copias
+function partida.puedeColab(id)
+    return (partida.colabCompradas[id] or 0) < datosPromos.colab.maximo and mercado.stockColab(id) > 0
+end
+
+function partida.comprarColab(id)
+    local precio = mercado.valor(id, true)
+    if not partida.puedeColab(id) or partida.dinero < precio then return nil end
+    partida.dinero = partida.dinero - precio
+    mercado.comprarColab(id)
+    partida.colabCompradas[id] = (partida.colabCompradas[id] or 0) + 1
+    partida.anadir(id, false)
+    return precio
+end
+
+-- placas del canal: al pasar de ciertos seguidores llega un sobre de correo
+-- (cuelga en los ganchos de la mesa); dentro va la placa, que va al album
+function partida.revisarPlacas()
+    local seg = partida.canal and partida.canal.seguidores or 0
+    for i, d in ipairs(datosPromos.canal) do
+        if seg >= d.seguidores and not partida.placas[i] then
+            partida.placas[i] = mercado.dia()
+            table.insert(partida.correo, i)
+            partida.sumarPromoSobre("correo", sobres.lista[1].id, 1)
+            avisoPromo("CORREO DE ONE LAST PACK: TE MANDAN LA PLACA " .. d.nombre .. " (EN LOS GANCHOS DE LA MESA)")
+            tocar()
+        end
+    end
+end
+
+-- las cartas que no se venden (placas del canal)
+function partida.vendible(id)
+    return not porId[id].noVende
+end
+
 local function lleva(prod, tipoId)
     local f, t = disenosDe(prod, tipoId)
     local s = partida.sueltos
@@ -869,6 +1080,7 @@ function partida.abrirProd(pid, tipo, primera)
     if vieja and vieja.quedan > 0 then partida.meterSobres(vieja.tipo, vieja.quedan, vieja.primera) end
     partida.cajaAbierta = { tipo = tipo.id, quedan = prod.sobres, primera = primera or nil, prod = pid ~= "caja" and pid or nil }
     lleva(prod, tipo.id)
+    promoProducto(pid, tipo, true)
     tocar()
     return true
 end
@@ -878,6 +1090,7 @@ function partida.rasgarBlister(tipoId, primera)
     primera = sacarProd("blister", tipoId, primera)
     if primera == nil then return nil end
     partida.meterSobres(tipoId, productos.blister.sobres, primera)
+    promoProducto("blister", sobres[tipoId])
     return primera
 end
 
@@ -889,6 +1102,7 @@ function partida.vaciarProd(pid, tipo, primera)
     primera = sacarProd(pid, tipo.id, primera)
     if primera == nil then return nil end
     partida.meterSobres(tipo.id, prod.sobres, primera)
+    promoProducto(pid, tipo)
     local f, t = disenosDe(prod, tipo.id)
     if prod.fundas then partida.sumarFundas(f or true, prod.fundas) end
     if prod.tops then partida.sumarFundas(t or true, prod.tops, true) end
@@ -917,6 +1131,7 @@ end
 -- al primer hueco libre. Los huecos solo recuerdan el orden: lo que tienes de
 -- verdad son los contadores de siempre, y aqui se cuadran
 function partida.capacidadHueco(pid)
+    if pid:match("^pr") then return productos.sobresPorHueco end
     return pid == "sobre" and productos.sobresPorHueco or productos[pid].cabe
 end
 
@@ -931,6 +1146,11 @@ local function totalesSellado()
                 local m = partida.prodDe(prod.id, tipo.id, ed)
                 if m > 0 then t[prod.id .. ":" .. tipo.id .. ":" .. e] = m end
             end
+        end
+        -- sobrecitos promo y de torneo (sin edicion)
+        for _, o in ipairs({ "etb", "caja", "torneo" }) do
+            local m = partida.promoSobresDe(o, tipo.id)
+            if m > 0 then t["pr" .. o .. ":" .. tipo.id .. ":n"] = m end
         end
     end
     return t
@@ -1070,6 +1290,7 @@ function partida.vaciarCaja(tipo, primera)
         if primera then partida.cajas1[tipo.id] = partida.cajasDe(tipo.id, true) - 1 end
     end
     partida.meterSobres(tipo.id, sobres.caja.sobres, primera)
+    promoProducto("caja", tipo)
     return sobres.caja.sobres
 end
 
@@ -1243,7 +1464,7 @@ end
 
 -- deSobre: carta recien abierta que se queda en la mesa
 function partida.aLaMesa(id, c, deSobre)
-    if c.m or c.a or (not deSobre and partida.mesaLlena()) then return nil end
+    if c.m or c.a or c.k or (not deSobre and partida.mesaLlena()) then return nil end
     c.m = true
     local s = { u = c.u, id = id, sobre = deSobre or nil }
     table.insert(partida.mesa, s)
@@ -1500,12 +1721,134 @@ end
 
 -- publica una copia concreta
 function partida.publicarCopia(id, c)
-    if partida.huecosAnuncios() <= 0 or c.a then return false end
+    if partida.huecosAnuncios() <= 0 or c.a or c.k or porId[id].noVende then return false end
     if c.m then partida.guardarDeMesa(c.u) end
     c.a = true
     table.insert(partida.anuncios, { id = id, u = c.u, primera = c.p or false, ofertas = {}, dia = mercado.dia() })
     tocar()
     return true
+end
+
+-- Carpetas propias: bolsillos con la copia que quieras. Las copias de una
+-- carpeta no se venden, ni se publican, ni van a la mesa.
+partida.MAX_CARPETAS = 12
+partida.MAX_PAGINAS = 20
+partida.NOMBRE_CARPETA = 14
+
+function partida.carpeta(cid)
+    for i, k in ipairs(partida.carpetas) do
+        if k.id == cid then return k, i end
+    end
+end
+
+function partida.nuevaCarpeta(nombre)
+    if #partida.carpetas >= partida.MAX_CARPETAS then return nil end
+    local k = { id = partida.sigCarpeta, nombre = nombre or "FAVORITAS", tapa = (#partida.carpetas % 8) + 1, b = {} }
+    partida.sigCarpeta = partida.sigCarpeta + 1
+    table.insert(partida.carpetas, k)
+    tocar()
+    return k
+end
+
+-- vacia y quita una carpeta: sus copias vuelven al armario
+function partida.borrarCarpeta(cid)
+    local k, i = partida.carpeta(cid)
+    if not k then return end
+    for _, b in pairs(k.b) do
+        local c = partida.copia(b.id, b.u)
+        if c then c.k = nil end
+    end
+    table.remove(partida.carpetas, i)
+    tocar()
+end
+
+-- cuantas cartas lleva y el ultimo bolsillo usado
+function partida.cuentaCarpeta(k)
+    local n, ultimo = 0, 0
+    for slot in pairs(k.b) do
+        n = n + 1
+        ultimo = math.max(ultimo, slot)
+    end
+    return n, ultimo
+end
+
+-- paginas que se enseñan: siempre en pares y con alguna libre al final
+function partida.paginasCarpeta(k)
+    local _, ultimo = partida.cuentaCarpeta(k)
+    local paginas = math.ceil(ultimo / 9) + 1
+    paginas = paginas + paginas % 2
+    return math.max(2, math.min(partida.MAX_PAGINAS, paginas))
+end
+
+-- la mejor copia que se puede meter en una carpeta (1ª ed, con funda...)
+function partida.mejorLibre(id)
+    for _, c in ipairs(partida.lista(id)) do
+        if not c.a and not c.m and not c.k then return c end
+    end
+end
+
+-- copias que se pueden meter (sin las del movil, la mesa y otras carpetas)
+function partida.libresCarpeta(id)
+    return contar(id, function(c) return not c.a and not c.m and not c.k end)
+end
+
+function partida.sacarCopiaDeCarpeta(c)
+    for _, k in ipairs(partida.carpetas) do
+        if k.id == c.k then
+            for slot, b in pairs(k.b) do
+                if b.u == c.u then k.b[slot] = nil end
+            end
+        end
+    end
+    c.k = nil
+    tocar()
+end
+
+-- mete una copia (u, o la mejor libre) en un bolsillo; lo que habia vuelve al armario
+function partida.meterEnCarpeta(cid, slot, id, u)
+    local k = partida.carpeta(cid)
+    if not k or slot < 1 or slot > partida.MAX_PAGINAS * 9 then return false end
+    local c = u and partida.copia(id, u) or partida.mejorLibre(id)
+    if not c or c.a then return false end
+    if c.m then partida.guardarDeMesa(c.u) end
+    if c.k then partida.sacarCopiaDeCarpeta(c) end
+    local antes = k.b[slot]
+    if antes then
+        local ca = partida.copia(antes.id, antes.u)
+        if ca then ca.k = nil end
+    end
+    k.b[slot] = { id = id, u = c.u }
+    c.k = cid
+    tocar()
+    return true
+end
+
+-- mueve lo de un bolsillo a otro (si el otro tiene algo, se cambian)
+function partida.moverEnCarpeta(cid, de, a)
+    local k = partida.carpeta(cid)
+    if not k or not k.b[de] or de == a or a < 1 or a > partida.MAX_PAGINAS * 9 then return false end
+    k.b[de], k.b[a] = k.b[a], k.b[de]
+    tocar()
+    return true
+end
+
+function partida.sacarDeCarpeta(cid, slot)
+    local k = partida.carpeta(cid)
+    local b = k and k.b[slot]
+    if not b then return false end
+    k.b[slot] = nil
+    local c = partida.copia(b.id, b.u)
+    if c then c.k = nil end
+    tocar()
+    return true
+end
+
+-- en la carpeta, cambia la copia de un bolsillo por otra de la misma carta
+function partida.cambiarCopiaCarpeta(cid, slot, u)
+    local k = partida.carpeta(cid)
+    local b = k and k.b[slot]
+    if not b or b.u == u then return false end
+    return partida.meterEnCarpeta(cid, slot, b.id, u)
 end
 
 -- publica la copia libre que menos se echa de menos de esa edicion
@@ -1514,7 +1857,7 @@ function partida.publicar(id, primera)
     local l = partida.lista(id)
     for k = #l, 1, -1 do
         local c = l[k]
-        if not c.a and (c.p or false) == primera then return partida.publicarCopia(id, c) end
+        if not c.a and not c.k and (c.p or false) == primera then return partida.publicarCopia(id, c) end
     end
     return false
 end
@@ -1735,7 +2078,8 @@ function partida.guardar()
 end
 
 local CAMPOS = { "dinero", "abiertos", "inv", "uid", "guardados", "guardados1", "anuncios",
-    "orden", "mesa", "seguidas", "opciones", "fundasLibres", "cartera", "premios", "canal", "mejoras", "encargos", "ofertasEncargo", "cajas", "cajas1", "prods", "prods1", "sueltos", "huecosArmario", "cajaAbierta", "topsLibres", "apartados", "vendidos", "logros", "tutorial", "desbloqueos", "sequia", "tiradas", "pistas", "guia", "buscadas", "red", "fundasDiseno", "topsDiseno", "fundario", "cajitas", "temporada", "temporadas" }
+    "orden", "mesa", "seguidas", "opciones", "fundasLibres", "cartera", "premios", "canal", "mejoras", "encargos", "ofertasEncargo", "cajas", "cajas1", "prods", "prods1", "sueltos", "huecosArmario", "cajaAbierta", "topsLibres", "apartados", "vendidos", "logros", "tutorial", "desbloqueos", "sequia", "tiradas", "pistas", "guia", "buscadas", "red", "fundasDiseno", "topsDiseno", "fundario", "cajitas", "temporada", "temporadas", "carpetas", "sigCarpeta",
+    "promoSobres", "placas", "preventaDia", "colabCompradas", "promoMesa", "correo" }
 
 -- la partida como se guarda (tambien para los reportes de bugs)
 function partida.texto()
@@ -1883,10 +2227,22 @@ local function repasar()
         if not visto[id] then table.insert(orden, id) end
     end
     partida.orden = orden
+    -- carpetas: solo los bolsillos con copias que siguen ahi (y no en el movil)
+    local enCarpeta = {}
+    for _, k in ipairs(partida.carpetas) do
+        for slot, b in pairs(k.b) do
+            if partida.copia(b.id, b.u) and not anunciadas[b.u] and not enCarpeta[b.u] then
+                enCarpeta[b.u] = k.id
+            else
+                k.b[slot] = nil
+            end
+        end
+    end
     for _, l in pairs(partida.inv) do
         for _, c in ipairs(l) do
             c.a = anunciadas[c.u]
             c.m = enMesa[c.u]
+            c.k = enCarpeta[c.u]
             partida.uid = math.max(partida.uid, c.u)
         end
     end
@@ -1949,6 +2305,16 @@ function partida.cargar()
             local clase, tipoId, ed = k:match("^([^:]+):([^:]+):(.+)$")
             local n = clase and partida.cuantos(clase, tipoId, ed == "1") or 0
             partida.apartados[k] = n > 0 and n or nil
+        end
+    end
+    -- placas del canal que ya habian llegado sin ser cartas: llegan por correo
+    for i in pairs(partida.placas or {}) do
+        local def = mercado.placas()[i]
+        local enCola = false
+        for _, n in ipairs(partida.correo) do if n == i then enCola = true end end
+        if def and partida.copias(def.id) == 0 and not enCola then
+            table.insert(partida.correo, i)
+            partida.sumarPromoSobre("correo", sobres.lista[1].id, 1)
         end
     end
     partida.premiosNuevos = {}
