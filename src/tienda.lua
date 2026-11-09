@@ -16,6 +16,9 @@ local caja = require "src.caja"
 local muebles = require "src.muebles"
 local pr_dib = require "src.productos"
 local productos = require "datos.productos"
+local datosFundas = require "datos.fundas"
+local fundasDib = require "src.fundas"
+local fundario = require "src.fundario"
 
 local tienda = {}
 
@@ -136,6 +139,53 @@ local function gancho(bx, by, que)
     return hx, hy
 end
 
+-- pack de fundas o tops con diseno colgado: el paquete de siempre con el
+-- diseno (o los dos posibles) asomando por la ventana
+local function packDiseno(gx, gy, n, g, ids, cantidad, esTop)
+    if esTop then muebles.bolsaTops(gx, gy, n, g, "") else muebles.blister(gx, gy, n, g, "") end
+    love.graphics.push()
+    love.graphics.translate(gx, gy)
+    love.graphics.rotate(g or 0)
+    local paso = #ids > 1 and 8 or 0
+    for i, id in ipairs(ids) do
+        local x = (i - 1 - (#ids - 1) / 2) * paso
+        if esTop then fundario.miniatura(id, true, x, 23, 0.42)
+        else fundasDib.dibujarDorso(id, x, 23, 0.5) end
+    end
+    muebles.rect(p.negro, -14, 34, 28, 6, 0.8)
+    fuentes.texto(cantidad, -14, 35, 1, p.blanco, "center", 28)
+    love.graphics.pop()
+    love.graphics.setColor(1, 1, 1)
+end
+
+-- lo que se compra en la tienda que no es un producto sellado: packs de fundas
+-- y tops con diseno (prodSel = el id de aqui)
+local ACCESORIOS = {
+    fundaset = { esTop = false, pack = datosFundas.packSet, nombre = "FUNDAS DEL SET" },
+    temporada = { esTop = false, pack = datosFundas.packTemporada, nombre = "FUNDAS DE TEMPORADA" },
+    pegatina = { esTop = true, pack = datosFundas.packPegatina, nombre = "TOPS CON PEGATINA" },
+    magnetico = { esTop = true, pack = datosFundas.packMagnetico, nombre = "TOP MAGNÉTICO" },
+}
+
+-- los disenos que puede traer cada uno
+local function disenosDe(a)
+    if a == "fundaset" then
+        local i = tipo.id:match("%d+")
+        return { "lisa" .. i, "rayas" .. i }
+    elseif a == "temporada" then
+        local id = partida.fundaTemporada()
+        return id and { id } or {}
+    elseif a == "pegatina" then
+        local l = {}
+        for _, x in ipairs(mercado.setsSalidos()) do
+            local i = x.id:match("%d+")
+            if datosFundas.top["pegatina" .. i] then table.insert(l, "pegatina" .. i) end
+        end
+        return l
+    end
+    return { "magnetico" }
+end
+
 -- huecos de la balda del medio y del suelo
 local HX0 = M.x + muebles.dz(M.d) + 6
 local function huecoMedio(i) return HX0 + (i - 1) * 76 end
@@ -200,7 +250,16 @@ local function dibujarSet()
             ui.zona("prod_blister", bx - 34, M.y + 2, 68, B1 - M.y - 6)
             if prodSel == "blister" then marco(bx - 35, M.y + 2, 70, B1 - M.y - 4) end
         end
-        pr_dib.hueco(M.x + sD + 160, M.y + 6, 60, B1 - M.y - 10, "LIBRE")
+        if desbloqueos.hay("fundas") and salido then
+            local fx_ = gancho(M.x + sD + 190, M.y + 4, function(gx, gy)
+                packDiseno(gx, gy, 3, giro("fundaset"), disenosDe("fundaset"), "X" .. datosFundas.packSet.n)
+            end)
+            muebles.etiqueta(fx_, B1 + 1, ui.dinero(datosFundas.packSet.precio))
+            ui.zona("prod_fundaset", fx_ - 18, M.y + 2, 36, B1 - M.y - 6)
+            if prodSel == "fundaset" then marco(fx_ - 19, M.y + 2, 38, B1 - M.y - 4) end
+        else
+            pr_dib.hueco(M.x + sD + 160, M.y + 6, 60, B1 - M.y - 10, "LIBRE")
+        end
     else
         pr_dib.hueco(M.x + sD + 84, M.y + 6, 136, B1 - M.y - 10, "LIBRE")
     end
@@ -265,8 +324,35 @@ local function dibujarMix()
         ui.zona("tops", bx - 18, M.y + 2, 36, B1 - M.y - 6)
         if prodSel == "tops" then marco(bx - 19, M.y + 2, 38, B1 - M.y - 4) end
     end
-    pr_dib.hueco(M.x + sD + 116, M.y + 6, 104, B1 - M.y - 10, "FUNDAS ESPECIALES")
-    pr_dib.hueco(huecoMedio(1) + 3, B1 + 12, 68, B2 - B1 - 16, "TIN MIX")
+    -- la funda de temporada (sale una cada pocos dias) y los tops con diseno
+    if not partida.temporada then partida.revisarTemporada() end
+    local tem, dias = partida.fundaTemporada()
+    bx = gancho(M.x + sD + 138, M.y + 4, function(gx, gy)
+        if tem then packDiseno(gx, gy, 3, giro("temporada"), { tem }, "X" .. datosFundas.packTemporada.n)
+        else letrero(gx, gy + 14, "MAÑANA") end
+    end)
+    if tem then
+        muebles.etiqueta(bx, B1 + 1, ui.dinero(datosFundas.packTemporada.precio))
+        ui.zona("prod_temporada", bx - 18, M.y + 2, 36, B1 - M.y - 6)
+        if prodSel == "temporada" then marco(bx - 19, M.y + 2, 38, B1 - M.y - 4) end
+        letrero(bx, M.y + 64, dias == 1 and "ÚLTIMO DÍA" or (dias .. " DÍAS"), dias == 1 and p.naranja or p.amarillo)
+    end
+    if desbloqueos.hay("tops") then
+        bx = gancho(M.x + sD + 192, M.y + 4, function(gx, gy)
+            packDiseno(gx, gy, 3, giro("pegatina"), disenosDe("pegatina"), "X" .. datosFundas.packPegatina.n, true)
+        end)
+        muebles.etiqueta(bx, B1 + 1, ui.dinero(datosFundas.packPegatina.precio))
+        ui.zona("prod_pegatina", bx - 18, M.y + 2, 36, B1 - M.y - 6)
+        if prodSel == "pegatina" then marco(bx - 19, M.y + 2, 38, B1 - M.y - 4) end
+        -- el magnetico, de pie en la balda del medio
+        local x = huecoMedio(1)
+        for k = 1, 0, -1 do fundario.miniatura("magnetico", true, x + 37 + k * 8, B2 - 32 - k * 2, 0.95) end
+        muebles.etiqueta(x + 36, B2 + 1, ui.dinero(datosFundas.packMagnetico.precio))
+        ui.zona("prod_magnetico", x, B1 + 6, 74, B2 - B1 - 6)
+        if prodSel == "magnetico" then marco(x, B1 + 6, 74, B2 - B1 - 6) end
+    else
+        pr_dib.hueco(huecoMedio(1) + 3, B1 + 12, 68, B2 - B1 - 16, "TIN MIX")
+    end
     pr_dib.hueco(huecoMedio(2) + 3, B1 + 12, 144, B2 - B1 - 16, "RECOPILACIONES")
     pr_dib.hueco(M.x + 12, B2 + 30, 230, SUELO - B2 - 34, "CAJAS ESPECIALES")
 end
@@ -378,7 +464,7 @@ local function fichaProd(prod)
         table.insert(lineas, { "SALE UN " .. math.floor(C.descuento * 100 + 0.5) .. "% MÁS BARATA QUE SUS SOBRES SUELTOS", p.lima })
     end
     if prod.id == "blister" then
-        table.insert(lineas, { "EN LA MESA SE RASGA Y DEJA SUS SOBRES", p.grisclaro })
+        table.insert(lineas, { "AL ABRIRLO, SUS SOBRES SALEN A LA ESQUINA DE LA MESA", p.grisclaro })
     elseif prod.id ~= "caja" then
         table.insert(lineas, { "AL ABRIRLA, SUS SOBRES SALEN A LA ESQUINA DE LA MESA", p.grisclaro })
     end
@@ -408,6 +494,51 @@ local function fichaProd(prod)
         fuentes.texto("YA NO SE VENDE EN LA TIENDA", PANEL_X, by + 5, 1, p.grisclaro)
     end
     ui.boton("abrir", "A LA MESA", PANEL_X, by + 22, 100, 16, p.azul, tengo > 0)
+end
+
+local function fichaAccesorio(a)
+    local A = ACCESORIOS[a]
+    local ids = disenosDe(a)
+    local col = a == "fundaset" and tipo.colores or { base = p.morado, rayas = p.azul }
+    local nombre = A.nombre .. (a == "fundaset" and (" " .. sets[tipo.set].codigo) or "")
+    cabecera(nombre, A.pack.precio, col)
+    local que = A.esTop and "TOPS" or "FUNDAS"
+    local lineas = {}
+    if a == "fundaset" then
+        table.insert(lineas, { A.pack.n .. " FUNDAS LISAS O DE RAYAS (AL AZAR) CON LOS COLORES DEL SET", p.blanco })
+    elseif a == "temporada" then
+        local _, dias = partida.fundaTemporada()
+        table.insert(lineas, { A.pack.n .. " FUNDAS " .. datosFundas.nombre(ids[1]), p.blanco })
+        table.insert(lineas, { "SOLO ESTÁ " .. (dias or 0) .. (dias == 1 and " DÍA MÁS" or " DÍAS MÁS") .. ": LUEGO SE VA", p.naranja })
+        table.insert(lineas, { "CADA POCOS DÍAS SALE OTRA (TE AVISA EL MÓVIL)", p.grisclaro })
+    elseif a == "pegatina" then
+        table.insert(lineas, { A.pack.n .. " TOPS CON LA PEGATINA DE UN SET (AL AZAR)", p.blanco })
+    else
+        table.insert(lineas, { "UN TOP LOADER MAGNÉTICO: MARCO NEGRO Y FILO DORADO", p.blanco })
+    end
+    table.insert(lineas, { "SOLO DE ESTILO: NO CAMBIAN EL PRECIO DE LA CARTA", p.grisclaro })
+    table.insert(lineas, { "SE PONEN DESDE SU CAJITA DE LA MESA O AL INSPECCIONAR", p.grisclaro })
+    table.insert(lineas, { "AL VENDER LA CARTA, VUELVEN A SU CAJA", p.grisclaro })
+    table.insert(lineas, { "NO SE VENDEN SUELTAS", p.gris })
+    local tengo = 0
+    for _, id in ipairs(ids) do tengo = tengo + (A.esTop and partida.topsDe(id) or partida.fundasDe(id)) end
+    table.insert(lineas, { "TIENES " .. tengo .. " " .. que .. " DE ESTAS", p.blanco })
+    local y = PANEL_Y + 34
+    for _, l in ipairs(lineas) do
+        fuentes.texto(l[1], PANEL_X + 10, y, 1, l[2])
+        y = y + 11
+    end
+    -- los disenos en grande
+    local n = math.min(4, #ids)
+    for i = 1, n do
+        local x = PANEL_X + PANEL_W / 2 + (i - 1 - (n - 1) / 2) * 56
+        fundario.miniatura(ids[i], A.esTop, x, PANEL_Y + 190, 1.4)
+        fuentes.texto(datosFundas.nombre(ids[i], A.esTop), x - 30, PANEL_Y + 232, 1, p.grisclaro, "center", 60)
+    end
+    if #ids > n then fuentes.texto("Y " .. (#ids - n) .. " MÁS", PANEL_X, PANEL_Y + 244, 1, p.gris, "center", PANEL_W) end
+    local by = PANEL_Y + PANEL_H + 8
+    ui.boton("comprarAcc", "COMPRAR " .. A.pack.n .. " " .. que .. " " .. ui.dinero(A.pack.precio), PANEL_X, by, 208, 16, p.morado,
+        #ids > 0 and partida.dinero >= A.pack.precio)
 end
 
 local function fichaMix()
@@ -440,8 +571,13 @@ function tienda.dibujar()
     if not calendario.conocido(tipo.set, mercado.dia()) then tipo = sobres.lista[1] end
     if mix and not desbloqueos.hay("fundas") then mix = false end
     local prod = prodSel and productos[prodSel]
+    if prodSel and ACCESORIOS[prodSel] and (mix ~= (prodSel ~= "fundaset") or not desbloqueos.hay("fundas")) then prodSel = nil end
     if prod and (not mercado.salido(tipo.set) or (prod.desbloqueo and not desbloqueos.hay(prod.desbloqueo))) then prodSel, prod = nil, nil end
     dibujarMueble()
+    if prodSel and ACCESORIOS[prodSel] then
+        fichaAccesorio(prodSel)
+        return
+    end
     if mix then
         fichaMix()
         return
@@ -571,6 +707,13 @@ function tienda.click(id)
             fx.sacudir(3)
             zarandeo[prod.id] = love.timer.getTime()
             partida.guardar()
+        end
+    elseif id == "comprarAcc" then
+        local A = ACCESORIOS[prodSel]
+        local ids = A and disenosDe(prodSel) or {}
+        if #ids > 0 and partida.comprarDiseno(ids[love.math.random(#ids)], A.pack.n, A.pack.precio, A.esTop) then
+            zarandeo[prodSel] = love.timer.getTime()
+            pagar(A.pack.precio, "+" .. A.pack.n .. (A.esTop and " TOPS" or " FUNDAS"), A.esTop and p.celeste or p.cian)
         end
     elseif id:match("^prod_") then
         prodSel = id:sub(6)

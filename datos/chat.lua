@@ -2,7 +2,7 @@
 -- Cada lista es una situacion; el juego evita repetir las frases recientes y
 -- a veces las cambia un poco (alarga letras, añade "xd", "!!"...).
 -- Solo letras, numeros y . , : ! ¡ ? ¿ - + = * / # $ € _ % ( ) ' < >
-return {
+local chat = {
     es = {
         saludo = {
             "holaaa", "buenas chat", "hola desde Argentina", "hola desde Mexico", "primera vez por aqui", "llegue tarde?",
@@ -304,3 +304,75 @@ return {
         en = { " lol", " lmao", " !!", " fr", " ??", " :)", " bro", " ngl", " fr fr", " haha" },
     },
 }
+
+-- Jerga de los chats de streamers espanoles (IlloJuan, el Rubius, Auronplay,
+-- El Escoces, Vicio One More Time, Menos 13): la de Twitch (F, GG, EZ, pog,
+-- sadge, kappa, AFK, BRB...), la gamer (chetado, manco, carrear, campear,
+-- tryhard, salseo, funar) y la andaluza (illo, quillo, miarma, picha, nonina,
+-- feten, jartible, empanao, foh, cuchi)
+local MAS_ES = {
+    saludo = {
+        "illo que pasa", "quillo", "buenas miarma", "illo illo illo", "que pasa picha", "buenas chat, ya estoy",
+        "illo he llegado", "ONE MORE TIME", "OOOO YEEAA", "ONE MORE TIME OOOO YEEAA", "buenas buenas chavales",
+        "llego del curro, que me he perdido", "volvi del AFK", "BRB era mentira, ya estoy", "quillo buenas noches",
+        "hola desde Cadiz picha", "hola desde Malaga illo", "hola desde Madrid", "hola desde Barcelona", "hola desde Zaragoza",
+        "hola desde Murcia", "hola desde Galicia", "hola desde Asturias", "hola desde Mallorca", "buenas jefe, F por mi siesta",
+    },
+    pregunta = {
+        "illo cuanto vale eso", "eso esta chetado o que", "hay salseo hoy?", "quillo abres una caja?", "esa carta es OP?",
+        "por que eres tan manco abriendo xd", "a que hora acabas illo", "te han funado ya?", "cuanto te has dejado hoy?",
+        "eso es fetén o no?", "noniná que eso es secreta?", "que set va mas chetado?", "lo abres o lo guardas?",
+    },
+    charla = {
+        "F", "GG", "EZ", "pog", "sadge", "kappa", "xd", "xdd", "XD", "jajajaja", "F en el chat", "GG WP",
+        "illo", "quillo", "miarma", "noniná", "fetén", "foh", "cuchi", "que jartible el sobre", "estoy empanao",
+        "el chat esta empanao", "salseo", "vengo por el salseo", "ese bicho esta chetado", "carta chetada",
+        "que manco el sobre", "el streamer nos carrea", "carreanos a la secreta", "modo tryhard", "tryhardeando sobres",
+        "funado el sobre", "funamos al sobre de antes", "el sobre campeando la secreta", "YOLO abre otro",
+        "BRB voy al baño", "AFK un momento", "ONE MORE TIME", "OOOO YEEAA", "uno mas, ONE MORE TIME", "que malaje el sobre",
+        "illo que me lio", "estoy jartito de comunes", "cuchi que bonita", "bulla bulla abre ya", "garrulo el bicho xd",
+        "clipealo", "CLIP", "eso pal clip", "alguien que lo clipee", "mald", "estoy malding", "tilt", "tilteado con el bulk",
+        "baneado por pedir secreta xd", "mods banead al sobre", "esto es contenido", "el mejor directo de Twitch",
+    },
+    espera = {
+        "illo abre ya", "quillo que nos dormimos", "bulla bulla", "AFK?", "BRB?", "el streamer esta AFK", "ONE MORE TIME",
+        "que jartible la espera", "estamos empanaos", "foh que aburrimiento", "sadge sin sobres", "abre otro picha",
+    },
+    rasgar = {
+        "ONE MORE TIME", "OOOO YEEAA", "YOLO", "pog", "illo que este trae algo", "dale miarma", "carreanos", "modo tryhard",
+        "manifestando chetada", "ese esta chetado seguro", "vamos picha",
+    },
+    suspense = { "POG", "POGGERS", "illo illo illo", "QUILLO", "noniná que es buena", "CLIP", "que alguien clipee",
+        "OOOO YEEAA", "cuchi cuchi" },
+    comun = { "F", "F F F", "sadge", "manco el sobre", "foh", "kappa", "que malaje", "bulk fetén xd", "ez bulk",
+        "funado", "pa la caja del garrulo", "tilt" },
+    infrecuente = { "foh", "sadge", "meh illo", "ni fu ni fa miarma", "kappa", "fetén pero poco" },
+    rara = { "pog", "illo no esta mal", "fetén", "eso ya es algo picha", "GG", "se acepta miarma" },
+    holo = { "POG", "POGGERS", "QUILLO", "ILLO", "eso esta chetado", "fetén fetén", "kreygasm", "CLIP", "GG", "cuchi que brillo",
+        "OOOO YEEAA", "la holo noniná" },
+    fullart = { "POGGERS", "CLIP CLIP", "QUE ALGUIEN LO CLIPEE", "ILLO ILLO ILLO", "QUILLOOO", "kreygasm", "chetadisima",
+        "OOOO YEEAA", "ONE MORE TIME", "eso es contenido", "GG WP" },
+    secreta = { "POGGERS", "ILLOOOO", "QUILLO QUE ES ESO", "CLIP CLIP CLIP", "ESO PAL CLIP", "chetadisimo", "GG EZ",
+        "OOOO YEEAA", "ONE MORE TIME", "noniná que es secreta", "MIARMA", "el sobre nos ha carreado" },
+    chase = { "ILLO LA CHASE", "POGGERS", "CLIP", "OOOO YEEAA", "chetada", "GG" },
+    godpack = { "POGGERS", "ILLO ILLO ILLO", "CLIP CLIP", "OOOO YEEAA", "GG EZ", "el sobre esta chetado" },
+    nueva = { "fetén", "GG", "pog", "+1 illo" },
+    finSobre = { "GG", "GG WP", "F", "sadge", "ONE MORE TIME", "uno mas, ONE MORE TIME", "fetén", "illo otro",
+        "carreanos otra vez", "buen contenido", "otro y a mimir" },
+    propina = { "pa otro sobre illo", "invito yo miarma", "pa que nos carrees", "ONE MORE TIME", "por el salseo", "fetén" },
+    blister = { "BLISTER ILLO", "dos sobres, ONE MORE TIME", "el blister esta chetado", "YOLO blister" },
+    etb = { "ETB ILLO", "ETB chetada", "ONE MORE TIME x9" },
+    racha = { "esta chetado", "nos carrea", "modo tryhard", "ILLO QUE RACHA", "OOOO YEEAA", "baneadlo por suerte" },
+    repetida = { "F", "foh otra vez", "jartible la repe", "kappa", "sadge" },
+}
+for cat, extra in pairs(MAS_ES) do
+    for _, t in ipairs(extra) do table.insert(chat.es[cat], t) end
+end
+table.insert(chat.es.cadena.holo, "POG")
+table.insert(chat.es.cadena.fullart, "CLIP")
+table.insert(chat.es.cadena.secreta, "OOOO YEEAA")
+table.insert(chat.es.cadena.secreta, "ILLO")
+table.insert(chat.es.cadena.godpack, "ONE MORE TIME")
+table.insert(chat.es.cadena.mal, "sadge")
+for _, c in ipairs({ " illo", " picha", " miarma", " GG", " F", " pog", " kappa" }) do table.insert(chat.coletillas.es, c) end
+return chat

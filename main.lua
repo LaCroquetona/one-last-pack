@@ -11,6 +11,8 @@ local fx = require "src.fx"
 local ui = require "src.ui"
 local nav = require "src.nav"
 local partida = require "src.partida"
+local datosFundas = require "datos.fundas"
+local inspeccionar = require "src.inspeccionar"
 local dev = require "src.dev"
 local tutorial = require "src.tutorial"
 local guia = require "src.guia"
@@ -145,7 +147,11 @@ function nav.ir(nombre)
     if nombre == "menu" then sonido.musica(MUSICA_INTRO, 2) end
     -- el movil del directo es el mismo: si lo coges, se acaba el directo
     if nombre == "movil" then directo.terminar() end
-    if nombre == "menu" then directo.terminar(true) end
+    if nombre == "menu" then
+        directo.terminar(true)
+        partida.guardarYa()
+        menu.preparar()
+    end
     if escena == "movil" and nombre ~= "movil" then
         -- primero se guarda el movil y luego se cambia de pantalla
         movil.guardar(function() escena = nombre end)
@@ -220,6 +226,7 @@ function love.load()
     escritorio.preparar()
     movil.preparar()
     mesa.preparar()
+    partida.elegirRanura(partida.ranuraGuardada())
     partida.cargar()
     if partida.logrosSinAviso then logros.revisar(1, true) end
     menu.preparar()
@@ -240,12 +247,14 @@ function love.update(dt)
     fx.update(dt)
     dineroVisto = fx.lerp(dineroVisto, partida.dinero, math.min(1, dt * 8))
     partida.update(dt)
+    inspeccionar.update(dt)
     if escena ~= "menu" then desbloqueos.update(dt) end
     -- premios por completar sets: aviso, confeti y monedas
     local premio = table.remove(partida.premiosNuevos, 1)
     if premio then
-        local texto = "PREMIO: " .. premio.texto .. " +" .. premio.sobres .. " SOBRES"
+        local texto = "PREMIO: " .. premio.texto .. (premio.sobres and (" +" .. premio.sobres .. " SOBRES") or "")
         if premio.dinero then texto = texto .. " Y " .. ui.dinero(premio.dinero) end
+        if premio.funda then texto = texto .. " +" .. premio.funda[2] .. " FUNDAS " .. datosFundas.nombre(premio.funda[1]) end
         movil.avisar(texto, p.amarillo)
         fx.confeti(320, 40, 60, 160)
         sonido.tocar("moneda")
@@ -294,6 +303,11 @@ end
 function love.mousepressed(x, y, boton)
     if escena == "intro" then
         intro.saltar()
+        return
+    end
+    -- clic derecho con un panel que lo usa (INSPECCIONAR: girar la carta)
+    if boton == 2 and ui.overlay and not ui.modal and ui.overlay.derecho then
+        ui.overlay.derecho()
         return
     end
     -- clic derecho en la mesa: guarda el sobre que aun no se ha abierto
@@ -351,6 +365,7 @@ end
 
 function love.mousereleased(x, y, boton)
     if boton ~= 1 then return end
+    if ui.overlay and ui.overlay.soltar then ui.overlay.soltar(aJuego(x, y)) end
     movil.soltar()
     armario.acabarBarrido()
     if escena == "mesa" then mesa.soltar(aJuego(x, y)) end
@@ -405,6 +420,7 @@ function love.keypressed(tecla)
         return
     end
     if ui.modal or ui.overlay then
+        if not ui.modal and ui.overlay.tecla and ui.overlay.tecla(tecla) then return end
         if tecla == "escape" then ui.modal, ui.overlay = nil, nil end
         return
     end

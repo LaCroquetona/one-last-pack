@@ -180,7 +180,11 @@ local function decir(categoria, retraso, extra)
     if callado() then return end
     local texto = frase(idiomaMensaje(), categoria)
     if not texto then return end
-    table.insert(cola, { t = retraso or 0, nombre = nombreAlAzar(), color = colorAlAzar(), texto = texto, extra = extra })
+    local m = { t = retraso or 0, nombre = nombreAlAzar(), color = colorAlAzar(), texto = texto, extra = extra }
+    -- las palabras mas tipicas (xd, F, GG, illo, salseo...) a veces salen como emoji
+    local resto, lista = emojis.deChat(texto)
+    if #lista > 0 and love.math.random() < 0.6 then m.texto, m.emotes = resto, lista end
+    table.insert(cola, m)
 end
 
 -- varios mensajes repartidos en "durante" segundos
@@ -406,14 +410,14 @@ function directo.rasgar(godpack, primera)
     if godpack then
         d.subidon = d.subidon + datos.subidon.godpack
         rafaga("godpack", math.min(datos.chat.maxReaccion, 2 + cuantos(d.esp * 0.5)), 2)
-        if d.esp >= 1 then emojis.lanzar({ "fuego", "estrella", "corona", "67", "GG", "flipa", "cohete", "OMG", "POG" }, 4 + math.floor(d.esp * 0.2), 2.5) end
+        if d.esp >= 1 then emojis.lanzar({ "fuego", "estrella", "corona", "67", "GG", "flipa", "cohete", "OMG", "POG", "OLE", "CLIP", "musculo", "GOD" }, 4 + math.floor(d.esp * 0.2), 2.5) end
         cadena("godpack")
     end
 end
 
 -- abres un producto sellado en directo (blister, tin, ETB): cada uno con lo suyo
 local SUBIDON_PRODUCTO = { blister = 0.08, tin = 0.18, etb = 0.25 }
-local EMOJIS_PRODUCTO = { blister = { "sobre", "manos", "dado" }, tin = { "sobre", "estrella", "gafas", "W" },
+local EMOJIS_PRODUCTO = { blister = { "sobre", "manos", "dado", "regalo", "YOLO" }, tin = { "sobre", "estrella", "gafas", "W" },
     etb = { "sobre", "fuego", "flipa", "trofeo", "W", "cohete" } }
 function directo.producto(pid)
     if pid == "caja" then return directo.caja() end
@@ -434,7 +438,7 @@ function directo.caja()
     d.subidon = d.subidon + 0.3
     if d.esp >= 1 then
         rafaga("caja", math.min(datos.chat.maxReaccion, 1 + cuantos(d.esp * 0.25)), 2)
-        emojis.lanzar({ "fuego", "W", "ojos", "flipa", "rana" }, 2 + math.floor(d.esp * 0.1), 2)
+        emojis.lanzar({ "fuego", "W", "ojos", "flipa", "rana", "ILLO", "OLE", "claqueta" }, 2 + math.floor(d.esp * 0.1), 2)
     end
 end
 
@@ -762,13 +766,13 @@ function directo.finSobre(defs, godpack, tipoId)
     d.quieto = 0
     local mejor, chase = mejorDe(defs, godpack)
     local bueno = rarezas[mejor.rareza].nivel >= 4 or chase or godpack
-    if rarezas[mejor.rareza].nivel <= 2 and d.esp >= 4 and love.math.random() < 0.5 then emojis.lanzar({ "calavera", "payaso", "L", "risa" }, 2, 1) end
+    if rarezas[mejor.rareza].nivel <= 2 and d.esp >= 4 and love.math.random() < 0.5 then emojis.lanzar({ "calavera", "payaso", "L", "risa", "mueca", "XD", "chancla", "roto" }, 2, 1) end
     if rarezas[mejor.rareza].nivel <= 2 and d.esp >= 8 and love.math.random() < 0.08 then cadena("mal") end
     -- rachas: varios sobres buenos seguidos animan el directo
     d.racha = bueno and (d.racha or 0) + 1 or 0
     if d.racha >= 2 and d.esp >= 1 then
         rafaga("racha", math.min(datos.chat.maxReaccion, 1 + cuantos(d.esp * 0.12 * math.min(d.racha, 4))), 1.5)
-        emojis.lanzar({ "rayo", "fuego", "cohete" }, 1 + d.racha, 1.2)
+        emojis.lanzar({ "rayo", "fuego", "cohete", "musculo", "OLE" }, 1 + d.racha, 1.2)
         d.subidon = d.subidon + 0.04 * math.min(d.racha, 4)
     end
     if comprador then
@@ -953,7 +957,7 @@ function directo.update(dt, enMesa)
                 -- las gordas salen destacadas arriba del chat un rato
                 if m.propina >= datos.propinas.destacada then
                     d.destacada = { m = m, hasta = d.t + datos.propinas.segundosDestacada }
-                    emojis.lanzar({ "moneda", "billete", "corazon" }, 3, 0.8)
+                    emojis.lanzar({ "moneda", "billete", "corazon", "regalo" }, 3, 0.8)
                 end
                 if enMesa then fx.monedas(570, 200, math.min(30, 4 + m.propina / 100), 120, 200) end
                 partida.guardar()

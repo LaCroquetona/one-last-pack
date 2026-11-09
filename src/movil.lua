@@ -7,6 +7,7 @@ local datosCalendario = require "datos.calendario"
 local datosMejoras = require "datos.mejoras"
 local p = require "datos.paleta"
 local partida = require "src.partida"
+local datosFundas = require "datos.fundas"
 local mercado = require "src.mercado"
 local calendario = require "src.calendario"
 local carta = require "src.carta"
@@ -1173,6 +1174,15 @@ local function appCalendario()
             y = y + 13
         end
     end
+    -- la funda de temporada del MIX: hasta cuando esta
+    local tem = partida.fundaTemporada()
+    if tem then
+        filas = filas + 1
+        fuentes.texto("MIX", x, y + 3, 1, p.morado)
+        lg.setColor(datosFundas[tem].color)
+        for d = hoy, math.min(d0 + dias - 1, partida.temporada.hasta) do lg.rectangle("fill", gx + (d - d0) * col, y + 2, col, 6) end
+        y = y + 13
+    end
     lg.setColor(p.blanco)
     lg.rectangle("fill", gx + (hoy - d0) * col + math.floor(col / 2), y - filas * 13 - 3, 1, filas * 13 + 1)
     y = y + 4
@@ -1213,6 +1223,11 @@ local function appCalendario()
             fuentes.texto(texto, x + 44, y, 1, p.grisclaro)
             y = y + 10
         end
+    end
+    if tem then
+        fuentes.texto("FUNDA DEL MIX", x, y, 1, p.morado)
+        fuentes.texto(datosFundas[tem].nombre .. " HASTA EL DÍA " .. partida.temporada.hasta, x + 56, y, 1, p.grisclaro)
+        y = y + 10
     end
     y = y + 6
     local ayuda = "CADA " .. datosCalendario.cada .. " DÍAS MÁS O MENOS SALE UN SET NUEVO. CUANDO UNO SE AGOTA, " ..

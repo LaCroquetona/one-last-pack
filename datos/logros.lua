@@ -56,6 +56,12 @@ return {
           end
           return false
       end },
+    { id = "fundario", nombre = "FUNDARIO", texto = "Consigue 10 fundas con diseño distintas",
+      si = function(pa)
+          local n = 0
+          for _ in pairs((pa.fundario or {}).f or {}) do n = n + 1 end
+          return n >= 10
+      end },
     { id = "caja", nombre = "BOX BREAK", texto = "Abre una caja de sobres" },
     { id = "etb", nombre = "ELITE TRAINER", texto = "Abre una ETB" },
     { id = "vendedor", nombre = "DE SEGUNDA MANO", texto = "Compra algo a un vendedor del móvil" },

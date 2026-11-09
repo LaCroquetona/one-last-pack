@@ -74,11 +74,16 @@ function muebles.perforado(x, y, w, h, paso)
     end
 end
 
--- balda: canto (x, y, w, 4) y su tapa de fondo d
-function muebles.balda(x, y, w, d)
-    for r = 0, d - 1 do rect(MAD, x + dz(r), y - 1 - r, w - dz(r), 1, 1, 1.05) end
+-- balda: canto (x, y, w, 4) y su tapa de fondo d. Con lado, la tapa no se
+-- corta a la derecha: se ve su lateral en perspectiva, como en los muebles
+function muebles.balda(x, y, w, d, lado)
+    for r = 0, d - 1 do rect(MAD, x + dz(r), y - 1 - r, lado and w or (w - dz(r)), 1, 1, 1.05) end
     rect(p.negro, x, y - 1, w, 1, 0.25)
     rect(MAD, x, y, w, 4, 1, 1.3)
+    if lado then
+        for k = 1, math.floor(d / 2) do rect(MAD, x + w - 1 + k, y - 2 * k + 1, 1, 4, 1, 0.65) end
+        for r = 0, d do rect(p.negro, x + w + dz(r), y - 1 - r, 1, 1, 0.35) end
+    end
     rect(p.negro, x, y + 4, w, 1)
     rect(p.negro, x, y + 5, w, 3, 0.3)
 end

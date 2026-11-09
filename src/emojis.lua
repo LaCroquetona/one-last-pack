@@ -42,9 +42,35 @@ local DIBUJOS = {
     dado = { "wwwwwww", "wkwwwkw", "wwwwwww", "wwwkwww", "wwwwwww", "wkwwwkw", "wwwwwww" },
     bomba = { "....o.y", "...k...", "..kkk..", ".kkkkk.", ".kwkkk.", ".kkkkk.", "..kkk.." },
     cerebro = { ".vvvvv.", "vvwvvvv", "vvvvwvv", "vwvvvvv", "vvvvvwv", ".vvvvv.", "..v.v.." },
+    -- los de la jerga de los chats de aqui
+    palomitas = { ".w.w.w.", "wwywwyw", "wywwwyw", "rwrwrwr", "rwrwrwr", ".rwrwr.", ".rwrwr." },
+    claqueta = { "kwkwkwk", "wkwkwkw", "kkkkkkk", "kwwwwwk", "kwkkkwk", "kwwwwwk", "kkkkkkk" },
+    chancla = { "..aaa..", ".abbba.", ".abwba.", ".abbba.", ".abbba.", ".abbba.", "..aaa.." },
+    tortilla = { ".ooooo.", "oyyoyyo", "oyyyyoy", "oyoyyyo", "oyyyoyo", ".ooooo.", "......." },
+    musculo = { "..yy...", ".yyyy..", ".y.yy..", "...yyy.", "..yyyyy", ".yyyyyy", "..yyyy." },
+    enfado = { "..rrrrr..", ".rrrrrrr.", "rkrrrrrkr", "rrkrrrkrr", "rrrrrrrrr", "rrrkkkrrr", "rrkrrrkrr", ".rrrrrrr.", "..rrrrr.." },
+    mueca = { "..yyyyy..", ".yyyyyyy.", "yykyyykyy", "yykyyykyy", "yyyyyyyyy", "ykykykyky", "yykykykyy", ".yyyyyyy.", "..yyyyy.." },
+    dormido = { "..yyyyy.w", ".yyyyyyy.", "yyyyyyyyy", "ykkyyykky", "yyyyyyyyy", "yyyyyyyyy", "yyyykyyyy", ".yyyyyyy.", "..yyyyy.." },
+    sudor = { "..yyyyy..", ".yyyyyyb.", "yykyyykbb", "yykyyykbb", "yyyyyyyyy", "yyyyyyyyy", "yykkkkkyy", ".yyyyyyy.", "..yyyyy.." },
+    guino = { "..yyyyy..", ".yyyyyyy.", "yykyyyyyy", "yykyykkky", "yyyyyyyyy", "ykyyyyyky", "yykkkkkyy", ".yyyyyyy.", "..yyyyy.." },
+    hola = { ".y.y.y.", ".y.y.y.", ".yyyyyy", "yyyyyyy", ".yyyyy.", "..yyy..", "..yyy.." },
+    pizza = { "ooooooo", ".ryyry.", ".yyyyy.", "..ryr..", "..yyy..", "...y...", "......." },
+    roto = { ".rr.rr.", "rrrkrrr", "rrk.rrr", ".rrk.r.", "..rkr..", "...r...", "......." },
+    cebolla = { "...g...", "..vwv..", ".vwvwv.", "vwvwvwv", "vwvwvwv", ".vwvwv.", "..vvv.." },
+    bocata = { "..ooo..", ".ooooo.", "rgrrrgr", "yyyyyyy", ".ooooo.", "......." },
+    gato = { "w.....w", "ww...ww", "wwwwwww", "wgwwwgw", "wwwwwww", "wwwrwww", ".wwwww." },
+    perro = { "o.....o", "oo...oo", "ooooooo", "okoooko", "ooooooo", "oookooo", ".oorroo" },
+    lupa = { ".www...", "wcwcw..", "wcccw..", "wcccw..", ".wwwo..", "....oo.", ".....oo" },
+    reloj = { ".kkkkk.", "kwwkwwk", "kwwkwwk", "kwwkkwk", "kwwwwwk", "kwwwwwk", ".kkkkk." },
+    regalo = { "..r.r..", "...r...", "yyyryyy", "yyyryyy", "rrrrrrr", "yyyryyy", "yyyryyy" },
+    ancla = { "...b...", "..bwb..", "...b...", "bbbbbbb", "...b...", "b..b..b", ".bbbbb." },
+    globo = { ".rrr...", "rrwrr..", "rrrrr..", "rrrrr..", ".rrr...", "..r....", "...r..." },
+    pato = { "..yy...", ".yyky..", "..yyoo.", "..yy...", "yyyyy..", ".yyyy..", "..oo..." },
 }
 local TEXTOS = { ["67"] = p.lima, W = p.cian, GG = p.amarillo, L = p.rojo, OMG = p.violeta, POG = p.lima, ["100"] = p.rojo,
-    F = p.blanco, RIP = p.grisclaro, EZ = p.lima, GL = p.cian, ZZZ = p.celeste, ["?!"] = p.naranja }
+    F = p.blanco, RIP = p.grisclaro, EZ = p.lima, GL = p.cian, ZZZ = p.celeste, ["?!"] = p.naranja,
+    XD = p.amarillo, OLE = p.rojo, ILLO = p.naranja, UFF = p.celeste, ["+1"] = p.lima, TOP = p.lima, GOD = p.amarillo,
+    CLIP = p.violeta, YOLO = p.naranja, OP = p.rojo, BRB = p.grisclaro, AFK = p.grisclaro }
 
 -- emotes de Twitch (y palabras sueltas) que se cambian por los nuestros en el
 -- chat real; en minusculas
@@ -56,6 +82,20 @@ local DE_TWITCH = {
     monkas = "ojos", residentsleeper = "ZZZ", ez = "EZ", gg = "GG", w = "W", l = "L", f = "F", rip = "RIP",
     kreygasm = "fuego", fire = "fuego", hypers = "cohete", catjam = "rana", stonks = "stonks", ["67"] = "67",
     ["6-7"] = "67", gl = "GL", coolcat = "gafas", ["b)"] = "gafas", ["8)"] = "gafas",
+    clip = "claqueta", salseo = "palomitas", illo = "ILLO", quillo = "ILLO", ole = "OLE", uff = "UFF", yolo = "YOLO",
+    tilt = "enfado", mald = "enfado", malding = "enfado", cringe = "mueca", chetado = "musculo", chetada = "musculo",
+    afk = "AFK", brb = "BRB", mimir = "dormido", op = "OP", ["+1"] = "+1",
+}
+
+-- lo mismo para el chat del juego: las palabras mas tipicas de los chats de
+-- aqui pasan a ser emojis nuestros (en minusculas y sin signos)
+local DE_CHAT = {
+    xd = "XD", xdd = "XD", xddd = "XD", jaja = "risa", jajaja = "risa", jajajaja = "risa", f = "F", gg = "GG", ez = "EZ",
+    pog = "POG", poggers = "POG", sadge = "llora", kappa = "payaso", kreygasm = "fuego", clip = "claqueta", clipealo = "claqueta",
+    salseo = "palomitas", illo = "ILLO", quillo = "ILLO", ole = "OLE", uff = "UFF", tilt = "enfado", tilteado = "enfado",
+    mald = "enfado", malding = "enfado", cringe = "mueca", chetado = "musculo", chetada = "musculo", chetadisima = "musculo",
+    chetadisimo = "musculo", mimir = "dormido", yolo = "YOLO", w = "W", l = "L", afk = "AFK", brb = "BRB", aura = "estrella",
+    fuego = "fuego", bulk = "calavera", rip = "RIP", top = "TOP", god = "GOD", omg = "OMG", cine = "claqueta",
 }
 
 local imagenes = {}
@@ -110,6 +150,32 @@ function emojis.deTwitch(texto)
         end
     end
     return table.concat(resto, " "), lista
+end
+
+-- un mensaje del chat del juego: el texto sin las palabras que pasan a emoji
+-- y esos emojis (como mucho 4). Las que van repetidas se quedan en uno
+function emojis.deChat(texto)
+    local lista, resto, vistos = {}, {}, {}
+    for palabra in texto:gmatch("%S+") do
+        local limpia = palabra:lower():gsub("[%.,!%?¡¿:]", "")
+        local k = DE_CHAT[limpia]
+        if k and #lista < 4 then
+            if not vistos[k] then table.insert(lista, k) end
+            vistos[k] = true
+        else
+            table.insert(resto, palabra)
+        end
+    end
+    return table.concat(resto, " "), lista
+end
+
+-- todos los emojis (para las pruebas y para lanzar al azar)
+function emojis.todos()
+    local l = {}
+    for k in pairs(DIBUJOS) do table.insert(l, k) end
+    for k in pairs(TEXTOS) do table.insert(l, k) end
+    table.sort(l)
+    return l
 end
 
 local vivos = {}
