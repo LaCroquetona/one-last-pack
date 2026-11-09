@@ -17,6 +17,7 @@ local muebles = require "src.muebles"
 local pr_dib = require "src.productos"
 local productos = require "datos.productos"
 local datosFundas = require "datos.fundas"
+local datosPromos = require "datos.promos"
 local fundasDib = require "src.fundas"
 local fundario = require "src.fundario"
 
@@ -170,8 +171,9 @@ local ACCESORIOS = {
 -- los disenos que puede traer cada uno
 local function disenosDe(a)
     if a == "fundaset" then
+        -- cada dia trae uno de los dos disenos (van alternando)
         local i = tipo.id:match("%d+")
-        return { "lisa" .. i, "rayas" .. i }
+        return { (mercado.dia() % 2 == 0 and "lisa" or "rayas") .. i }
     elseif a == "temporada" then
         local id = partida.fundaTemporada()
         return id and { id } or {}
@@ -316,13 +318,13 @@ local function dibujarMix()
     local sD = muebles.dz(M.d)
     local bx = gancho(M.x + sD + 30, M.y + 4, function(gx, gy) muebles.blister(gx, gy, 3, giro("fundas")) end)
     muebles.etiqueta(bx, B1 + 1, "20 X " .. ui.dinero(PRECIO_FUNDAS))
-    ui.zona("fundas", bx - 18, M.y + 2, 36, B1 - M.y - 6)
-    if prodSel == "fundas" then marco(bx - 19, M.y + 2, 38, B1 - M.y - 4) end
+    ui.zona("prod_basfundas", bx - 18, M.y + 2, 36, B1 - M.y - 6)
+    if prodSel == "basfundas" then marco(bx - 19, M.y + 2, 38, B1 - M.y - 4) end
     if desbloqueos.hay("tops") then
         bx = gancho(M.x + sD + 84, M.y + 4, function(gx, gy) muebles.bolsaTops(gx, gy, 3, giro("tops")) end)
         muebles.etiqueta(bx, B1 + 1, "10 X " .. ui.dinero(PRECIO_TOPS))
-        ui.zona("tops", bx - 18, M.y + 2, 36, B1 - M.y - 6)
-        if prodSel == "tops" then marco(bx - 19, M.y + 2, 38, B1 - M.y - 4) end
+        ui.zona("prod_bastops", bx - 18, M.y + 2, 36, B1 - M.y - 6)
+        if prodSel == "bastops" then marco(bx - 19, M.y + 2, 38, B1 - M.y - 4) end
     end
     -- la funda de temporada (sale una cada pocos dias) y los tops con diseno
     if not partida.temporada then partida.revisarTemporada() end
@@ -358,6 +360,7 @@ local function dibujarMix()
 end
 
 -- pestañas: un set cada una (las que aun no salen, en gris) y MIX
+local flechas = {}  -- a donde llevan las flechas de los lados
 local function pestanas()
     local lista = conocidos()
     local nombres, total = {}, 0
@@ -383,12 +386,13 @@ local function pestanas()
     if not mix then
         local pos
         for i, s in ipairs(lista) do if s == tipo then pos = i end end
-        if pos and pos > 1 then ui.boton("tset_" .. lista[pos - 1].id, "<", 2, 186, 12, 30, p.azul) end
-        if pos and pos < #lista then ui.boton("tset_" .. lista[pos + 1].id, ">", 298, 186, 12, 30, p.azul)
-        elseif desbloqueos.hay("fundas") then ui.boton("tmix", ">", 298, 186, 12, 30, p.azul) end
-    elseif #lista > 0 then
-        ui.boton("tset_" .. lista[#lista].id, "<", 2, 186, 12, 30, p.azul)
+        flechas.ant = pos and pos > 1 and ("tset_" .. lista[pos - 1].id) or nil
+        flechas.sig = (pos and pos < #lista and ("tset_" .. lista[pos + 1].id)) or (desbloqueos.hay("fundas") and "tmix") or nil
+    else
+        flechas.ant, flechas.sig = #lista > 0 and ("tset_" .. lista[#lista].id) or nil, nil
     end
+    if flechas.ant then ui.boton("tfl_ant", "<", 2, 186, 12, 30, p.azul) end
+    if flechas.sig then ui.boton("tfl_sig", ">", 298, 186, 12, 30, p.azul) end
 end
 
 local function dibujarMueble()
@@ -505,7 +509,9 @@ local function fichaAccesorio(a)
     local que = A.esTop and "TOPS" or "FUNDAS"
     local lineas = {}
     if a == "fundaset" then
-        table.insert(lineas, { A.pack.n .. " FUNDAS LISAS O DE RAYAS (AL AZAR) CON LOS COLORES DEL SET", p.blanco })
+        local lisa = ids[1] and ids[1]:match("^lisa")
+        table.insert(lineas, { A.pack.n .. " FUNDAS " .. (lisa and "LISAS" or "DE RAYAS") .. " CON LOS COLORES DEL SET", p.blanco })
+        table.insert(lineas, { "HOY TRAEN ESTE DISEÑO; MAÑANA, EL OTRO", p.grisclaro })
     elseif a == "temporada" then
         local _, dias = partida.fundaTemporada()
         table.insert(lineas, { A.pack.n .. " FUNDAS " .. datosFundas.nombre(ids[1]), p.blanco })
@@ -541,6 +547,38 @@ local function fichaAccesorio(a)
         #ids > 0 and partida.dinero >= A.pack.precio)
 end
 
+-- fundas y tops basicos del MIX
+local function fichaBasica(esTop)
+    if esTop then
+        cabecera("TOP LOADERS", PRECIO_TOPS, { base = p.morado, rayas = p.azul })
+    else
+        cabecera("FUNDAS", PRECIO_FUNDAS, { base = p.morado, rayas = p.azul })
+    end
+    local lineas = esTop and {
+        { "10 TOP LOADERS TRANSPARENTES", p.blanco },
+        { "PLÁSTICO RÍGIDO ENCIMA DE LA FUNDA", p.celeste },
+        { "SE PONEN DESDE LA MESA, EL ARMARIO O AL INSPECCIONAR", p.grisclaro },
+        { "TIENES " .. partida.topsLibres .. " TOPS", p.blanco },
+    } or {
+        { "20 FUNDAS TRANSPARENTES", p.blanco },
+        { "PROTEGEN LAS CARTAS (EL AUTOENFUNDADO USA ESTAS)", p.cian },
+        { "SE COLGAN EN LA MESA Y SE ARRASTRAN A UNA CARTA", p.grisclaro },
+        { "TIENES " .. partida.fundasLibres .. " FUNDAS", p.blanco },
+    }
+    local y = PANEL_Y + 34
+    for _, l in ipairs(lineas) do
+        fuentes.texto(l[1], PANEL_X + 10, y, 1, l[2])
+        y = y + 11
+    end
+    fundario.miniatura(true, esTop, PANEL_X + PANEL_W / 2, PANEL_Y + 170, 1.6)
+    local by = PANEL_Y + PANEL_H + 8
+    if esTop then
+        ui.boton("tops", "COMPRAR 10 TOPS " .. ui.dinero(PRECIO_TOPS), PANEL_X, by, 208, 16, p.celeste, partida.dinero >= PRECIO_TOPS)
+    else
+        ui.boton("fundas", "COMPRAR 20 FUNDAS " .. ui.dinero(PRECIO_FUNDAS), PANEL_X, by, 208, 16, p.cian, partida.dinero >= PRECIO_FUNDAS)
+    end
+end
+
 local function fichaMix()
     cabecera("MIX", nil, { base = p.morado, rayas = p.azul })
     local y = PANEL_Y + 34
@@ -553,7 +591,7 @@ local function fichaMix()
     end
     table.insert(lineas, { "-" })
     table.insert(lineas, { "TIENES " .. partida.fundasLibres .. " FUNDAS" .. (desbloqueos.hay("tops") and (" Y " .. partida.topsLibres .. " TOPS") or ""), p.blanco })
-    table.insert(lineas, { "TOCA UN GANCHO PARA COMPRAR", p.grisclaro })
+    table.insert(lineas, { "TOCA UN PRODUCTO PARA VER SU FICHA", p.grisclaro })
     table.insert(lineas, { "-" })
     table.insert(lineas, { "PRÓXIMAMENTE: PRODUCTOS DE VARIOS SETS", p.gris })
     for _, l in ipairs(lineas) do
@@ -576,6 +614,11 @@ function tienda.dibujar()
     dibujarMueble()
     if prodSel and ACCESORIOS[prodSel] then
         fichaAccesorio(prodSel)
+        return
+    end
+    if (prodSel == "basfundas" or prodSel == "bastops") and not mix then prodSel = nil end
+    if prodSel == "basfundas" or prodSel == "bastops" then
+        fichaBasica(prodSel == "bastops")
         return
     end
     if mix then
@@ -659,6 +702,8 @@ function tienda.dibujar()
             or "HOY NO QUEDAN MÁS: MAÑANA LLEGAN MÁS SOBRES", p.naranja }
     elseif not precio and salido then
         aviso = { "YA NO SE IMPRIME: SOLO SE CONSIGUE DE REVENTA", p.grisclaro }
+    elseif not salido then
+        aviso = { "PREVENTA: GASTA " .. ui.dinero(datosPromos.preventa) .. " DE UNA VEZ EN LA TIENDA Y TE REGALAN SU PROMO", p.amarillo }
     elseif precio and partida.dinero < precio and guardados == 0 then
         aviso = { "SIN DINERO: VENDE CARTAS EN EL ARMARIO O EN EL MÓVIL", p.naranja }
     end
@@ -673,6 +718,7 @@ end
 local function comprar(cantidad, boton)
     local pagado = partida.comprar(tipo, cantidad)
     if not pagado then return end
+    partida.preventa(pagado)
     sonido.tocar("moneda")
     local x = boton == "comprar1" and PANEL_X + 50 or PANEL_X + 156
     fx.texto(x, PANEL_Y + PANEL_H, "-" .. ui.dinero(pagado), p.rojo)
@@ -684,12 +730,17 @@ end
 
 local function pagar(pagado, texto, color)
     if not pagado then return end
+    partida.preventa(pagado)
     sonido.tocar("moneda")
     fx.texto(ui.mx, ui.my - 10, texto or ("-" .. ui.dinero(pagado)), color or p.rojo)
     partida.guardar()
 end
 
 function tienda.click(id)
+    if id == "tfl_ant" or id == "tfl_sig" then
+        id = flechas[id == "tfl_ant" and "ant" or "sig"]
+        if not id then return end
+    end
     if id == "comprar1" then
         comprar(1, id)
     elseif id == "comprar5" then
@@ -702,6 +753,7 @@ function tienda.click(id)
         local prod = productos[prodSel]
         local pagado = prod and partida.comprarProd(prod, tipo)
         if pagado then
+            partida.preventa(pagado)
             sonido.tocar("moneda")
             fx.texto(PANEL_X + 104, PANEL_Y + PANEL_H + 8, "-" .. ui.dinero(pagado) .. "  +1 " .. prod.nombre, p.amarillo)
             fx.sacudir(3)
