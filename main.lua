@@ -22,6 +22,7 @@ local tienda = require "src.tienda"
 local armario = require "src.armario"
 local movil = require "src.movil"
 local menu = require "src.menu"
+local carpeta = require "src.carpeta"
 local intro = require "src.firma"
 local escritorio = require "src.escritorio"
 local mesa = require "src.mesa"
@@ -274,6 +275,15 @@ function love.update(dt)
         local nuevo = desbloqueos.toast()
         if nuevo then movil.avisar(nuevo, p.lima) end
     end
+    -- promos: sobrecitos, la del blister o el tin, preventa y placas del canal
+    if escena ~= "menu" and escena ~= "intro" then
+        partida.revisarPlacas()
+        local promo = table.remove(partida.promosNuevas, 1)
+        if promo then
+            movil.avisar(promo, p.naranja)
+            sonido.tocar("nueva")
+        end
+    end
     -- la carta que buscabas
     local encontrada = table.remove(partida.encontradas, 1)
     if encontrada then
@@ -292,6 +302,8 @@ function love.update(dt)
     local dtJuego = dt * fx.escalaTiempo()
     if escena == "intro" then
         intro.update(dt)
+    elseif escena == "menu" then
+        menu.update(dt)
     elseif escena == "mesa" then
         mesa.update(dtJuego)
     end
@@ -358,6 +370,8 @@ function love.mousepressed(x, y, boton)
         mesa.presionar(id, mx, my)
     elseif escena == "armario" then
         if not armario.coger(id, mx, my) and id then armario.click(id) end
+    elseif escena == "menu" and id and id:match("^abanico") then
+        menu.coger(id, mx, my)
     elseif id and escenas[escena] then
         escenas[escena].click(id)
     end
@@ -369,6 +383,7 @@ function love.mousereleased(x, y, boton)
     movil.soltar()
     armario.acabarBarrido()
     if escena == "mesa" then mesa.soltar(aJuego(x, y)) end
+    if escena == "menu" then menu.soltar() end
     if not ui.cogida then return end
     local mx, my = aJuego(x, y)
     armario.soltar(ui.soltar(), mx, my)
@@ -381,6 +396,7 @@ function love.mousemoved(x, y)
     if escena == "armario" then armario.mover(mx, my) end
     if escena == "mesa" then mesa.mover(mx, my) end
     if escena == "movil" then movil.arrastrar(mx, my) end
+    if escena == "menu" then menu.mover(mx, my) end
 end
 
 function love.wheelmoved(_, y)
@@ -395,6 +411,7 @@ end
 function love.textinput(t)
     if reporte.texto(t) then return end
     if opciones.texto(t) then return end
+    if carpeta.texto(t) then return end
     directo.texto(t)
 end
 
@@ -404,6 +421,7 @@ function love.keypressed(tecla)
     -- escribiendo un reporte o el nombre del canal las teclas son letras
     if reporte.tecla(tecla) then return end
     if opciones.tecla(tecla) then return end
+    if carpeta.tecla(tecla) then return end
     if directo.tecla(tecla) then return end
     reporte.apuntar("tecla " .. tecla)
     if transicion.activa() then

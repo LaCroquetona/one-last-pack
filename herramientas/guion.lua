@@ -323,6 +323,8 @@ return function(t)
     esperar(25)
     foto("31_encargos")
     ok(partida.aceptarEncargo(1), "se acepta un encargo")
+    -- solo el sobre del encargo, para que ESPACIO abra ese
+    partida.guardados, partida.guardados1, partida.cajaAbierta = {}, {}, nil
     partida.regalar("set1", 1, true)
     click("ir_mesa")
     esperar(10)

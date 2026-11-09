@@ -22,7 +22,11 @@ opciones.efectos = 10
 opciones.twitch = ""
 opciones.conectar = false
 opciones.solo = false
+-- tutorial: con false no hay intro, ni explicaciones, ni avisos de la mascota
+-- (lo que se desbloquea llega como aviso pequeño)
+opciones.tutorial = true
 
+local alVerTutorial -- lo que hace VER TUTORIAL (lo pasa quien abre las opciones)
 local editando -- canal de Twitch mientras se escribe
 local MAX_CANAL = 25
 
@@ -39,7 +43,7 @@ function opciones.cargar()
                 opciones[clave] = math.max(0, math.min(PASOS, tonumber(valor) or opciones[clave]))
             elseif clave == "twitch" then
                 opciones.twitch = valor:lower()
-            elseif clave == "conectar" or clave == "solo" then
+            elseif clave == "conectar" or clave == "solo" or clave == "tutorial" then
                 opciones[clave] = valor == "1"
             end
         end
@@ -50,7 +54,8 @@ end
 
 local function guardar()
     love.filesystem.write(ARCHIVO, "musica=" .. opciones.musica .. "\nefectos=" .. opciones.efectos ..
-        "\ntwitch=" .. opciones.twitch .. "\nconectar=" .. (opciones.conectar and 1 or 0) .. "\nsolo=" .. (opciones.solo and 1 or 0) .. "\n")
+        "\ntwitch=" .. opciones.twitch .. "\nconectar=" .. (opciones.conectar and 1 or 0) .. "\nsolo=" .. (opciones.solo and 1 or 0) ..
+        "\ntutorial=" .. (opciones.tutorial and 1 or 0) .. "\n")
 end
 
 -- si el chat del juego se calla porque solo se quiere el de Twitch
@@ -77,7 +82,7 @@ end
 local function dibujar(ancho, alto)
     lg.setColor(0, 0, 0, 0.6)
     lg.rectangle("fill", -ancho, -alto, ancho * 3, alto * 3)
-    local w, h = 260, 168
+    local w, h = 260, 222
     local x, y = 320 - w / 2, 180 - h / 2
     ui.caja(x, y, w, h)
     fuentes.texto("OPCIONES", x, y + 8, 2, p.amarillo, "center", w)
@@ -110,7 +115,19 @@ local function dibujar(ancho, alto)
     fuentes.texto("CHAT DEL JUEGO", x + 16, ty + 32, 1, p.grisclaro)
     ui.boton("opc_mezcla", "MEZCLADO", x + 100, ty + 29, 70, 12, not opciones.solo and p.azul or p.grisosc)
     ui.boton("opc_solo", "SOLO TWITCH", x + 174, ty + 29, 70, 12, opciones.solo and p.azul or p.grisosc)
-    fuentes.texto("SOLO SE LEE TU CHAT: NO HACE FALTA INICIAR SESIÓN", x + 16, ty + 48, 1, p.gris)
+    fuentes.texto("SOLO SE LEE TU CHAT: SIN INICIAR SESIÓN", x + 16, ty + 48, 1, p.gris)
+
+    -- tutorial y pantalla
+    local uy = ty + 60
+    lg.setColor(p.grisosc)
+    lg.rectangle("fill", x + 10, uy - 4, w - 20, 1)
+    fuentes.texto("TUTORIAL", x + 16, uy + 3, 1, p.grisclaro)
+    ui.boton("opc_tutsi", "SÍ", x + 100, uy, 70, 12, opciones.tutorial and p.azul or p.grisosc)
+    ui.boton("opc_tutno", "NO", x + 174, uy, 70, 12, not opciones.tutorial and p.azul or p.grisosc)
+    fuentes.texto(opciones.tutorial and "LA MASCOTA TE EXPLICA LO NUEVO" or "SIN EXPLICACIONES, SOLO AVISOS", x + 16, uy + 16, 1, p.gris)
+    ui.boton("opc_vertut", "VER TUTORIAL", x + 16, uy + 27, 110, 14, p.morado, alVerTutorial ~= nil)
+    local completa = require("src.nav").pantallaCompleta()
+    ui.boton("opc_pantalla", completa and "VENTANA" or "PANTALLA COMPLETA", x + 134, uy + 27, 110, 14, p.gris)
     ui.boton("opc_vale", "VALE", x + w / 2 - 30, y + h - 22, 60, 14, p.verde)
 end
 
@@ -166,13 +183,32 @@ local function click(id)
     elseif id == "opc_mezcla" or id == "opc_solo" then
         opciones.solo = id == "opc_solo"
         guardar()
+    elseif id == "opc_tutsi" or id == "opc_tutno" then
+        opciones.tutorial = id == "opc_tutsi"
+        guardar()
+        -- apagarlo a mitad de la intro la quita
+        local partida = require "src.partida"
+        if not opciones.tutorial and partida.tutorial then
+            partida.tutorial = false
+            partida.guardar()
+        end
+    elseif id == "opc_vertut" then
+        acabarCanal()
+        ui.overlay = nil
+        opciones.tutorial = true
+        guardar()
+        if alVerTutorial then alVerTutorial() end
+    elseif id == "opc_pantalla" then
+        require("src.nav").alternarPantalla()
     elseif id == "opc_vale" then
         acabarCanal()
         ui.overlay = nil
     end
 end
 
-function opciones.abrir()
+-- verTutorial (opcional): lo que hace el boton VER TUTORIAL
+function opciones.abrir(verTutorial)
+    alVerTutorial = verTutorial
     ui.overlay = { dibujar = dibujar, click = click }
 end
 
