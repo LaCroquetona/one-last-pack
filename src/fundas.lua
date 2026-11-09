@@ -18,7 +18,7 @@ local FW, FH = W + 2, H + 2
 local porId = {}
 for _, c in ipairs(cartas) do porId[c.id] = c end
 
-local fundas = { W = FW, H = FH }
+local fundas = { W = FW, H = FH, filoBasica = 0.85 }
 
 local function col(c, a) lg.setColor(c[1], c[2], c[3], a or 1) end
 local function R(c, x, y, w, h, a) col(c, a) lg.rectangle("fill", x, y, w, h) end
@@ -72,7 +72,9 @@ local function nuevo(id, _, _, _, f) D[id] = f end
 nuevo("transparente", nil, nil, nil, function()
     lg.push() lg.translate(1, 1) carta.dibujar(porId[1], W / 2, H / 2, 1, 1, 0, false) lg.pop()
     lg.setShader()
-    R(p.blanco, 0, 0, FW, FH, 0.05) R(p.blanco, 4, 1, 2, FH - 2, 0.12) R(p.blanco, 7, 1, 1, FH - 2, 0.08)
+    R(p.blanco, 0, 0, FW, FH, 0.05) R(p.blanco, FW - 7, 1, 2, FH - 2, 0.12) R(p.blanco, FW - 9, 1, 1, FH - 2, 0.08)
+    -- el filo de la funda, como de frente
+    L(p.cian, 0, 0, FW, FH, fundas.filoBasica)
 end)
 -- tienda del set: lisa (rombos) o rayas con su codigo
 for i = 1, 8 do
@@ -344,6 +346,9 @@ function fundas.dorso(id)
     end
     return lienzos[id]
 end
+
+-- para las maquetas: vuelve a pintar los lienzos
+function fundas.olvidar() lienzos = {} end
 
 -- el dorso centrado en (x, y)
 function fundas.dibujarDorso(id, x, y, sx, sy, rot)

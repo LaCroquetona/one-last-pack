@@ -3,6 +3,7 @@ local rarezas = require "datos.rarezas"
 local elementos = require "datos.elementos"
 local p = require "datos.paleta"
 local datosFundas = require "datos.fundas"
+local datosPromos = require "datos.promos"
 local fuentes = require "src.fuentes"
 local bicho = require "src.bicho"
 
@@ -154,7 +155,7 @@ local BAYER = { { 0, 8, 2, 10 }, { 12, 4, 14, 6 }, { 3, 11, 1, 9 }, { 15, 7, 13,
 
 local totalSet = {}
 for _, c in ipairs(cartas) do
-    if not c.fuera then totalSet[c.set] = (totalSet[c.set] or 0) + 1 end
+    if not c.fuera and not c.promo then totalSet[c.set] = (totalSet[c.set] or 0) + 1 end
 end
 
 local function px(x, y)
@@ -559,22 +560,42 @@ function carta.preparar()
     shader = lg.newShader(CODIGO_SHADER)
     dorso = lienzo(carta.ANCHO, carta.ALTO, pintarDorso)
     sello = lienzo(SELLO.w, SELLO.h, pintarSello)
+    -- las promos se pintan la primera vez que se ven (src/promo.lua)
     for _, def in ipairs(cartas) do
-        local r = rarezas[def.rareza]
-        local img = imagenDe(def)
-        local frames = { lienzo(W, H, pintarCara, def, img, 0) }
-        if r.nivel >= 4 and not def.sprite then
-            frames[2] = lienzo(W, H, pintarCara, def, img, 1)
-            frames[3] = lienzo(W, H, pintarCara, def, imagenDe(def, true), 0)
+        if not def.promo then
+            local r = rarezas[def.rareza]
+            local img = imagenDe(def)
+            local frames = { lienzo(W, H, pintarCara, def, img, 0) }
+            if r.nivel >= 4 and not def.sprite then
+                frames[2] = lienzo(W, H, pintarCara, def, img, 1)
+                frames[3] = lienzo(W, H, pintarCara, def, imagenDe(def, true), 0)
+            end
+            caras[def.id] = frames
+            siluetas[def.id] = lienzo(W, H, pintarSilueta, def)
         end
-        caras[def.id] = frames
-        siluetas[def.id] = lienzo(W, H, pintarSilueta, def)
     end
+end
+
+-- un lienzo pintado a mitad de un frame (deja todo como estaba)
+local function lienzoSeguro(w, h, pintar, ...)
+    lg.push("all")
+    lg.origin()
+    lg.setShader()
+    local c = lienzo(w, h, pintar, ...)
+    lg.pop()
+    return c
 end
 
 -- el bicho de las buenas respira (sube un pixel) y parpadea cada pocos segundos
 local function cara(def)
     local frames = caras[def.id]
+    -- la placa del canal lleva su nombre: se vuelve a pintar si cambia
+    local canal = def.estilo == "placa" and package.loaded["src.partida"] and package.loaded["src.partida"].canal
+    canal = canal and canal.nombre or nil
+    if not frames or (def.estilo == "placa" and frames.canal ~= canal) then
+        frames = { require("src.promo").cara(def, canal), canal = canal }
+        caras[def.id] = frames
+    end
     if #frames == 1 then return frames[1] end
     local t = love.timer.getTime() + def.id * 1.37
     if t % 3.7 < 0.13 then return frames[3] end
@@ -679,17 +700,13 @@ local function funda(x, y, sx, sy, rot, gx, gy, id)
     lg.rectangle("fill", -W / 2 - 1, -H / 2 - 1, W + 2, H + 2)
     lg.setColor(1, 1, 1, 0.22)
     lg.polygon("fill", -W / 2 + 4, -H / 2, -W / 2 + 10, -H / 2, -W / 2 + 2, H / 2, -W / 2 - 1, H / 2, -W / 2 - 1, -H / 2 + 10)
-    local d = id ~= true and datosFundas[id]
-    local fc = d and d.color or p.cian
-    lg.setColor(fc[1], fc[2], fc[3], d and 1 or 0.85)
-    lg.setLineWidth(1 / math.max(math.abs(sx), 0.01))
-    lg.rectangle("line", -W / 2 - 1, -H / 2 - 1, W + 2, H + 2)
-    if d then
-        -- doble filo: se nota mas que la transparente
-        lg.setColor(fc[1], fc[2], fc[3], 0.45)
-        lg.rectangle("line", -W / 2, -H / 2, W, H)
+    -- la de diseno ya asoma 1 px por detras de la carta; la basica lleva su filo
+    if not (id ~= true and datosFundas[id]) then
+        lg.setColor(p.cian[1], p.cian[2], p.cian[3], 0.85)
+        lg.setLineWidth(1 / math.max(math.abs(sx), 0.01))
+        lg.rectangle("line", -W / 2 - 1, -H / 2 - 1, W + 2, H + 2)
+        lg.setLineWidth(1)
     end
-    lg.setLineWidth(1)
     lg.pop()
     lg.setShader()
     lg.setColor(1, 1, 1)
@@ -699,6 +716,11 @@ end
 -- enFunda: se pinta la funda transparente por encima
 -- extra (opcional): primera (sello de 1ª edicion), barrido (0-1, destello al
 -- revelar), quieta (sin balanceo), giro = { x, y } para forzar la inclinacion
+-- top loader suelto (sin carta dentro), centrado en (x, y)
+function carta.toploader(id, x, y, sx, sy)
+    toploader(x, y, sx, sy or sx, 0, 0, 0, id or true)
+end
+
 function carta.dibujar(def, x, y, sx, sy, rot, bocaArriba, h, enFunda, extra)
     rot = rot or 0
     extra = extra or {}
@@ -735,6 +757,12 @@ function carta.dibujar(def, x, y, sx, sy, rot, bocaArriba, h, enFunda, extra)
         return
     end
 
+    -- funda con diseno: su dibujo detras de la carta, asomando 1 px
+    if enFunda and enFunda ~= true and datosFundas[enFunda] then
+        preparar3D(gx, gy, cx, cy, alto, 0, 0, 0, 0)
+        local fd = require "src.fundas"
+        lg.draw(fd.dorso(enFunda), x, y - alza, rot, sx, sy, fd.W / 2, fd.H / 2)
+    end
     local modo = MODOS[r.brillo] or 0
     local fuerza = (r.efecto or 0) * (0.7 + a * 0.5)
     -- la luz sigue a la inclinacion, tambien la del balanceo
@@ -766,9 +794,18 @@ function carta.hueco(def, x, y, escala)
         fuentes.texto("?", x0, y0 + math.floor((h - 5 * t) / 2), t, p.gris, "center", w)
         return
     end
+    if def.estilo == "placa" then
+        -- la placa del canal: su forma, de lado, y los seguidores que pide
+        lg.setColor(p.negro[1], p.negro[2], p.negro[3], 0.6)
+        lg.rectangle("fill", x0 + 6 * escala, y0 + 3 * escala, w - 12 * escala, h - 14 * escala)
+        local d = datosPromos.canal[def.nivel]
+        fuentes.texto(d.cifra, x0, y0 + h - 8 * escala, math.max(1, escala - 1), p.grisosc, "center", w)
+        return
+    end
+    if not siluetas[def.id] then siluetas[def.id] = lienzoSeguro(W, H, pintarSilueta, def) end
     lg.setColor(p.negro[1], p.negro[2], p.negro[3], 0.9)
     lg.draw(siluetas[def.id], x0, y0, 0, escala, escala)
-    fuentes.texto(string.format("#%02d", def.num), x0, y0 + h - 8 * escala, escala, p.grisosc, "center", w)
+    fuentes.texto(def.codigo or string.format("#%02d", def.num), x0, y0 + h - 8 * escala, escala, p.grisosc, "center", w)
 end
 
 -- montón de cartas: defs[1] arriba del todo, total = cuantas hay en el monton.

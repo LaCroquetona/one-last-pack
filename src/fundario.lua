@@ -2,7 +2,6 @@
 -- (solo lo que tienes, para elegir el de arriba) y el FUNDARIO del armario
 -- (todos los disenos, los conseguidos y los que faltan)
 local p = require "datos.paleta"
-local cartas = require "datos.cartas"
 local datos = require "datos.fundas"
 local partida = require "src.partida"
 local carta = require "src.carta"
@@ -50,12 +49,14 @@ function fundario.cuenta(esTop)
     return n, total
 end
 
-local CARTA = cartas[1]
 
 -- miniatura de un diseno en (x, y) (centro), a escala e
 function fundario.miniatura(id, esTop, x, y, e)
     if esTop then
-        carta.dibujar(CARTA, x, y, e, e, 0, true, nil, true, { quieta = true, top = id })
+        -- el top vacio: solo el plastico
+        lg.setColor(0, 0, 0, 0.3)
+        lg.rectangle("fill", x - (carta.ANCHO / 2 + 3) * e + 2, y - (carta.ALTO / 2 + 4) * e + 3, (carta.ANCHO + 6) * e, (carta.ALTO + 7) * e)
+        carta.toploader(id, x, y, e)
     else
         lg.setColor(0, 0, 0, 0.35)
         lg.rectangle("fill", x - fundasDib.W / 2 * e + 2, y - fundasDib.H / 2 * e + 3, fundasDib.W * e, fundasDib.H * e)
