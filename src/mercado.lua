@@ -5,6 +5,7 @@ local productos = require "datos.productos"
 local datos = require "datos.mercado"
 local rarezas = require "datos.rarezas"
 local datosCalendario = require "datos.calendario"
+local datosPromos = require "datos.promos"
 local calendario = require "src.calendario"
 
 local mercado = {}
@@ -21,13 +22,23 @@ for _, c in ipairs(cartas) do
 end
 
 -- todas las del set, las que cuentan para el 100% y las de fuera de set
-local delSet, baseDe, fueraDe = {}, {}, {}
+-- (las promos van aparte: promosDe, sin las colabs; colabs: todas en orden)
+local delSet, baseDe, fueraDe, promosDe, colabs, canal = {}, {}, {}, {}, {}, {}
 for _, c in ipairs(cartas) do
-    delSet[c.set] = delSet[c.set] or {}
-    table.insert(delSet[c.set], c)
-    local t = c.fuera and fueraDe or baseDe
-    t[c.set] = t[c.set] or {}
-    table.insert(t[c.set], c)
+    if c.colab then
+        table.insert(colabs, c)
+    elseif c.promo == "canal" then
+        table.insert(canal, c)
+    elseif c.promo then
+        promosDe[c.set] = promosDe[c.set] or {}
+        table.insert(promosDe[c.set], c)
+    else
+        delSet[c.set] = delSet[c.set] or {}
+        table.insert(delSet[c.set], c)
+        local t = c.fuera and fueraDe or baseDe
+        t[c.set] = t[c.set] or {}
+        table.insert(t[c.set], c)
+    end
 end
 -- las de fuera de set, por numero (las secretas primero)
 for _, l in pairs(fueraDe) do
@@ -44,7 +55,11 @@ end
 -- las ALT, SILVER y GOLDEN tienen su precio en sets.valores (alt_holo...)
 local base = {}
 for _, c in ipairs(cartas) do
-    base[c.id] = sets[c.set].valores[rarezas.clave(c) or c.rareza] * variacion(c.de or c.id)
+    if c.promo then
+        base[c.id] = c.valor * datos.valorCartas
+    else
+        base[c.id] = sets[c.set].valores[rarezas.clave(c) or c.rareza] * variacion(c.de or c.id) * datos.valorCartas
+    end
 end
 
 -- todo lo que cambia y se guarda con la partida
@@ -84,6 +99,20 @@ end
 
 function mercado.fueraDe(setId)
     return fueraDe[setId] or {}
+end
+
+-- las promos de un set (P001...; sin colabs) y todas las colabs
+function mercado.promosDe(setId)
+    return promosDe[setId] or {}
+end
+
+function mercado.colabs()
+    return colabs
+end
+
+-- las placas del canal (cartas que no se venden)
+function mercado.placas()
+    return canal
 end
 
 function mercado.base(id)
@@ -141,8 +170,33 @@ local function vintage(dias, alfa)
     return (1 + math.max(0, dias) / datos.vintage.tau) ^ alfa
 end
 
+-- promos: sin reimpresion, suben solas con el tiempo desde que sale su set
+-- (unos dias quietas; las doradas, mas deprisa)
+local function crecePromo(def, dias)
+    local S = datosPromos.subida
+    local d = dias - S.quietas
+    if d <= 0 then return 1 end
+    local k = def.oro and S.oro or (def.plata and S.plata or S.normal)
+    return (1 + d / S.ritmo) ^ k
+end
+
+local function salidaSet(set)
+    local plan = calendario.plan[set]
+    return plan and plan[1] and plan[1].desde or 1
+end
+
+-- colab: sube deprisa los primeros dias y luego sigue como una promo
+local function multColab(def, dia)
+    local C = datosPromos.colab
+    local salida = mercado.estado.colabs and mercado.estado.colabs.dias[def.id] or dia
+    local d = math.max(0, dia - salida)
+    return (1 + C.sube * math.min(C.diasSube, d)) * crecePromo(def, d)
+end
+
 -- precio de la 1ª edicion respecto a su valor base, segun la fase de su set
 local function multPrimera(def, dia)
+    if def.colab then return multColab(def, dia) end
+    if def.promo then return crecePromo(def, dia - salidaSet(def.set)) end
     local F = datos.fases
     local fase, i = calendario.fase(def.set, dia)
     if fase == "impresion" then
@@ -176,7 +230,7 @@ local function tendencia(id, primera)
 end
 
 local function objetivo(def, dia, primera)
-    local m = primera and multPrimera(def, dia) * efectoTirada(def.set) or multNormal(def, dia)
+    local m = primera and multPrimera(def, dia) * (def.promo and 1 or efectoTirada(def.set)) or multNormal(def, dia)
     return base[def.id] * m * math.exp(tendencia(def.id, primera)) * efectoBurbuja(def.id)
 end
 
@@ -198,6 +252,12 @@ end
 
 function mercado.valor(id, primera)
     return math.max(1, math.floor(mercado.valorExacto(id, primera) + 0.5))
+end
+
+-- linea de los tooltips: lo que vale o, si no se vende (placas), eso
+function mercado.textoValor(id, primera)
+    if porId[id] and porId[id].noVende then return "No se vende" end
+    return "Valor " .. require("src.ui").dinero(mercado.valor(id, primera))
 end
 
 function mercado.ventaRapida(id, primera)
@@ -797,14 +857,16 @@ local function abrirSets(dia)
     for _, s in ipairs(sets.lista) do
         e.sets[s.id] = e.sets[s.id] or nuevoSet()
         if calendario.salido(s.id, dia) then
-            for _, def in ipairs(delSet[s.id]) do
-                if not e.cartas[def.id] then
-                    local c = nuevaCarta(def.id)
-                    c.h0 = dia
-                    e.cartas[def.id] = c
-                    c.p1 = objetivo(def, dia, true)
-                    if mercado.hayNormales(def.set, dia) then c.pn = objetivo(def, dia, false) end
-                    apuntar(c, dia)
+            for _, l in ipairs({ delSet[s.id], promosDe[s.id] or {} }) do
+                for _, def in ipairs(l) do
+                    if not e.cartas[def.id] then
+                        local c = nuevaCarta(def.id)
+                        c.h0 = dia
+                        e.cartas[def.id] = c
+                        c.p1 = objetivo(def, dia, true)
+                        if mercado.hayNormales(def.set, dia) and not def.promo then c.pn = objetivo(def, dia, false) end
+                        apuntar(c, dia)
+                    end
                 end
             end
             local tipo = sobres[s.sobre]
@@ -841,6 +903,103 @@ local function avisosCalendario(dia)
         local t = (a.clave == "agotado" or a.clave == "ultimos") and "sube" or ((a.clave == "rumor" or a.clave == "reimpresion") and "baja" or "info")
         anadirNoticia({ clave = a.clave, tono = t, set = a.set.id, texto = a.texto, calendario = true })
     end
+end
+
+-- Colabs: ONE LAST PACK X MARCA. Salen cada 15-20 dias con unas pocas copias
+-- que solo se compran en el mercado; la gente las compra deprisa y suben.
+-- estado.colabs = { sig = dia de la siguiente, n = cuantas han salido, salidas = ids,
+--   dias = { [id] = dia en que salio }, stock = { [id] = copias que quedan } }
+local function estadoColabs()
+    local e = mercado.estado
+    if not e.colabs then
+        local C = datosPromos.colab
+        e.colabs = { sig = C.primera + love.math.random(0, 3), n = 0, salidas = {}, dias = {}, stock = {} }
+    end
+    return e.colabs
+end
+
+function mercado.avanzarColabs(dia)
+    local e = mercado.estado
+    local k = estadoColabs()
+    local C = datosPromos.colab
+    -- la gente compra las que quedan
+    for id, n in pairs(k.stock) do
+        if n > 0 and k.dias[id] < dia then
+            k.stock[id] = math.max(0, n - math.max(1, math.floor(n * (C.venden[1] + love.math.random() * (C.venden[2] - C.venden[1])) + 0.5)))
+        end
+    end
+    if dia < k.sig then return end
+    -- la siguiente que no ha salido y cuyo set ya esta en las tiendas
+    local def
+    for _, c in ipairs(colabs) do
+        if not k.dias[c.id] and calendario.salido(c.set, dia) then
+            def = c
+            break
+        end
+    end
+    k.sig = dia + love.math.random(C.cada[1], C.cada[2])
+    if not def then return end
+    k.n = k.n + 1
+    k.salidas = k.salidas or {}
+    table.insert(k.salidas, def.id)
+    k.dias[def.id] = dia
+    k.stock[def.id] = love.math.random(C.stock[1], C.stock[2])
+    local c = nuevaCarta(def.id)
+    c.h0 = dia
+    e.cartas[def.id] = c
+    c.p1 = objetivo(def, dia, true)
+    apuntar(c, dia)
+    anadirNoticia({ clave = "colab", tono = "sube", set = def.set, carta = def.id,
+        texto = "ONE LAST PACK X " .. def.marca .. ": sale la carta colab. Pocas copias, solo en el mercado" })
+end
+
+-- colabs a la venta ahora (salidas y con stock), la ultima primero
+function mercado.colabsALaVenta()
+    local k = estadoColabs()
+    local lista = {}
+    local salidas = k.salidas or {}
+    for i = #salidas, 1, -1 do
+        local def = porId[salidas[i]]
+        if def and (k.stock[def.id] or 0) > 0 then table.insert(lista, def) end
+    end
+    return lista
+end
+
+function mercado.stockColab(id)
+    return estadoColabs().stock[id] or 0
+end
+
+function mercado.comprarColab(id)
+    local k = estadoColabs()
+    if (k.stock[id] or 0) <= 0 then return false end
+    k.stock[id] = k.stock[id] - 1
+    return true
+end
+
+-- sobres de torneo de un set: lo que cuestan hoy y cuantos quedan (nil si no hay)
+function mercado.sobreTorneo(tipo)
+    if not calendario.salido(tipo.set, mercado.estado.dia) then return nil end
+    local T = datosPromos.torneo
+    local media, pesos = 0, 0
+    for _, def in ipairs(promosDe[tipo.set] or {}) do
+        if def.promo == "torneo" then
+            media = media + mercado.valorExacto(def.id, true) * def.peso
+            pesos = pesos + def.peso
+        end
+    end
+    if pesos == 0 then return nil end
+    local plan = calendario.plan[tipo.set]
+    local desde = plan and plan[1] and plan[1].desde or 1
+    local dias = math.max(0, mercado.estado.dia - desde)
+    local precio = math.floor(media / pesos * T.margen * (1 + dias / T.subida) / 10 + 0.5) * 10
+    local hoy = (mercado.estado.torneoHoy or {})[tipo.id] or 0
+    local stock = math.max(1, T.stock - math.floor(dias / T.menosCada)) - hoy
+    return precio, math.max(0, stock)
+end
+
+function mercado.gastarTorneo(tipo)
+    mercado.estado.torneoHoy = mercado.estado.torneoHoy or {}
+    mercado.estado.torneoHoy[tipo.id] = (mercado.estado.torneoHoy[tipo.id] or 0) + 1
 end
 
 function mercado.nuevo(semilla)
@@ -971,6 +1130,8 @@ function mercado.pasarDia()
     abrirSets(dia)
     reponerStock(dia)
     avisosCalendario(dia)
+    mercado.avanzarColabs(dia)
+    e.torneoHoy = {}
     avanzarBurbujas()
     if love.math.random() < datos.probNoticia then mercado.noticia() end
     mercado.torneo()
@@ -981,7 +1142,7 @@ function mercado.pasarDia()
             local def = porId[id]
             local seguir = e.burbujas[id] and datos.seguimientoBurbuja or datos.seguimiento
             c.p1 = hacia(c.p1, objetivo(def, dia, true), seguir)
-            if mercado.hayNormales(def.set, dia) then
+            if mercado.hayNormales(def.set, dia) and not def.promo then
                 local meta = objetivo(def, dia, false)
                 c.pn = hacia(c.pn or meta, meta, seguir)
             end

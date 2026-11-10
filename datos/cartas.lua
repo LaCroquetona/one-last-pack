@@ -594,5 +594,7 @@ for _, v in ipairs(variantes) do
     v.num = ultimo[v.set]
     table.insert(lista, v)
 end
+-- las promos y las colabs (datos/promos.lua), detras de todo
+for _, pr in ipairs(require("datos.promos").crear(lista)) do table.insert(lista, pr) end
 
 return lista

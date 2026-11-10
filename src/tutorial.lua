@@ -18,6 +18,7 @@ local sonido = require "src.sonido"
 local ui = require "src.ui"
 local desbloqueos = require "src.desbloqueos"
 local guia = require "src.guia"
+local opciones = require "src.opciones"
 local encima = require "src.encima"
 local movil = require "src.movil"
 local transicion = require "src.transicion"
@@ -209,13 +210,18 @@ local function abrir(lista, escena, bloquea)
     local pasos = {}
     for _, c in ipairs(lista) do
         for _, paso in ipairs(datos[c].pasos) do
-            table.insert(pasos, { titulo = datos[c].titulo, texto = paso.texto, apunta = paso.apunta, pose = paso.pose })
+            table.insert(pasos, { titulo = datos[c].titulo, texto = paso.texto, apunta = paso.apunta, pose = paso.pose, armario = paso.armario })
         end
         guia.marcar(c)
     end
     if #pasos == 0 then return end
     abierta = { pasos = pasos, i = 1, bloquea = bloquea, escena = escena }
     sonido.tocar("nueva")
+end
+
+-- sin tutorial (OPCIONES) o en las pruebas viejas no se explica nada
+local function callada()
+    return guia.apagada or not opciones.tutorial
 end
 
 -- algo en marcha: no es momento de explicar nada
@@ -228,7 +234,16 @@ end
 
 -- la que toca abrir sola al entrar (o nil)
 local function automatica(escena)
-    if guia.apagada or ocupado(escena) then return nil end
+    if ocupado(escena) then return nil end
+    if callada() then
+        -- sin tutorial: lo que ya has visto deja de tener punto rojo
+        if not guia.apagada then
+            for _, c in ipairs(claves(escena)) do
+                if guia.pendiente(c) and (c ~= "venta" or directo.tipo() == "venta") then guia.marcar(c) end
+            end
+        end
+        return nil
+    end
     for _, c in ipairs(claves(escena)) do
         local d = datos[c]
         if d and d.auto ~= false and guia.pendiente(c) and (c ~= "venta" or directo.tipo() == "venta") then
@@ -239,7 +254,7 @@ end
 
 -- el ? de la barra: hay algo que explicar aqui
 function tutorial.hayAyuda(escena)
-    if abierta or pregunta or guia.apagada then return false end
+    if abierta or pregunta or callada() then return false end
     if escena == "mesa" and tutorial.activo() then return false end
     for _, c in ipairs(claves(escena)) do
         if guia.disponible(c) then return true end
@@ -258,7 +273,7 @@ end
 -- coger el movil en directo: la primera vez se avisa. true si se ha parado
 -- para preguntar (accion: lo que se hace si lo coges igual)
 function tutorial.avisarMovil(accion)
-    if guia.apagada or guia.vista("movilDirecto") then return false end
+    if callada() or guia.vista("movilDirecto") then return false end
     pregunta = { accion = accion }
     sonido.tocar("nueva")
     return true
@@ -267,6 +282,8 @@ end
 local function pintarExplicacion(escena)
     local paso = abierta.pasos[abierta.i]
     local ultimo = abierta.i == #abierta.pasos
+    -- en el armario, cada paso abre la pestaña que explica
+    if paso.armario and escena == "armario" then require("src.armario").ponerModo(paso.armario) end
     local botones = {}
     if not ultimo then table.insert(botones, { "tut_g_saltar", "SALTAR", p.grisosc }) end
     table.insert(botones, { "tut_g_sig", ultimo and "¡ENTENDIDO!" or "SIGUIENTE", p.verde })

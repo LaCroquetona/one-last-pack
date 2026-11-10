@@ -127,6 +127,16 @@ local function entradasTodas()
         table.insert(lista, { clase = "sobre", tipo = tipo, primera = true, id = "caja_" .. tipo.id .. "_1" })
         table.insert(lista, { clase = "sobre", tipo = tipo, primera = false, id = "caja_" .. tipo.id .. "_n" })
     end
+    -- sobrecitos promo (de la ETB y la caja) y sobres de torneo
+    for _, tipo in ipairs(sobres.lista) do
+        if filtro == "todo" or filtro == tipo.id then
+            for _, o in ipairs({ "correo", "etb", "caja", "torneo" }) do
+                if partida.promoSobresDe(o, tipo.id) > 0 then
+                    table.insert(lista, { clase = "promo", origen = o, tipo = tipo, id = "pcaja_" .. o .. "_" .. tipo.id })
+                end
+            end
+        end
+    end
     return lista
 end
 
@@ -142,6 +152,7 @@ local function blistersMesa()
 end
 
 local function cuantosEntrada(e)
+    if e.clase == "promo" then return partida.promoSobresDe(e.origen, e.tipo.id) end
     if e.primera == nil then return partida.disponibles(e.tipo.id) end
     return partida.sinApartar("s", e.tipo.id, e.primera)
 end
@@ -184,9 +195,10 @@ local function hueco(k)
     return hx, hy + 19
 end
 
-local function huecoDe(tipoId, primera)
+local function huecoDe(tipoId, primera, idEntrada)
     local libre
     for k, e in ipairs(entradas()) do
+        if idEntrada and e.id == idEntrada then return hueco(k) end
         if e.clase == "sobre" and e.tipo.id == tipoId then
             if e.primera == nil or e.primera == primera then return hueco(k) end
             libre = libre or k
@@ -267,6 +279,13 @@ local function hayAbanico()
 end
 
 -- donde vuelven los sobres de lo abierto: la caja o el abanico
+-- donde espera el sobrecito i de la mesa (debajo del abanico de la esquina)
+local function sitioPromo(i)
+    -- con la ETB abierta, a la izquierda del abanico (debajo estan las fundas sueltas)
+    if hayAbanico() then return ABANICO.x - 88 - (i - 1) * 14, TAPETE.y + 22 end
+    return TAPETE.x + TAPETE.w - 24 - (i - 1) * 14, TAPETE.y + 70
+end
+
 local function rincon()
     if hayAbanico() then return ABANICO.x, ABANICO.y + 20 end
     return ESQUINA.x, ESQUINA.y
@@ -310,6 +329,25 @@ local function soltarSobre(tipoId, x, y, a, escala, deCaja, ed)
     return true
 end
 
+-- abre un sobrecito promo (o de torneo) soltado en el tapete
+local function soltarPromo(m)
+    if apertura.bloqueada() or animCaja then return false end
+    local defs
+    if m.deMesa then defs = partida.abrirPromoMesa(m.deMesa) else defs = partida.sacarPromoSobre(m.promo, m.tipoReal) end
+    if not defs then return false end
+    apertura.recoger()
+    partida.recogerMesa()
+    mesaSel = nil
+    partida.guardar()
+    sonido.tocar("giro")
+    fx.sacudir(2)
+    local tipo = sobres[m.tipoReal]
+    local falso = { id = m.tipo, set = tipo.set, promo = m.promo, colores = tipo.colores, nombre = tipo.nombre }
+    apertura.empezar(falso, false, { x = m.x, y = m.y + sobre.ALTO * m.escala / 2 - 4 * m.escala, a = m.a, escala = m.escala }, defs)
+    reporte.apuntar("sobre promo " .. m.tipo)
+    return true
+end
+
 -- vuelve volando a su sitio en la caja de carton (o a la caja abierta)
 local function volarACaja(tipoId, x0, y0, e0, a, deCaja, primera)
     local x1, y1
@@ -345,9 +383,10 @@ end
 -- todas las cartas sueltas de la mesa al armario
 function mesa.recoger()
     if apertura.activa() or animCaja then return false end
-    if #partida.mesa == 0 and not hayAbanico() and not haySueltos() then return false end
+    if #partida.mesa == 0 and not hayAbanico() and not haySueltos() and #partida.promoMesa == 0 then return false end
     -- los sobres del abanico vuelven con los guardados y lo suelto a su caja
     if hayAbanico() then partida.cerrarCajaAbierta() end
+    partida.guardarPromoMesa()
     partida.guardarSueltos("fundas")
     partida.guardarSueltos("tops")
     partida.recogerMesa()
@@ -508,13 +547,14 @@ local function dibujarCaja()
         local n = cuantosEntrada(e)
         local p1 = 0
         if e.clase == "sobre" and e.primera ~= false then p1 = partida.sinApartar("s", tipo.id, true) end
-        local cogido = mano and mano.cosa == "sobre" and mano.tipo == tipo.id and not mano.deCaja and mano.id == e.id and 1 or 0
+        local cogido = mano and mano.cosa == "sobre" and not mano.deCaja and mano.id == e.id and 1 or 0
         local quedan = n - cogido
         -- colgados de su gancho
         local bx, by = ganchoHueco(k)
         local hx, hy = muebles.agujero(bx, by, 12)
         muebles.gancho(bx, by, 12)
-        if quedan > 0 then muebles.colgados(tipo.id, hx, hy, math.min(3, quedan), 0) end
+        local imagen = e.clase == "promo" and sobre.clavePromo(e.origen, tipo.id) or tipo.id
+        if quedan > 0 then muebles.colgados(imagen, hx, hy, math.min(3, quedan), 0) end
         muebles.punta(bx, by, 12)
         -- pegatina dorada en el de delante si te queda alguno de 1ª edicion
         if quedan > 0 and p1 > 0 then
@@ -532,20 +572,32 @@ local function dibujarCaja()
                 lg.rectangle("line", x - 15.5, y - 22.5, 31, 45)
                 local lineas = { { quedan .. (quedan == 1 and " SOBRE" or " SOBRES") } }
                 if p1 > 0 then table.insert(lineas, { math.min(p1, quedan) .. " DE 1ª EDICIÓN", p.amarillo }) end
+                if e.clase == "promo" then
+                    local que = { torneo = "Trae 1 de sus 3 promos de torneo", correo = "Dentro va tu placa del canal" }
+                    table.insert(lineas, { que[e.origen] or "Trae 1 de sus 4 promos", p.naranja })
+                end
                 table.insert(lineas, { "Arrástralo al tapete", p.grisclaro })
-                ui.tooltip(sets[tipo.set].nombre:upper(), p.blanco, lineas)
+                local titulo = sets[tipo.set].nombre:upper()
+                if e.clase == "promo" then
+                    local nombres = { torneo = "SOBRE DE TORNEO ", etb = "SOBRECITO PROMO (ETB) ", caja = "SOBRECITO PROMO (CAJA) " }
+                    titulo = e.origen == "correo" and "CORREO DE ONE LAST PACK" or (nombres[e.origen] .. sets[tipo.set].codigo)
+                end
+                ui.tooltip(titulo, e.clase == "promo" and p.naranja or p.blanco, lineas)
             end
             if not bloqueada then ui.zona(e.id, x - 16, y - 24, 32, 50) end
         end
         -- etiqueta: set y cuantos (en un set: la edicion o BLÍSTER)
         local txt
-        if filtro == "todo" then
+        if e.clase == "promo" then
+            txt = ({ torneo = "TOR X", correo = "OLP X" })[e.origen] or "PR X"
+            txt = txt .. quedan
+        elseif filtro == "todo" then
             txt = sets[tipo.set].codigo .. " X" .. quedan
         else
             txt = (e.primera and "1ª X" or "X") .. quedan
         end
         if fuentes.ancho(txt) > 28 then txt = "X" .. quedan end
-        local fondo = quedan > 0 and (e.primera and p.amarillo or p.blanco) or p.grisosc
+        local fondo = quedan > 0 and (e.clase == "promo" and p.naranja or (e.primera and p.amarillo or p.blanco)) or p.grisosc
         muebles.etiqueta(x, y + 24, txt, fondo, quedan > 0 and p.negro or p.gris)
     end
     if filtro ~= "todo" and not sobres[filtro] then
@@ -643,14 +695,11 @@ local function dibujarCaja()
 
     -- fundas (y top loaders al lado cuando salen): solo tras desbloquearlas
     if desbloqueos.hay("fundas") then
+        -- las fundas siempre a la izquierda, encima de su cajita (los tops, a la derecha)
         local F = FUNDAS
-        if desbloqueos.hay("tops") then
-            local fw = math.floor(F.w / 2) - 1
-            monton("funda", F.x, F.y, fw, F.h, true)
-            monton("top", F.x + fw + 2, F.y, F.w - fw - 2, F.h, true)
-        else
-            monton("funda", F.x, F.y, F.w, F.h)
-        end
+        local fw = math.floor(F.w / 2) - 1
+        monton("funda", F.x, F.y, fw, F.h, true)
+        if desbloqueos.hay("tops") then monton("top", F.x + fw + 2, F.y, F.w - fw - 2, F.h, true) end
         cajita(false)
         if desbloqueos.hay("tops") then cajita(true) end
     end
@@ -757,7 +806,8 @@ local function dibujarCopias()
     for k, s in ipairs(partida.mesa) do table.insert(lista, sitioMesa(s, k)) end
     table.sort(lista, function(a, b) return (a.z or 0) < (b.z or 0) end)
     for _, s in ipairs(lista) do
-        local cogida = mano and mano.cosa == "copia" and mano.u == s.u
+        -- la promo del blister o del tin que aun va volando (dibujarPromoVolando)
+        local cogida = (mano and mano.cosa == "copia" and mano.u == s.u) or (animCaja and animCaja.promo == s.u)
         local e = escalaDe(s)
         local w, h = CW * e, CH * e
         if not cogida then
@@ -785,7 +835,7 @@ local function dibujarCopias()
                     ui.tooltip(rarezas.nombre(def), r.color, {
                         { r.nombre .. (c.p and "  -  1ª ED" or ""), r.color },
                         { "Copias: " .. partida.copias(s.id) },
-                        { "Valor " .. ui.dinero(mercado.valor(s.id, c.p)), p.amarillo },
+                        { mercado.textoValor(s.id, c.p), p.amarillo },
                         { c.f and "Enfundada" or "Sin funda", c.f and p.cian or p.gris },
                         { "Tócala para más opciones", p.grisclaro },
                     })
@@ -912,6 +962,65 @@ local function dibujarAbanico(c, quedan)
     end
 end
 
+-- sobrecitos de la ETB o la caja que esperan en la mesa (debajo del abanico)
+local function dibujarPromoMesa()
+    if animCaja then return end
+    for i, pm in ipairs(partida.promoMesa) do
+        if not (mano and mano.deMesa == i) then
+            local x, y = sitioPromo(i)
+            local clave = sobre.clavePromo(pm.o, pm.t)
+            lg.setColor(0, 0, 0, 0.3)
+            lg.draw(sobre.imagen(clave), x + 3, y + 3, 0.08, 1, 1, 15, 0)
+            lg.setColor(1, 1, 1)
+            lg.draw(sobre.imagen(clave), x, y, 0.08, 1, 1, 15, 0)
+            if not apertura.bloqueada() then
+                local zid = "pmesa_" .. i
+                ui.zona(zid, x - 15, y, 30, 44)
+                if ui.encima == zid and not mano then
+                    ui.tooltip("SOBRECITO PROMO (" .. (pm.o == "etb" and "ETB" or "CAJA") .. ")", p.naranja, {
+                        { "Trae 1 de sus 4 promos" },
+                        { "Arrástralo al tapete para abrirlo", p.grisclaro },
+                        { "o a tu caja para guardarlo (sellado)", p.grisclaro },
+                    })
+                end
+            end
+        end
+    end
+end
+
+-- la promo del blister o del tin sale a la vez que los sobres y vuela a su sitio
+local function promoVolando()
+    local a = animCaja
+    if not (a and a.promo) then return end
+    local s = entradaMesa(a.promo)
+    if not s then return end
+    local q = (a.t - prDib.SALTO - 0.15) / 0.55
+    if q <= 0 then return end
+    q = math.min(1, q)
+    if q >= 1 and not a.promoLlego then
+        a.promoLlego = true
+        sonido.tocar("nueva")
+        fx.explosion(s.x, s.y, p.amarillo, 14, 80)
+    end
+    return s, q
+end
+
+local function dibujarPromoVolando()
+    local s, q = promoVolando()
+    if not s then return end
+    local cx, cy = apertura.centro()
+    local qq = fx.salidaSuave(q)
+    local x = fx.lerp(cx, s.x, qq)
+    local y = fx.lerp(cy - 30, s.y, qq) - math.sin(q * math.pi) * 50
+    local e = fx.lerp(escalaDe(s) * 1.6, escalaDe(s), qq)
+    local def, c = partida.carta(s.id), partida.copia(s.id, s.u)
+    if not (def and c) then return end
+    encima.anotar(function()
+        if q < 1 then fx.aura(x, y, p.amarillo, CW * e, 0.5 * (1 - q)) end
+        carta.dibujar(def, x, y, e, e, fx.lerp(0, s.r or 0, qq) + (1 - qq) * 6.283, true, nil, c.f, { primera = c.p, top = c.t })
+    end)
+end
+
 local function dibujarCajaAbierta()
     local c = partida.cajaAbierta
     if not c or animCaja then return end
@@ -1019,12 +1128,14 @@ function mesa.dibujar()
         return
     end
     dibujarCajaAbierta()
+    dibujarPromoMesa()
     dibujarSueltos()
     dibujarCopias()
     apertura.dibujar()
     if animCaja then
         local cx, cy = apertura.centro()
         if animCaja.prod then prDib.dibujarAnim(animCaja, cx, cy) else caja.dibujarAnim(animCaja, cx, cy) end
+        dibujarPromoVolando()
     end
     botonesCopia()
     -- el sobre del tapete aun se puede guardar sin abrir
@@ -1239,6 +1350,25 @@ function mesa.presionar(id, x, y)
         sonido.tocar("encima", 1.3)
         return true
     end
+    -- un sobrecito de la mesa (de la ETB o la caja abierta)
+    local im = id and tonumber(id:match("^pmesa_(%d+)$") or "")
+    if im and partida.promoMesa[im] then
+        local pm = partida.promoMesa[im]
+        local px, py = sitioPromo(im)
+        mano = { cosa = "sobre", tipo = sobre.clavePromo(pm.o, pm.t), promo = pm.o, tipoReal = pm.t, deMesa = im, id = id,
+                 x = x, y = y, a = 0, w = 0, vx = 0, escala = 1, hx = px, hy = py + 20, x0 = x, y0 = y }
+        sonido.tocar("encima", 1.3)
+        return true
+    end
+    -- un sobrecito promo o de torneo
+    if id and id:match("^pcaja_") then
+        local origen, tipoId = id:match("^pcaja_(%a+)_(.+)$")
+        local hx, hy = huecoDe(tipoId, nil, id)
+        mano = { cosa = "sobre", tipo = sobre.clavePromo(origen, tipoId), promo = origen, tipoReal = tipoId, id = id,
+                 x = x, y = y, a = 0, w = 0, vx = 0, escala = 1, hx = hx, hy = hy }
+        sonido.tocar("encima", 1.3)
+        return true
+    end
     if id and id:match("^caja_") then
         local que = id:sub(6)
         if que == "funda" or que == "top" then
@@ -1362,7 +1492,23 @@ function mesa.soltar(x, y)
     local m = mano
     mano = nil
     if not m then return end
-    if m.cosa == "sobre" then
+    if m.cosa == "sobre" and m.promo then
+        -- el de la mesa, soltado en tu caja: se guarda como producto sellado
+        if m.deMesa and dentro(CAJA, x, y) then
+            partida.guardarPromoMesa(m.deMesa)
+            sonido.tocar("giro")
+            fx.texto(x, y - 10, "GUARDADO", p.lima)
+            partida.guardar()
+            table.insert(vuelos, { tipo = m.tipo, x0 = m.x, y0 = m.y + sobre.ALTO * m.escala / 2, x1 = CAJA.x + CAJA.w / 2,
+                                   y1 = CAJA.y + 60, e0 = m.escala, a = m.a, t = 0 })
+            return
+        end
+        -- el de la mesa ya esta en el tapete: hay que arrastrarlo un poco para abrirlo
+        local movido = not m.deMesa or math.abs(x - m.x0) + math.abs(y - m.y0) > 12
+        if dentro(TAPETE, x, y) and movido and soltarPromo(m) then return end
+        table.insert(vuelos, { tipo = m.tipo, x0 = m.x, y0 = m.y + sobre.ALTO * m.escala / 2, x1 = m.hx, y1 = m.hy,
+                               e0 = m.escala, a = m.a, t = 0 })
+    elseif m.cosa == "sobre" then
         if dentro(TAPETE, x, y) and soltarSobre(m.tipo, m.x, m.y + sobre.ALTO * m.escala / 2 - 4 * m.escala, m.a, m.escala, m.deCaja, m.primera) then
             return
         end
@@ -1391,6 +1537,16 @@ function mesa.soltar(x, y)
             apertura.recoger()
             partida.recogerMesa()
             mesaSel = nil
+            -- la promo del blister o del tin se queda en la mesa (para enfundarla...)
+            local r, promoU = partida.promoReciente, nil
+            if r then
+                partida.promoReciente = nil
+                local s = partida.aLaMesa(r.id, r.c, true)
+                if s then
+                    sitioMesa(s, #partida.mesa)
+                    promoU = s.u
+                end
+            end
             if m.prod == "caja" then
                 logros.marcar("caja")
                 animCaja = { tipo = m.tipo, t = 0, x0 = m.x, y0 = m.y + caja.COLGADO * m.escala, x1 = ESQUINA.x, y1 = ESQUINA.y, e1 = ESQUINA.e,
@@ -1401,7 +1557,8 @@ function mesa.soltar(x, y)
                     -- si alguien del directo lo habia comprado, se cobra y sus sobres son suyos
                     directo.abrirProducto(m.prod, m.tipo, partida.cajaAbierta and partida.cajaAbierta.primera == true)
                 end
-                animCaja = { prod = m.prod, tipo = m.tipo, t = 0, x0 = m.x, y0 = m.y + 10, destinos = destinosAbanico(productos[m.prod].sobres) }
+                animCaja = { prod = m.prod, tipo = m.tipo, t = 0, x0 = m.x, y0 = m.y + 10, destinos = destinosAbanico(productos[m.prod].sobres),
+                             promo = promoU }
             end
             reporte.apuntar("abre " .. m.prod .. " " .. m.tipo)
             sonido.tocar("giro")

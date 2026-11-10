@@ -20,6 +20,7 @@ local mesa = require "src.mesa"
 local desbloqueos = require "src.desbloqueos"
 local fundario = require "src.fundario"
 local inspeccionar = require "src.inspeccionar"
+local carpeta = require "src.carpeta"
 
 local lg = love.graphics
 
@@ -59,7 +60,7 @@ local albumEd
 -- copias de una carta de una edicion (sin edicion: todas)
 local function copiasEd(id, ed)
     ed = ed or albumEd
-    if not ed then return partida.copias(id) end
+    if not ed or partida.carta(id).promo then return partida.copias(id) end
     local n = 0
     for _, c in ipairs(partida.lista(id)) do
         if (c.p and "1" or "r") == ed then n = n + 1 end
@@ -92,21 +93,69 @@ end
 
 -- las del set y, si ya tienes alguna de fuera de set, detras sus paginas
 -- (empiezan en pagina nueva). Devuelve tambien donde empiezan las de fuera
+-- promos del set que tienes y cuantas hay
+local function promosEd(setId)
+    local n, l = 0, mercado.promosDe(setId)
+    for _, def in ipairs(l) do
+        if partida.copias(def.id) > 0 then n = n + 1 end
+    end
+    return n, #l
+end
+
+-- album ESPECIALES: las colabs y, en pagina nueva, las placas del canal
+local function listaEspeciales()
+    local lista = {}
+    for _, def in ipairs(mercado.colabs()) do
+        if not soloFaltan or partida.copias(def.id) == 0 then table.insert(lista, def) end
+    end
+    while #lista % POR_PAGINA ~= 0 do table.insert(lista, false) end
+    local inicioCanal = #lista + 1
+    for _, def in ipairs(mercado.placas()) do
+        if not soloFaltan or partida.copias(def.id) == 0 then table.insert(lista, def) end
+    end
+    return lista, inicioCanal
+end
+
+local function cuentaEsp(l)
+    local n = 0
+    for _, def in ipairs(l) do if partida.copias(def.id) > 0 then n = n + 1 end end
+    return n, #l
+end
+
+-- y en el de 1ª edicion, la pagina de PROMOS del set (devuelve donde empieza)
 local function listaAlbum()
+    if albumEd == "esp" then
+        local l, inicioCanal = listaEspeciales()
+        return l, nil, nil, inicioCanal
+    end
     local lista = {}
     for _, def in ipairs(delSet()) do
         if not soloFaltan or copiasEd(def.id) == 0 then table.insert(lista, def) end
     end
-    if fueraEd(setActivo) == 0 then return lista end
-    local fuera = {}
-    for _, def in ipairs(mercado.fueraDe(setActivo)) do
-        if not soloFaltan or copiasEd(def.id) == 0 then table.insert(fuera, def) end
+    local inicio, inicioPromos
+    if fueraEd(setActivo) > 0 then
+        local fuera = {}
+        for _, def in ipairs(mercado.fueraDe(setActivo)) do
+            if not soloFaltan or copiasEd(def.id) == 0 then table.insert(fuera, def) end
+        end
+        if #fuera > 0 then
+            while #lista % POR_PAGINA ~= 0 do table.insert(lista, false) end
+            inicio = #lista + 1
+            for _, def in ipairs(fuera) do table.insert(lista, def) end
+        end
     end
-    if #fuera == 0 then return lista end
-    while #lista % POR_PAGINA ~= 0 do table.insert(lista, false) end
-    local inicio = #lista + 1
-    for _, def in ipairs(fuera) do table.insert(lista, def) end
-    return lista, inicio
+    if albumEd == "1" and #mercado.promosDe(setActivo) > 0 then
+        local promos = {}
+        for _, def in ipairs(mercado.promosDe(setActivo)) do
+            if not soloFaltan or partida.copias(def.id) == 0 then table.insert(promos, def) end
+        end
+        if #promos > 0 then
+            while #lista % POR_PAGINA ~= 0 do table.insert(lista, false) end
+            inicioPromos = #lista + 1
+            for _, def in ipairs(promos) do table.insert(lista, def) end
+        end
+    end
+    return lista, inicio, inicioPromos
 end
 
 local function totalPliegos()
@@ -114,7 +163,7 @@ local function totalPliegos()
 end
 
 local function pliego()
-    return pliegos[setActivo] or 1
+    return pliegos[albumEd == "esp" and "esp" or setActivo] or 1
 end
 
 local function bandejaAbierta()
@@ -384,12 +433,22 @@ end
 
 local function dibujarPagina(num, x, y)
     ui.caja(x, y, 236, 324, p.grisosc)
-    local lista, inicioFuera = listaAlbum()
+    local lista, inicioFuera, inicioPromos, inicioCanal = listaAlbum()
     local primero = (num - 1) * POR_PAGINA + 1
-    local fuera = inicioFuera and primero >= inicioFuera
-    -- en las de fuera de set las cartas bajan un poco para la cabecera
+    local promos = inicioPromos and primero >= inicioPromos
+    local fuera = inicioFuera and primero >= inicioFuera and not promos
+    -- en las de fuera de set y las promos las cartas bajan un poco para la cabecera
     local baja = 0
-    if fuera then
+    if inicioCanal then
+        local canal = primero >= inicioCanal
+        local tiene, total = cuentaEsp(canal and mercado.placas() or mercado.colabs())
+        fuentes.texto((canal and "PLACAS DEL CANAL  " or "COLABS  ") .. tiene .. "/" .. total, x + 8, y + 5, 1, tiene >= total and p.amarillo or p.naranja)
+        baja = 6
+    elseif promos then
+        local tiene, total = promosEd(setActivo)
+        fuentes.texto("PROMOS  " .. tiene .. "/" .. total, x + 8, y + 5, 1, tiene >= total and p.amarillo or p.naranja)
+        baja = 6
+    elseif fuera then
         cabeceraFuera(x, y, masterEd(setActivo))
         baja = 6
     end
@@ -418,7 +477,13 @@ local function dibujarPagina(num, x, y)
                     ui.estrella(cx - 7, cy - 7, p.amarillo, 2)
                 end
                 ui.zona(id, cx - CW, cy - CH, CW * 2, CH * 2)
-                if ui.encima == id then
+                if ui.encima == id and def.promo then
+                    ui.tooltip("TE FALTA: " .. rarezas.nombre(def):upper(), rarezas.de(def).color, {
+                        { require("datos.promos").origenes[def.promo] or "", p.naranja },
+                        { "Vale " .. ui.dinero(mercado.valor(def.id, true)) },
+                        { buscada and "La buscas: toca para quitarla" or "Toca para buscarla", p.amarillo },
+                    })
+                elseif ui.encima == id then
                     local r = rarezas.de(def)
                     local normal = hayNormales(def)
                     -- de fuera de set no se dice cual es, salvo que ya la tengas
@@ -462,16 +527,45 @@ local function dibujarEstanteria()
     -- la balda de arriba deja sitio a la tapa de los albumes (no se salen del mueble)
     local suelos = { E.y + 142, E.y + E.h }
     muebles.balda(E.x, suelos[1], E.w, E.d)
-    local lista = mercado.setsSalidos()
+    local lista = {}
+    for _, set in ipairs(mercado.setsSalidos()) do table.insert(lista, set) end
+    local nSets = #lista
+    -- detras de los sets, las carpetas propias (y el hueco para una nueva)
+    local kitems = { "esp" }
+    for _, k in ipairs(partida.carpetas) do table.insert(kitems, k) end
+    if #kitems < partida.MAX_CARPETAS then table.insert(kitems, "nueva") end
+    for i = 1, math.ceil(#kitems / 2) do table.insert(lista, { carpetas = { kitems[i * 2 - 1], kitems[i * 2] } }) end
     local paginasEst = math.max(1, math.ceil(#lista / POR_BALDA))
     paginaEst = math.min(paginaEst, paginasEst)
     local desde = (paginaEst - 1) * POR_BALDA + 1
-    local encima
+    local encima, encimaK
+    local finSets = math.max(0, math.min(POR_BALDA, nSets - desde + 1))
     for fila = 1, 2 do
         local ed = fila == 1 and "1" or "r"
         for k = 1, POR_BALDA do
             local set = lista[desde + k - 1]
-            if set then
+            if set and set.carpetas then
+                local kk = set.carpetas[fila]
+                if kk then
+                    local x, y = E.x + 10 + (k - 1) * 62, suelos[fila] - 14 - muebles.ALBUM.h
+                    local id = kk == "nueva" and "knueva" or (kk == "esp" and "albesp" or ("kab_" .. kk.id))
+                    ui.zona(id, x - 4, y - 14, 48, muebles.ALBUM.h + 24)
+                    if ui.encima == id then
+                        x, y = x - 4, y + 10
+                        encimaK = { k = kk, x = x, y = y }
+                    end
+                    if kk == "nueva" then
+                        carpeta.hueco(x, y, ui.encima == id)
+                    elseif kk == "esp" then
+                        local n1, t1 = cuentaEsp(mercado.colabs())
+                        local n2, t2 = cuentaEsp(mercado.placas())
+                        carpeta.lomo({ nombre = "ESPECIALES", tapa = 8, especial = true, cuenta = n1 + n2 }, x, y)
+                        ui.estrella(x + 15, y + 92, n1 + n2 >= t1 + t2 and muebles.ORO.claro or p.amarillo)
+                    else
+                        carpeta.lomo(kk, x, y)
+                    end
+                end
+            elseif set then
                 local tipo = sobres.porSet and sobres.porSet[set.id] or nil
                 if not tipo then
                     for _, t in ipairs(sobres.lista) do
@@ -507,14 +601,36 @@ local function dibujarEstanteria()
                 end
             end
         end
-        local txt = fila == 1 and "1ª EDICIÓN" or "REIMPRESIONES"
-        local pw = fuentes.ancho(txt) + 10
+        -- etiquetas: la de la edicion bajo los sets y MIS CARPETAS bajo las carpetas
+        local function etiqueta(txt, cx, py, color)
+            local pw = fuentes.ancho(txt) + 10
+            lg.setColor(p.negro)
+            lg.rectangle("fill", cx - pw / 2, py, pw, 10)
+            lg.setColor(color[1] * 0.8, color[2] * 0.8, color[3] * 0.8)
+            lg.rectangle("fill", cx - pw / 2 + 1, py + 1, pw - 2, 8)
+            fuentes.texto(txt, cx - pw / 2, py + 3, 1, p.negro, "center", pw)
+        end
         local py = suelos[fila] + 9
-        lg.setColor(p.negro)
-        lg.rectangle("fill", E.x + E.w / 2 - pw / 2, py, pw, 10)
-        lg.setColor(p.amarillo[1] * 0.8, p.amarillo[2] * 0.8, p.amarillo[3] * 0.8)
-        lg.rectangle("fill", E.x + E.w / 2 - pw / 2 + 1, py + 1, pw - 2, 8)
-        fuentes.texto(txt, E.x + E.w / 2 - pw / 2, py + 3, 1, p.negro, "center", pw)
+        local finTodo = math.min(POR_BALDA, #lista - desde + 1)
+        if finSets > 0 then
+            etiqueta(fila == 1 and "1ª EDICIÓN" or "REIMPRESIONES", E.x + 10 + (finSets - 1) * 31 + 15, py, p.amarillo)
+        end
+        if fila == 2 and finTodo > finSets then
+            local c0 = E.x + 10 + finSets * 62
+            etiqueta("MIS CARPETAS", c0 + ((finTodo - finSets) * 62 - 32) / 2 + 15, py, p.naranja)
+        end
+    end
+    if encimaK then
+        lg.setColor(p.lima)
+        lg.rectangle("line", encimaK.x - 1.5, encimaK.y - 1.5, muebles.ALBUM.w + 3, muebles.ALBUM.h + 3)
+        if encimaK.k == "nueva" then
+            ui.tooltip("NUEVA CARPETA", p.lima, { { "Tu propio álbum: pones las cartas que quieras" } })
+        elseif encimaK.k == "esp" then
+            ui.tooltip("ÁLBUM ESPECIALES", p.amarillo, { { "Colabs y placas del canal" }, { "Toca para abrirlo" } })
+        else
+            local n = partida.cuentaCarpeta(encimaK.k)
+            ui.tooltip(encimaK.k.nombre, p.naranja, { { n .. (n == 1 and " carta" or " cartas") }, { "Toca para abrirla" } })
+        end
     end
     if encima then
         lg.setColor(p.lima)
@@ -585,8 +701,10 @@ local function claseDe(pid)
     return pid
 end
 
+local NOMBRES_PR = { pretb = "PROMO ETB", prcaja = "PROMO CAJA", prtorneo = "TORNEO" }
 local function nombreProd(pid)
     if pid == "sobre" then return "SOBRES" end
+    if NOMBRES_PR[pid] then return NOMBRES_PR[pid] end
     return productos[pid].nombre
 end
 
@@ -596,6 +714,28 @@ local function fichaSellado()
         ui.caja(FX, FY, FW, 216)
         fuentes.texto("TOCA UN HUECO", FX, FY + 90, 1, p.grisclaro, "center", FW)
         fuentes.texto("PARA VER LO QUE HAY", FX, FY + 100, 1, p.grisclaro, "center", FW)
+    elseif huecoSel:match("^pr") then
+        -- sobrecitos promo y de torneo: cuelgan en los ganchos y se venden aqui o en el movil
+        local pid, tipoId = partesClave(huecoSel)
+        local origen = pid:sub(3)
+        local tipo = sobres[tipoId]
+        local total = partida.promoSobresDe(origen, tipoId)
+        ui.caja(FX, FY, FW, 216)
+        muebles.rect(tipo.colores.base, FX + 1, FY + 1, FW - 2, 22)
+        muebles.rect(tipo.colores.rayas, FX + 1, FY + 20, FW - 2, 3)
+        fuentes.texto(nombreProd(pid) .. " " .. sets[tipo.set].codigo, FX + 8, FY + 6, 2, p.blanco)
+        sobre.dibujar(sobre.clavePromo(origen, tipoId), FX + 30, FY + 62, 1)
+        local valor = partida.valorPromoSobre(origen, tipo)
+        local ly = FY + 32
+        for _, l in ipairs({ { "TIENES " .. total, p.blanco }, { "VALE: " .. ui.dinero(valor), p.lima },
+            { origen == "torneo" and "1 DE 3 PROMOS" or "1 DE 4 PROMOS", p.naranja }, { "SUBE CON SUS PROMOS", p.grisclaro } }) do
+            fuentes.texto(l[1], FX + 62, ly, 1, l[2])
+            ly = ly + 11
+        end
+        fuentes.texto("CUELGAN EN LOS GANCHOS DE LA MESA:", FX + 8, FY + 104, 1, p.grisclaro)
+        fuentes.texto("ARRÁSTRALO AL TAPETE PARA ABRIRLO", FX + 8, FY + 114, 1, p.grisclaro)
+        ui.boton("hs_vpromo", "VENDER 1 +" .. ui.dinero(mercado.trasComision(valor)), FX + 8, FY + 130, FW - 16, 16, p.naranja, total > 0 and valor > 0)
+        fuentes.texto("LA APP SE QUEDA SU COMISIÓN", FX + 8, FY + 150, 1, p.gris)
     else
         local pid, tipoId, primera = partesClave(huecoSel)
         local tipo = sobres[tipoId]
@@ -713,7 +853,8 @@ local function dibujarSellado()
             if ui.encima == "hsel_" .. idx then
                 local tipo = sobres[tipoId]
                 ui.tooltip(nombreProd(pid) .. " " .. sets[tipo.set].nombre:upper(), tipo.colores.letras,
-                    { { primera and "1ª EDICIÓN" or "REIMPRESIÓN", primera and p.amarillo or p.grisclaro }, { h.n .. " DE " .. cap .. " EN ESTE HUECO" } })
+                    { pid:match("^pr") and { "SIN EDICIÓN", p.naranja } or { primera and "1ª EDICIÓN" or "REIMPRESIÓN", primera and p.amarillo or p.grisclaro },
+                      { h.n .. " DE " .. cap .. " EN ESTE HUECO" } })
             end
         else
             prDib.hueco(x + 3, techo + 6, HW - 8, y - techo - 10, "LIBRE")
@@ -824,7 +965,65 @@ local function panelFundas()
     end
 end
 
+-- placas del canal (te las manda la empresa con los seguidores; no se venden)
+local placasLienzos = {}
+local function placasCanal(y)
+    local datosPromos = require "datos.promos"
+    fuentes.texto("PLACAS DEL CANAL", 6, y, 1, p.naranja, "center", 118)
+    for i, d in ipairs(datosPromos.canal) do
+        local col, fila = (i - 1) % 2, math.floor((i - 1) / 2)
+        local x = i == 5 and 40 or (10 + col * 58)
+        local py = y + 12 + fila * 42
+        if partida.placas[i] then
+            local clave = i .. (partida.canal.nombre or "")
+            if not placasLienzos[clave] then placasLienzos[clave] = require("src.promo").placa(i, partida.canal.nombre) end
+            lg.setColor(0, 0, 0, 0.4)
+            lg.rectangle("fill", x + 2, py + 3, 50, 36)
+            lg.setColor(1, 1, 1)
+            lg.draw(placasLienzos[clave], x, py)
+        else
+            lg.setColor(0, 0, 0, 0.4)
+            lg.rectangle("fill", x, py, 50, 36)
+            lg.setColor(p.grisosc)
+            lg.rectangle("line", x + 0.5, py + 0.5, 49, 35)
+            fuentes.texto(d.cifra, x, py + 12, 1, p.gris, "center", 50)
+            fuentes.texto("SEGUIDORES", x, py + 21, 1, p.grisosc, "center", 50)
+        end
+        ui.zona("placa" .. i, x, py, 50, 36)
+        if ui.encima == "placa" .. i then
+            ui.tooltip("PLACA " .. d.nombre, d.c2, {
+                { partida.placas[i] and ("Te llegó el día " .. partida.placas[i]) or ("Al llegar a " .. d.cifra .. " seguidores") },
+                { "Te la manda One Last Pack. No se vende", p.gris },
+            })
+        end
+    end
+end
+
+local function panelEspeciales()
+    ui.boton("estanteria", "< A LA ESTANTERÍA", 6, 84, 118, 12, p.morado)
+    ui.caja(6, 98, 118, 194)
+    local npag = math.max(1, math.ceil(#listaAlbum() / POR_PAGINA))
+    local izq = pliego() * 2 - 1
+    fuentes.texto("PÁGINAS " .. izq .. "-" .. math.min(izq + 1, npag) .. " DE " .. npag, 6, 106, 1, p.blanco, "center", 118)
+    ui.boton("pagAnt", "<", 12, 118, 50, 14, p.azul, pliego() > 1)
+    ui.boton("pagSig", ">", 68, 118, 50, 14, p.azul, pliego() < totalPliegos())
+    ui.boton("album_faltan", soloFaltan and "VER TODAS" or "VER LAS QUE FALTAN", 12, 134, 106, 10, soloFaltan and p.naranja or p.grisosc)
+    local y = 152
+    for _, f in ipairs({ { "COLABS", mercado.colabs(), "SALEN CADA 15-20 DÍAS", "SOLO EN EL MERCADO" },
+        { "CANAL", mercado.placas(), "LLEGAN POR CORREO", "CON LOS SEGUIDORES" } }) do
+        local n, total = cuentaEsp(f[2])
+        fuentes.texto(f[1], 14, y, 1, p.naranja)
+        fuentes.texto(n .. "/" .. total, 14, y, 1, n >= total and p.amarillo or p.blanco, "right", 98)
+        fuentes.texto(f[3], 14, y + 10, 1, p.gris)
+        fuentes.texto(f[4], 14, y + 19, 1, p.gris)
+        y = y + 36
+    end
+    fuentes.texto("NO CUENTAN PARA", 6, y + 4, 1, p.grisclaro, "center", 118)
+    fuentes.texto("NINGÚN SET", 6, y + 14, 1, p.grisclaro, "center", 118)
+end
+
 local function panelAlbum()
+    if albumEd == "esp" then return panelEspeciales() end
     ui.caja(6, 98, 118, 194)
     local paginasAlbum = math.max(1, math.ceil(#listaAlbum() / POR_PAGINA))
     local izq = pliego() * 2 - 1
@@ -836,7 +1035,10 @@ local function panelAlbum()
         ui.boton("album_faltan", soloFaltan and "VER TODAS" or "VER LAS QUE FALTAN", 12, 134, 106, 10, soloFaltan and p.naranja or p.grisosc)
         ui.boton("estanteria", "< A LA ESTANTERÍA", 6, 84, 118, 12, p.morado)
     else
-        fuentes.texto("ELIGE UN ÁLBUM", 6, 122, 1, p.lima, "center", 118)
+        fuentes.texto("ELIGE UN ÁLBUM", 6, 106, 1, p.lima, "center", 118)
+        fuentes.texto("O UNA CARPETA", 6, 116, 1, p.lima, "center", 118)
+        placasCanal(132)
+        return
     end
 
     local y = 146
@@ -854,12 +1056,18 @@ local function panelAlbum()
             y = y + 10
         end
     end
-    -- fuera de set: solo cuando ya ha salido su pagina
+    -- fuera de set: solo cuando ya ha salido su pagina; promos: siempre
+    local prT, prN = promosEd(setActivo)
     local fTiene, fTotal = fueraEd(setActivo)
     if fTiene > 0 then
         local master = masterEd(setActivo)
         fuentes.texto(master and "MASTER SET" or "FUERA DE SET", 14, y, 1, master and muebles.ORO.claro or p.naranja)
         fuentes.texto(fTiene .. "/" .. fTotal, 14, y, 1, fTiene == fTotal and p.amarillo or p.blanco, "right", 98)
+        y = y + 10
+    end
+    if prN > 0 then
+        fuentes.texto("PROMOS", 14, y, 1, p.naranja)
+        fuentes.texto(prT .. "/" .. prN, 14, y, 1, prT >= prN and p.amarillo or p.blanco, "right", 98)
         y = y + 10
     end
     y = y + 6
@@ -898,7 +1106,7 @@ local function elegidasQue(condicion)
 end
 
 local function elegible(c)
-    return not c.a
+    return not c.a and not c.k
 end
 
 local function filtrar(f)
@@ -930,11 +1138,15 @@ end
 local function tooltipCopia(def, c)
     local lineas = {
         { c.p and "1ª edición" or "Normal", c.p and p.amarillo or p.blanco },
-        { "Valor " .. ui.dinero(mercado.valor(def.id, c.p)), p.amarillo },
+        { mercado.textoValor(def.id, c.p), p.amarillo },
     }
     if c.f then table.insert(lineas, { "En funda", p.cian }) end
     if c.a then table.insert(lineas, { "Publicada en el móvil", p.celeste }) end
     if c.m then table.insert(lineas, { "En la mesa", p.lima }) end
+    if c.k then
+        local k = partida.carpeta(c.k)
+        table.insert(lineas, { "En la carpeta " .. (k and k.nombre or ""), p.naranja })
+    end
     ui.tooltip(rarezas.nombre(def), rarezas.de(def).color, lineas)
 end
 
@@ -981,10 +1193,12 @@ local function dibujarBandeja()
             lg.rectangle("fill", cx - CW / 2 - 1, y - CH / 2 - 1, CW + 2, CH + 2)
         end
         carta.dibujar(def, cx, y, 1, 1, 0, true, h, c.f, { primera = c.p, top = c.t, quieta = h == nil })
-        if c.a or c.m then
+        if c.a or c.m or c.k then
             lg.setColor(0, 0, 0, 0.5)
             lg.rectangle("fill", cx - CW / 2, y - CH / 2, CW, CH)
-            fuentes.texto(c.a and "MÓVIL" or "MESA", cx - CW / 2, y - 2, 1, c.a and p.celeste or p.lima, "center", CW)
+            local txt, col = "MESA", p.lima
+            if c.a then txt, col = "MÓVIL", p.celeste elseif c.k then txt, col = "CARPETA", p.naranja end
+            fuentes.texto(txt, cx - CW / 2, y - 2, 1, col, "center", CW)
         end
     end
     local encima
@@ -1056,7 +1270,13 @@ function armario.dibujar()
     ui.boton("modo_sellado", "SELLADO", 92, 26, 32, 14, modo == "sellado" and p.azul or p.gris)
 
     panelSobres()
-    if modo == "album" then panelAlbum() else panelSeleccion() end
+    if modo == "album" and carpeta.abierta() then
+        carpeta.panel()
+    elseif modo == "album" then
+        panelAlbum()
+    else
+        panelSeleccion()
+    end
     panelFundas()
     local conFundario = desbloqueos.hay("fundas")
     ui.boton("venderLote", conFundario and "VENDER LOTE" or "VENDER EN LOTE...", 6, 336, conFundario and 72 or 118, 16, p.naranja, partida.totalCartas() > 0)
@@ -1077,13 +1297,16 @@ function armario.dibujar()
         dibujarRareza()
     elseif modo == "sellado" then
         dibujarSellado()
+    elseif carpeta.abierta() then
+        carpeta.dibujar()
     elseif albumEd then
         dibujarAlbum()
     else
         dibujarEstanteria()
     end
-    if bandejaAbierta() then dibujarBandeja() end
+    if bandejaAbierta() and not (modo == "album" and carpeta.abierta()) then dibujarBandeja() end
     dibujarCogida()
+    if modo == "album" then carpeta.dibujarCogida() end
 end
 
 local function cobrar(ganado)
@@ -1095,7 +1318,7 @@ local function cobrar(ganado)
 end
 
 local function cambiarPliego(d)
-    pliegos[setActivo] = math.max(1, math.min(totalPliegos(), pliego() + d))
+    pliegos[albumEd == "esp" and "esp" or setActivo] = math.max(1, math.min(totalPliegos(), pliego() + d))
 end
 
 local function sinFundas()
@@ -1281,6 +1504,7 @@ local function clickLote(id)
 end
 
 function armario.click(id)
+    if modo == "album" and carpeta.click(id) then return end
     if id == "fundario" then
         fundario.abrir()
         return
@@ -1299,12 +1523,27 @@ function armario.click(id)
     elseif id == "estanteria" then
         albumEd = nil
         return
+    elseif id == "albesp" then
+        albumEd = "esp"
+        sonido.tocar("nueva")
+        return
+    elseif id == "knueva" then
+        local k = partida.nuevaCarpeta()
+        if k then
+            partida.guardar()
+            carpeta.abrir(k.id)
+        end
+        return
+    elseif id:match("^kab_") then
+        carpeta.abrir(tonumber(id:sub(5)))
+        return
     elseif id == "est_ant" or id == "est_sig" then
         paginaEst = paginaEst + (id == "est_sig" and 1 or -1)
         return
     end
     if id:match("^modo_") then
         if id == "modo_album" then albumEd = nil end
+        carpeta.cerrar()
         modo = id:sub(6)
     elseif id == "sel_ant" or id == "sel_sig" then
         paginaSellado = paginaSellado + (id == "sel_sig" and 1 or -1)
@@ -1318,6 +1557,14 @@ function armario.click(id)
         partida.ordenarArmario(id == "hs_porset" and "set" or "tipo")
         sonido.tocar("giro")
         partida.guardar()
+    elseif id == "hs_vpromo" and huecoSel then
+        local pid, tipoId = partesClave(huecoSel)
+        local cobro = partida.venderPromoSobre(pid:sub(3), sobres[tipoId])
+        if cobro then
+            sonido.tocar("moneda")
+            fx.texto(ui.mx, ui.my - 10, "+" .. ui.dinero(cobro), p.amarillo)
+            partida.guardar()
+        end
     elseif id == "hs_menos" or id == "hs_mas" then
         cuantosSel = cuantosSel + (id == "hs_mas" and 1 or -1)
     elseif (id == "hs_mesa" or id == "hs_apartar" or id == "hs_vaciar") and huecoSel then
@@ -1416,6 +1663,7 @@ end
 -- en la bandeja, pulsar y arrastrar elige copias
 function armario.coger(id, x, y)
     if not id then return false end
+    if modo == "album" and carpeta.coger(id, x, y) then return true end
     local u = id:match("^cp_(%d+)")
     if u then
         u = tonumber(u)
@@ -1457,6 +1705,7 @@ function armario.acabarBarrido()
 end
 
 function armario.soltar(c, x, y)
+    if modo == "album" and carpeta.soltar(c, x, y) then return end
     if not c.moviendo then
         armario.click(c.id)
         return
@@ -1499,6 +1748,10 @@ function armario.soltar(c, x, y)
 end
 
 function armario.tecla(tecla)
+    if tecla == "escape" and modo == "album" and carpeta.abierta() then
+        carpeta.cerrar()
+        return true
+    end
     if tecla == "escape" and bandeja then
         bandeja = nil
         return true
@@ -1545,11 +1798,21 @@ function armario.pestanas(x, limite)
 end
 
 -- al empezar o cargar una partida no se queda nada elegido de la anterior
+function armario.modoActual() return modo end
+
+-- para el tutorial: abre una pestaña (el album, en la estanteria)
+function armario.ponerModo(m)
+    if modo == m and (m ~= "album" or not albumEd) then return end
+    modo = m
+    if m == "album" then albumEd = nil end
+end
+
 function armario.reiniciar()
     seleccion, bandeja, vista, barrido = nil, nil, nil, nil
     elegidas = {}
     desplaza = 0
     paginas = {}
+    carpeta.reiniciar()
 end
 
 -- desde fuera (movil, apertura): enseña esa carta con sus copias

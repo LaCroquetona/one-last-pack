@@ -81,6 +81,20 @@ local function sinDinero()
     return precio and partida.dinero < precio and nadaQueAbrir()
 end
 
+-- una repetida que valga al menos 5 sobres del mas barato (para el aviso)
+local function repetidaQueVale()
+    local precio = masBarato()
+    if not precio then return false end
+    for id, l in pairs(partida.inv) do
+        if #l >= 2 then
+            for _, c in ipairs(l) do
+                if mercado.valor(id, c.p) >= precio * 5 then return true end
+            end
+        end
+    end
+    return false
+end
+
 local function tiendaVacia()
     for _, t in ipairs(sobres.lista) do
         if mercado.enTienda(t) and mercado.stock(t) > 0 then return false end
@@ -125,6 +139,11 @@ local function avisar(id)
     local d = datos[id]
     if d.toast then
         table.insert(desbloqueos.toasts, d.toast)
+        return
+    end
+    -- sin tutorial (OPCIONES): la mascota no sale, solo un aviso pequeño
+    if not require("src.opciones").tutorial then
+        if d.corto then table.insert(desbloqueos.toasts, d.corto) end
         return
     end
     table.insert(desbloqueos.avisos, { id = id, texto = d.texto, apunta = d.apunta, pose = d.pose,
@@ -202,9 +221,11 @@ function desbloqueos.update(dt)
     reloj = 0
     for _, id in ipairs(datos.orden) do
         if id == "sinDinero" or id == "mercadoSobres" then
-            -- una vez al dia como mucho
-            local toca = id == "sinDinero" and sinDinero() or id == "mercadoSobres" and sinSobresEnTienda()
-            if toca and d[id] ~= mercado.dia() then
+            -- sin dinero: solo con una repetida que valga y cada 3 dias como mucho;
+            -- sin sobres en la tienda: una vez al dia
+            local toca = id == "sinDinero" and sinDinero() and repetidaQueVale() or id == "mercadoSobres" and sinSobresEnTienda()
+            local espera = id == "sinDinero" and 3 or 1
+            if toca and (type(d[id]) ~= "number" or mercado.dia() - d[id] >= espera) then
                 d[id] = mercado.dia()
                 avisar(id)
                 partida.guardar()

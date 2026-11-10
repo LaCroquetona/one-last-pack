@@ -120,7 +120,7 @@ end
 
 function vendedores.deCarta(id, primera)
     local def = mercado.carta(id)
-    if not def or not mercado.salido(def.set) then return {} end
+    if not def or def.noVende or not mercado.salido(def.set) then return {} end
     if not primera and not mercado.hayNormales(def.set) then return {} end
     local nivel = rarezas[def.rareza].nivel
     return ofertas("k" .. id .. (primera and 1 or 0), mercado.valorExacto(id, primera), "carta",

@@ -109,7 +109,9 @@ local function dibujarCarta(def, c)
         return
     end
     if cara then
-        carta.dibujar(def, CX, CY, E * sx, E, 0, true, nil, c.f, { primera = c.p, top = c.t, quieta = true })
+        -- la de torneo es apaisada: se enseña tumbada
+        local rot = def.estilo == "apaisada" and -math.pi / 2 or 0
+        carta.dibujar(def, CX, CY, E * sx, E, rot, true, nil, c.f, { primera = c.p, top = c.t, quieta = true })
     else
         -- por detras: el dorso de la carta (con funda, su dibujo) y el top encima
         if c.f then
@@ -176,6 +178,7 @@ local function dibujar(ancho, alto)
     fila(y, "COPIA", pos .. " DE " .. #l .. (c.p and "  1ª ED" or ""), c.p and p.amarillo or p.blanco, "insp_copia_-1", "insp_copia_1", #l > 1)
     y = y + 16
     local libre = not c.a
+    local vendible = not c.a and not c.k and partida.vendible(st.id)
     if desbloqueos.hay("fundas") then
         fila(y, "FUNDA", nombreDe(c.f), c.f and fundasDib.color(c.f) or p.gris, "insp_funda_-1", "insp_funda_1", libre and #opciones(false) > 1)
         y = y + 16
@@ -186,6 +189,11 @@ local function dibujar(ancho, alto)
     end
     if c.a then fuentes.texto("A LA VENTA EN EL MÓVIL", FX + 8, y + 2, 1, p.naranja) y = y + 10 end
     if c.m then fuentes.texto("ESTÁ EN LA MESA", FX + 8, y + 2, 1, p.lima) y = y + 10 end
+    if c.k then
+        local k = partida.carpeta(c.k)
+        fuentes.texto("EN LA CARPETA " .. (k and k.nombre or ""), FX + 8, y + 2, 1, p.naranja)
+        y = y + 10
+    end
     fuentes.texto("LO QUE CAMBIAS VUELVE A SU CAJA. FUNDAS Y TOPS NO CAMBIAN EL PRECIO", FX + 8, y + 4, 1, p.gris, "left", FW - 16)
     y = y + 22
 
@@ -208,12 +216,28 @@ local function dibujar(ancho, alto)
 
     -- botones
     local valor = mercado.ventaRapida(st.id, c.p)
-    ui.boton("insp_vender", "VENDER ESTA +" .. ui.dinero(valor), FX + 8, y, 136, 16, #l == 1 and p.rojo or p.naranja, libre)
-    if st.opciones.alArmario and c.m then
+    ui.boton("insp_vender", "VENDER ESTA +" .. ui.dinero(valor), FX + 8, y, 136, 16, #l == 1 and p.rojo or p.naranja, vendible)
+    if st.opciones.carpeta then
+        ui.boton("insp_sacar", "SACAR DE LA CARPETA", FX + 150, y, FW - 158, 16, p.azul)
+    elseif st.opciones.alArmario and c.m then
         ui.boton("insp_armario", "AL ARMARIO", FX + 150, y, FW - 158, 16, p.azul)
     end
     ui.boton("insp_vale", "CERRAR", FX + 8, FY + 286 - 22, FW - 16, 16, p.gris)
     lg.setColor(1, 1, 1)
+end
+
+-- elegir otra copia; desde una carpeta, cambia la del bolsillo (las del movil no valen)
+local function elegirCopia(u)
+    local k = st.opciones.carpeta
+    if k then
+        local nueva = partida.copia(st.id, u)
+        if not nueva or nueva.a then
+            fx.texto(ui.mx, ui.my - 10, "ESTÁ EN EL MÓVIL", p.naranja)
+            return
+        end
+        if partida.cambiarCopiaCarpeta(k.cid, k.slot, u) then partida.guardar() end
+    end
+    st.u = u
 end
 
 local function click(id)
@@ -239,7 +263,7 @@ local function click(id)
         local l = copias()
         local pos = 1
         for i, x in ipairs(l) do if x.u == st.u then pos = i end end
-        st.u = l[(pos - 1 + paso) % #l + 1].u
+        elegirCopia(l[(pos - 1 + paso) % #l + 1].u)
         return
     end
     paso = tonumber(id:match("^insp_funda_(%-?1)$") or "")
@@ -249,7 +273,15 @@ local function click(id)
     local i = tonumber(id:match("^insp_c(%d+)$") or "")
     if i then
         local l = copias()
-        if l[i] then st.u = l[i].u end
+        if l[i] then elegirCopia(l[i].u) end
+        return
+    end
+    if id == "insp_sacar" and st.opciones.carpeta then
+        local k = st.opciones.carpeta
+        partida.sacarDeCarpeta(k.cid, k.slot)
+        partida.guardar()
+        sonido.tocar("giro")
+        ui.overlay = nil
         return
     end
     if id == "insp_armario" and st.opciones.alArmario then

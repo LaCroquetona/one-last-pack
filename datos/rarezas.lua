@@ -23,7 +23,14 @@ end
 -- id sigue siendo el de su rareza (sonidos, chat, propinas)
 local variantes = require "datos.variantes"
 local cache = {}
+-- promos y colabs: su propia "rareza" para enseñarla (el nivel es el de la suya)
+local PROMO = {
+    normal = { id = "rara", nivel = 3, nombre = "Promo", color = p.naranja, suspense = 0.35 },
+    oro = { id = "holo", nivel = 4, nombre = "Promo dorada", color = p.amarillo, suspense = 0.7, brillo = "reflejo", efecto = 0.5 },
+    colab = { id = "holo", nivel = 4, nombre = "Colab", color = p.rosa or p.naranja, suspense = 0.7, brillo = "reflejo", efecto = 0.5 },
+}
 function rarezas.de(def)
+    if def.promo then return def.colab and PROMO.colab or (def.oro and PROMO.oro or PROMO.normal) end
     local r = rarezas[def.rareza]
     if not def.variante then return r end
     local clave = def.variante .. "_" .. r.id
@@ -56,6 +63,8 @@ end
 
 -- nombre para mostrar: "Trueno", "Trueno Alt", "Plasma Golden"
 function rarezas.nombre(def)
+    if def.colab then return def.nombre .. " " .. def.marca end
+    if def.promo then return def.nombre .. " Promo" end
     if not def.variante then return def.nombre end
     return def.nombre .. " " .. variantes[def.variante].nombre
 end
