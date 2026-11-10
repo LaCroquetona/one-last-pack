@@ -10,6 +10,87 @@ fase 3 = v0.7.2-0.7.4, fase 4 = v0.8.0-0.8.2. Desde la v0.9.0 ya no hay
 fases: se sigue el roadmap. La v0.9.0 se preparó como v0.8.3 y salió con
 otro número.
 
+## v0.10.3 - 2026-11-03 - Carpetas, promos y arreglos
+
+- **Inicio nuevo**: a la izquierda, PARTIDA 1, 2 y 3 con su día y su
+  dinero, COPIAR LA PARTIDA 1 AQUÍ, CONTINUAR, PARTIDA NUEVA, OPCIONES,
+  REPORTAR BUG y SALIR. A la derecha, un abanico con tus mejores cartas de
+  esa partida (mezcladas cada vez; sin partida, al azar). Se cogen, se
+  arrastran y se giran al tocarlas. VACÍA ya se lee.
+- **OPCIONES**: VER TUTORIAL y PANTALLA COMPLETA pasan aquí, con un
+  TUTORIAL SÍ/NO nuevo. Sin tutorial no hay intro ni explicaciones y lo que
+  se desbloquea llega como aviso pequeño.
+- **Carpetas propias**: en ARMARIO > ÁLBUM, de pie en la estantería junto a
+  los álbumes (hasta 12). Páginas de 9 bolsillos, tapa con los colores de
+  un set y nombre (de una lista o escrito). Abajo está tu colección con
+  filtros (set, rareza y SIN CARPETA): arrastras una carta a un bolsillo y
+  entra su mejor copia libre. Tocando un bolsillo sale INSPECCIONAR para
+  cambiar la copia o sacarla; arrastrándola fuera vuelve al armario. Las
+  cartas de una carpeta no se venden, ni se publican, ni van en la venta en
+  lote, y siguen contando para el álbum.
+- **Promos**: cada set tiene las suyas (16 en el S1 y el S2, 14 en el
+  resto, que no tienen tin), con los bichos y nombres de sus cartas, los
+  colores de su set y un estilo según de dónde salen. No cuentan para el
+  100%: cada set tiene su página de PROMOS en el álbum de 1ª edición. Van
+  numeradas seguidas de un set al siguiente (P001-P014 en el S1, el S2
+  empieza en P015...); la ALT lleva el número de su promo.
+  - ETB y caja: traen un sobrecito promo (1 de 4; la dorada sale menos y vale
+    más), del tamaño de un sobre y con su propio diseño (la de la ETB con
+    los colores del set; la de la caja, negra con estrellas). Se queda en la mesa: al tapete se abre y
+    a tu caja se guarda como producto sellado, con su precio, y se vende en
+    el armario SELLADO o en el móvil.
+  - Blíster y tin: su promo (en el blíster se ve en pequeño y en diagonal a
+    través del plástico, igual que la carta) y, 1 de cada 10, su ALT dorada.
+    Al abrirlos en el tapete la promo sale a la vez que los sobres y vuela a
+    la mesa.
+  - Preventa: mientras un set está anunciado, una compra de 15 € o más de
+    una vez en la tienda te da su promo (una al día).
+  - Torneo: sobres de torneo en el mercado del móvil (PROMOS Y TORNEO) con
+    3 promos: participación, top 8 (plata) y la final (dorada, la más rara).
+    Cada vez hay menos y suben.
+  - Las promos no se reimprimen: los primeros 60 días después de salir su
+    set se quedan quietas y luego suben solas, las doradas más deprisa.
+    Las mejores pueden acabar valiendo 100-300 €.
+  - Colabs: cada 15-20 días sale una carta ONE LAST PACK X una marca de
+    broma (24 marcas). Pocas copias, solo en el mercado (arriba del todo),
+    se agotan rápido y suben deprisa. Como mucho 3 copias.
+  - Álbum ESPECIALES: la primera carpeta de la estantería (negra y oro). Las
+    primeras páginas son las colabs y las últimas, las placas del canal.
+  - Placas del canal: One Last Pack te manda una por CORREO al llegar a 100,
+    500, 1.000, 5.000 y 10.000 seguidores (bronce, plata, oro, rubí y
+    diamante), con el nombre de tu canal. El correo cuelga en los ganchos de
+    la mesa y se abre en el tapete. No se venden.
+  - Logros nuevos: tu primera promo y todas las promos de un set.
+  - Por su promo, el blíster S1 pasa a 4,10 €, el tin S1 a 11,50 € y la ETB S1
+    a 18,10 €. Ningún producto da más del 105% de lo que cuesta.
+- **Economía**: todas las cartas (también las promos) valen un 7% menos. En
+  las partidas empezadas los precios bajan poco a poco, como cualquier
+  movimiento del mercado.
+- **Mercado del móvil**: en cada carta se ve si la tienes a la venta (EN TU
+  TIENDA X2) y cuántas vende la gente hoy. En SELLADO, cada producto se
+  toca y abre su ficha con su gráfica, lo que tienes, VENDER y quién lo vende.
+- **Arreglos de la 0.10.2**:
+  - La funda con diseño se ve de frente: su dibujo asoma 1 px por detrás de
+    la carta y el brillo del plástico va encima.
+  - La funda básica por detrás ya se ve, con su filo como de frente.
+  - El pack de fundas del set trae cada día un diseño (lisa o rayas, van
+    alternando) y la ficha dice cuál.
+  - Las flechas de la tienda ya no se iluminan con las pestañas.
+  - En el MIX, tocar las fundas o los tops básicos ya no los compra: abre su
+    ficha con su botón.
+  - Los top loaders sin carta se ven vacíos (tienda, cajitas y fundario).
+  - El tutorial del armario abre cada pestaña mientras la explica.
+  - Con el tutorial apagado, entrar en una app o una pantalla nueva ya quita
+    su punto rojo.
+  - En la mesa, las fundas colgadas van siempre a la izquierda (sin top
+    loaders ya no se quedan en el medio).
+  - El aviso SIN DINERO solo sale si tienes una repetida que vale al menos 5
+    sobres y, como mucho, cada 3 días.
+  - Chat: las palabras que pasan a emoji ya no rompen la frase (solo si el
+    mensaje es entero de esas palabras o son coletillas del final), y las
+    frases que dependen de algo (la caja, el blíster, el tin, la ETB, la 1ª
+    edición, la reimpresión, el set 2, "esa carta") solo salen cuando toca.
+
 ## v0.10.2 - 2026-11-02 - Fundas con diseño e INSPECCIONAR
 
 - **Varias partidas**: en el menú, PARTIDA 1, 2 y 3, cada una con su día y

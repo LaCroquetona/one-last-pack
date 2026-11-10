@@ -20,6 +20,8 @@ Hecho en Lua con LÖVE, a 640x360 en pixel art. Funciona en PC y en Android. El 
 - Mercado que se mueve por días, con memoria: rachas, noticias, burbujas, crashes, 1ª edición con precio propio, reimpresiones y vintage.
 - Móvil del juego con sus apps: cartera, mercado con vendedores de segunda mano, ventas, noticias, calendario, encargos, mejoras y logros.
 - Cajas selladas, fundas y top loaders (también con diseño), INSPECCIONAR para girar las cartas, varias partidas, colección sellada, premios por completar sets y cartas buscadas.
+- Carpetas propias: pones la copia que quieras en el bolsillo que quieras.
+- Promos de cada set (en la ETB, la caja, el blíster, el tin, la preventa y los sobres de torneo), colabs con marcas de broma y placas del canal.
 - Desbloqueos por hitos y un tutorial con una mascota.
 
 | | |
@@ -53,10 +55,14 @@ En PC se juega con ratón; en Android, igual pero tocando.
 - Cajas: se arrastran al tapete para abrirlas. Tocando una cerrada sale SACAR SOBRES.
 - Blísters: cuelgan de la barra de debajo de los sobres; se arrastran al tapete para abrirlos y tocándolos sale SACAR SOBRES.
 - Armario SELLADO: arrastra lo de un hueco a otro para colocarlo a tu manera (si el otro está lleno, se cambian).
+- Carpetas: en ARMARIO > ÁLBUM, el hueco NUEVA CARPETA de la estantería. Se arrastra una carta de abajo a un bolsillo (entra la mejor copia libre), de un bolsillo a otro o fuera para sacarla. Tocando un bolsillo sale INSPECCIONAR para cambiar la copia.
+- Sobrecitos promo, de torneo y el correo: cuelgan en los ganchos de la mesa; se arrastran al tapete como un sobre. El de la ETB o la caja recién abierta se queda en la mesa: al tapete se abre, a tu caja se guarda (sellado).
+- Menú: las cartas de la derecha (tus mejores) se cogen y se arrastran, y se giran al tocarlas.
 - Directo: en la mesa, ponle nombre al canal y dale a EMPEZAR DIRECTO. Ir al móvil o pasar el día lo corta.
 - Twitch: en OPCIONES (o CONECTAR TWITCH en el directo) escribe tu canal y dale a CONECTAR; tu chat sale en el del juego. En la venta de sobres, `!comprar` en tu chat es una compra de verdad.
 - D: pasar el día. Rueda o arrastrar: scroll en el móvil. Retroceso: atrás en el móvil.
-- F11 o Alt+Enter: pantalla completa. ESC: volver al menú.
+- F11 o Alt+Enter: pantalla completa (también en OPCIONES). ESC: volver al menú.
+- OPCIONES: TUTORIAL SÍ/NO (sin tutorial no hay explicaciones y lo nuevo llega como aviso pequeño) y VER TUTORIAL.
 - F1: herramientas de desarrollador.
 
 ## Cómo está organizado
@@ -78,6 +84,7 @@ Casi todo lo que se ajusta está en `datos/`, separado del código:
 - `datos/sets.lua`: los sets y lo que vale cada rareza en cada uno.
 - `datos/sobres.lua`: precio, huecos y probabilidades de cada sobre, god pack, piedad, cajas y con qué se empieza.
 - `datos/fundas.lua`: las fundas y los tops con diseño: nombre, color, de dónde sale cada uno, packs y premios.
+- `datos/promos.lua`: las promos de cada set (de dónde salen, estilo, valor y cuánto salen), las colabs, los sobres de torneo, la preventa y las placas del canal.
 - `datos/productos.lua`: los productos sellados (blíster, tin, ETB, caja): qué llevan, precio, cuántos llegan al día y cuántos caben en un hueco.
 - `datos/calendario.lua`: cada cuánto sale un set, cuánto dura su tirada y sus reimpresiones.
 - `datos/mercado.lua`: cómo se mueven los precios (rachas, noticias, vintage, burbujas, comisión, compradores).
@@ -97,6 +104,8 @@ En `src/`:
 - `mercado.lua` y `calendario.lua`: el mercado y las fechas de cada set.
 - `carta.lua`, `bicho.lua` y `generador.lua`: cómo se pinta una carta, el generador de bichos y el sorteo de cada sobre.
 - `fundas.lua`, `fundario.lua` e `inspeccionar.lua`: el dibujo de las fundas con diseño, su rejilla (cajitas de la mesa y FUNDARIO) y la carta en grande que se gira.
+- `carpeta.lua`: las carpetas propias (en la estantería de álbumes).
+- `promo.lua`: el dibujo de las promos, las colabs, las placas del canal y los sobrecitos.
 - `partida.lua`: el guardado, copia a copia, y las 3 partidas.
 - `desbloqueos.lua`, `guia.lua`, `tutorial.lua` y `logros.lua`: el progreso.
 - `ui.lua`, `fuentes.lua` (fuente propia de 3x5), `fx.lua`, `sonido.lua`, `nav.lua`, `transicion.lua` y `dev.lua`.
