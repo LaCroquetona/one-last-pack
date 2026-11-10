@@ -1,5 +1,6 @@
 local sobres = require "datos.sobres"
 local productos = require "datos.productos"
+local datosPromos = require "datos.promos"
 local sets = require "datos.sets"
 local rarezas = require "datos.rarezas"
 local datosMercado = require "datos.mercado"
@@ -38,6 +39,7 @@ local CONT = { x = PANT.x, y = PANT.y + BARRA + CABECERA, w = PANT.w, h = PANT.h
 local app = "inicio"
 local volver = {}         -- de donde se vino, para el boton de atras
 local fichaId, fichaPrimera
+local fichaProd   -- producto sellado abierto en su ficha: { pid, primera }
 local setVista
 local rango = 30
 local pestanaCartera = "top"
@@ -74,7 +76,7 @@ local function apps()
 end
 
 local TITULOS = { cartera = "CARTERA", mercado = "MERCADO", ventas = "VENTAS", noticias = "NOTICIAS",
-    calendario = "CALENDARIO", set = "MERCADO", ficha = "CARTA", encargos = "ENCARGOS", mejoras = "MEJORAS", logros = "LOGROS" }
+    calendario = "CALENDARIO", set = "MERCADO", ficha = "CARTA", fichaprod = "SELLADO", encargos = "ENCARGOS", mejoras = "MEJORAS", logros = "LOGROS" }
 
 -- dibujos de los iconos, 9x9
 local ICONOS = {
@@ -350,15 +352,21 @@ local function filaCarta(id, x, y, w, idZona, primera, tenue)
     -- la que buscas: estrella y, si alguien la vende hoy, se dice
     local buscada = partida.buscada(id)
     if buscada then ui.estrella(x + 18 + fuentes.ancho(nombre), y + 2, p.amarillo) end
-    local sub = sets[def.set].codigo
+    local sub = sets[def.set].codigo .. (def.promo and (" " .. def.codigo) or "")
     local n = partida.copias(id)
     if n > 0 then sub = sub .. "  X" .. n end
-    if primera then sub = sub .. "  1ª ED" end
+    if primera and not def.promo then sub = sub .. "  1ª ED" end
     if def.chase then sub = sub .. "  CHASE" end
     fuentes.texto(sub, x + 15, y + 11, 1, p.gris)
-    if buscada and movil.laVenden(id) then
-        fuentes.texto("A LA VENTA", x + 19 + fuentes.ancho(sub), y + 11, 1, p.lima)
-        sub = sub .. "  A LA VENTA"
+    -- tus anuncios de esta carta y cuantas vende la gente hoy
+    local mias, gente = movil.enVenta(id)
+    local extra = {}
+    if mias > 0 then table.insert(extra, { "EN TU TIENDA X" .. mias, p.celeste }) end
+    if gente > 0 then table.insert(extra, { "VENDEN " .. gente, buscada and p.lima or p.grisclaro }) end
+    for _, e in ipairs(extra) do
+        sub = sub .. "  "
+        fuentes.texto(e[1], x + 15 + fuentes.ancho(sub), y + 11, 1, e[2])
+        sub = sub .. e[1]
     end
     local _, h = mercado.historial(id, primera)
     local precio = ui.dinero(mercado.valor(id, primera))
@@ -549,6 +557,27 @@ end
 local function appMercado()
     local x, w = CONT.x + 6, CONT.w - 12
     local y = empezarLista() + 4
+    -- colabs a la venta: pocas copias y solo aqui
+    local colabs = mercado.colabsALaVenta()
+    if #colabs > 0 then
+        fuentes.texto("COLABS: SOLO AQUÍ Y POCAS COPIAS", x, y, 1, p.naranja)
+        y = y + 10
+        for _, def in ipairs(colabs) do
+            ui.caja(x, y, w, 40, p.grisosc)
+            carta.dibujar(def, x + 12, y + 20, 0.7, 0.7, 0, true, nil, nil, { quieta = true })
+            fuentes.texto("OLP X " .. def.marca, x + 26, y + 4, 1, p.amarillo)
+            fuentes.texto(rarezas.nombre(def):upper(), x + 26, y + 13, 1, p.blanco)
+            local compradas = partida.colabCompradas[def.id] or 0
+            fuentes.texto("QUEDAN " .. mercado.stockColab(def.id) .. "  TUYAS " .. compradas .. "/" .. datosPromos.colab.maximo,
+                x + 26, y + 20, 1, p.grisclaro)
+            local precio = mercado.valor(def.id, true)
+            ui.boton("m_colab_" .. def.id, "COMPRAR " .. ui.dinero(precio), x + 26, y + 28, w - 30, 11, p.naranja,
+                partida.puedeColab(def.id) and partida.dinero >= precio)
+            ui.zona("m_carta_" .. def.id .. "_1", x, y, 24, 40)
+            y = y + 44
+        end
+        y = y + 4
+    end
     fuentes.texto("SETS Y SOBRES CERRADOS", x, y, 1, p.grisclaro)
     y = y + 10
     for _, s in ipairs(sets.lista) do
@@ -637,7 +666,7 @@ end
 local SECCIONES = {
     { "s1", "SOBRES 1ª ED" }, { "c1", "SELLADO 1ª ED" },
     { "sr", "SOBRES REIMPR." }, { "cr", "SELLADO REIMPR." },
-    { "cartas", "CARTAS DEL SET" },
+    { "cartas", "CARTAS DEL SET" }, { "promos", "PROMOS Y TORNEO" },
 }
 
 local function seccionesDe(tipo)
@@ -680,7 +709,8 @@ local function seccionCajas(tipo, primera, x, y, w)
     for _, prod in ipairs(mercado.productosDe(tipo)) do
         local tengo = partida.prodDe(prod.id, tipo.id, primera)
         local valor = mercado.trasComision(mercado.valorProd(prod, tipo, primera))
-        ui.caja(x, y, w, 28, p.grisosc)
+        ui.caja(x, y, w, 28, ui.encima == "m_fp_" .. prod.id .. "_" .. suf and p.gris or p.grisosc)
+        ui.zona("m_fp_" .. prod.id .. "_" .. suf, x, y, w - 52, 28)
         fuentes.texto(prod.nombre, x + 4, y + 3, 1, p.blanco)
         fuentes.texto("TIENES " .. tengo, x + 4, y + 11, 1, p.grisclaro)
         fuentes.texto(ui.dinero(valor), x, y + 3, 1, primera and p.amarillo or p.blanco, "right", w - 54)
@@ -717,7 +747,50 @@ local function seccionCajas(tipo, primera, x, y, w)
         y = y + 30
         for _, o in ipairs(vendedores.deProd(prod, tipo, primera)) do table.insert(ofertas, o) end
     end
+    -- sobrecitos promo guardados (sin edicion: salen en la de 1ª)
+    if primera then
+        for _, o in ipairs({ "etb", "caja" }) do
+            local tengo = partida.promoSobresDe(o, tipo.id)
+            if tengo > 0 then
+                local valor = mercado.trasComision(partida.valorPromoSobre(o, tipo))
+                ui.caja(x, y, w, 28, p.grisosc)
+                lg.setColor(1, 1, 1)
+                lg.draw(sobre.imagen(sobre.clavePromo(o, tipo.id)), x + 2, y + 1, 0, 0.6, 0.6)
+                fuentes.texto("PROMO " .. (o == "etb" and "ETB" or "CAJA"), x + 22, y + 3, 1, p.naranja)
+                fuentes.texto("TIENES " .. tengo, x + 22, y + 11, 1, p.grisclaro)
+                fuentes.texto(ui.dinero(valor), x, y + 3, 1, p.amarillo, "right", w - 54)
+                ui.boton("m_vpr_" .. o, "VENDER", x + w - 50, y + 8, 46, 12, p.morado, valor > 0)
+                y = y + 30
+            end
+        end
+    end
     return listaOfertas(ofertas, x, y + 4, w, "SE VENDEN HOY", "NADIE VENDE NADA SELLADO HOY")
+end
+
+-- promos del set y sus sobres de torneo
+local function seccionPromos(tipo, x, y, w)
+    local precio, stock = mercado.sobreTorneo(tipo)
+    local tengo = partida.promoSobresDe("torneo", tipo.id)
+    ui.caja(x, y, w, 40, p.grisosc)
+    lg.setColor(1, 1, 1)
+    lg.draw(sobre.imagen(sobre.clavePromo("torneo", tipo.id)), x + 4, y + 4, 0, 0.7, 0.7)
+    fuentes.texto("SOBRE DE TORNEO", x + 28, y + 4, 1, p.blanco)
+    fuentes.texto("TRAE 1 DE SUS 3 PROMOS", x + 28, y + 12, 1, p.grisclaro)
+    fuentes.texto("HOY " .. (stock or 0) .. "  TIENES " .. tengo, x + 28, y + 20, 1, p.grisclaro)
+    local bw = math.floor((w - 32) / 2)
+    ui.boton("m_torneo", "COMPRAR " .. (precio and ui.dinero(precio) or "-"), x + 28, y + 27, bw, 11, p.naranja,
+        precio ~= nil and stock > 0 and partida.dinero >= precio)
+    ui.boton("m_vtorneo", "VENDER", x + 32 + bw, y + 27, w - 36 - bw, 11, p.morado, tengo > 0 and precio ~= nil)
+    y = y + 44
+    fuentes.texto("CADA VEZ HAY MENOS Y SUBEN", x, y, 1, p.gris)
+    y = y + 12
+    for _, def in ipairs(mercado.promosDe(tipo.set)) do
+        if mercado.disponible(def.id) then
+            filaCarta(def.id, x - 2, y, w + 4, "m_carta_" .. def.id .. "_1", true, partida.copias(def.id) == 0)
+            y = y + 19
+        end
+    end
+    return y
 end
 
 local function seccionCartas(s, x, y, w)
@@ -781,11 +854,71 @@ local function appSet()
 
     if seccionSet == "cartas" then
         y = seccionCartas(s, x, y, w)
+    elseif seccionSet == "promos" then
+        y = seccionPromos(tipo, x, y, w)
     elseif seccionSet:sub(1, 1) == "s" then
         y = seccionSobres(tipo, seccionSet == "s1", x, y, w)
     else
         y = seccionCajas(tipo, seccionSet == "c1", x, y, w)
     end
+    acabarLista(y)
+end
+
+-- ficha de un producto sellado: su grafica, lo que tienes y quien lo vende
+local function appFichaProd()
+    local tipo = sobres[setVista]
+    local prod = productos[fichaProd.pid]
+    local s = sets[tipo.set]
+    local x, w = CONT.x + 6, CONT.w - 12
+    local y = empezarLista() + 4
+    local reimpr = mercado.sellado(tipo, false) ~= nil
+    local primera = fichaProd.primera or not reimpr
+    fuentes.texto(prod.nombre, x, y, 2, p.blanco)
+    fuentes.texto(s.nombre:upper() .. "  " .. s.codigo, x, y + 14, 1, p.grisclaro)
+    y = y + 26
+    local valor = mercado.valorProd(prod, tipo, primera)
+    local cambio = mercado.cambioProd(prod, tipo, primera, 7)
+    fuentes.texto(ui.dinero(valor), x, y, 2, primera and p.amarillo or p.blanco)
+    if cambio then fuentes.texto(ui.porcentaje(cambio) .. " EN 7 DÍAS", x, y + 2, 1, ui.colorCambio(cambio), "right", w) end
+    y = y + 16
+    if reimpr then
+        ui.boton("m_fped0", "REIMPR.", x, y, 40, 11, not primera and p.azul or p.grisosc)
+        ui.boton("m_fped1", "1ª ED", x + 44, y, 40, 11, primera and p.amarillo or p.grisosc)
+    else
+        fuentes.texto("SOLO HAY DE 1ª ED", x, y + 3, 1, p.gris)
+    end
+    botonesRango(x + w - 76, y)
+    y = y + 15
+    local h0, h1, hr = mercado.historialProd(prod, tipo)
+    if h1 and #h1 >= 2 then
+        local series = { { datos = h1, color = p.amarillo, nombre = reimpr and "1ª ED" or "" } }
+        if reimpr and hr then
+            local sr = { datos = hr, color = p.blanco, nombre = "REIMPR." }
+            series = primera and { series[1], sr } or { sr, series[1] }
+        end
+        grafica.dibujar({ x = x, y = y, w = w, h = 78, series = series, rango = rango, dia0 = h0, formato = ui.dinero, id = "fichaprod" })
+        y = y + 84
+        local h = series[1].datos
+        local max, min = 0, math.huge
+        for i = math.max(1, #h - 29), #h do
+            if h[i] > 0 then max, min = math.max(max, h[i]), math.min(min, h[i]) end
+        end
+        if min == math.huge then min = 0 end
+        fuentes.texto("MÁX 30D " .. ui.dinero(max), x, y, 1, p.grisclaro)
+        fuentes.texto("MÍN 30D " .. ui.dinero(min), x, y, 1, p.grisclaro, "right", w)
+        y = y + 12
+    else
+        fuentes.texto("AÚN NO HAY HISTORIAL", x, y + 30, 1, p.gris, "center", w)
+        y = y + 70
+    end
+    local tengo = partida.prodDe(prod.id, tipo.id, primera)
+    fuentes.texto(tengo > 0 and ("TIENES " .. tengo) or "NO TIENES NINGUNO", x, y, 1, tengo > 0 and p.blanco or p.gris)
+    y = y + 11
+    local suf = primera and "1" or "r"
+    ui.boton("m_vp_" .. prod.id .. "_" .. suf, "VENDER " .. ui.dinero(mercado.trasComision(valor)), x, y, w, 13, p.morado, tengo > 0)
+    y = y + 20
+    ofertasVista = {}
+    y = listaOfertas(vendedores.deProd(prod, tipo, primera), x, y, w, "LO VENDEN HOY", "NADIE LO VENDE HOY")
     acabarLista(y)
 end
 
@@ -796,12 +929,14 @@ local function appFicha()
     local r = rarezas.de(def)
     local x, w = CONT.x + 6, CONT.w - 12
     local y = empezarLista() + 4
-    local normales = mercado.hayNormales(def.set)
+    -- las promos no tienen ediciones (su precio es el de la 1ª)
+    local normales = mercado.hayNormales(def.set) and not def.promo
     -- antes de la primera reimpresion todas las copias son de 1ª edicion
     local primera = not normales or fichaPrimera
 
     fuentes.texto(rarezas.nombre(def), x, y, 2, r.color)
     local datos = r.nombre:upper() .. "  " .. sets[def.set].codigo .. " #" .. def.num .. "/" .. #mercado.baseDe(def.set)
+    if def.promo then datos = r.nombre:upper() .. "  " .. sets[def.set].codigo .. " " .. def.codigo .. "  " .. (datosPromos.origenes[def.promo] or "") end
     fuentes.texto(datos, x, y + 14, 1, p.grisclaro)
     -- la estrella: marcarla como buscada
     local buscada = partida.buscada(def.id)
@@ -824,7 +959,7 @@ local function appFicha()
         ui.boton("m_ed0", "NORMAL", x, y, 40, 11, not primera and p.azul or p.grisosc)
         ui.boton("m_ed1", "1ª ED", x + 44, y, 40, 11, primera and p.amarillo or p.grisosc)
     else
-        fuentes.texto("TODAS DE 1ª ED", x, y + 3, 1, p.gris)
+        fuentes.texto(def.promo and "PROMO" or "TODAS DE 1ª ED", x, y + 3, 1, p.gris)
     end
     botonesRango(x + w - 76, y)
     y = y + 15
@@ -867,11 +1002,14 @@ local function appFicha()
         if normales and p1 > 0 then texto = texto .. " (" .. p1 .. " DE 1ª ED)" end
     end
     fuentes.texto(texto, x, y, 1, n > 0 and p.blanco or p.gris)
-    y = y + 12
+    local mias, gente = movil.enVenta(def.id)
+    local enTienda = (mias > 0 and ("EN TU TIENDA X" .. mias .. "  ") or "") .. "LA GENTE VENDE " .. gente
+    fuentes.texto(enTienda, x, y + 9, 1, mias > 0 and p.celeste or p.grisclaro)
+    y = y + 21
 
     local sigue = partida.seguidas[def.id]
     ui.boton("m_seguir", sigue and "SIGUIENDO" or "SEGUIR", x, y, math.floor((w - 8) / 3), 13, sigue and p.verde or p.grisosc)
-    local libres = partida.libres(def.id, primera)
+    local libres = partida.libres(def.id, not def.promo and primera)
     local lleno = #partida.anuncios >= partida.maxAnuncios()
     local bw = math.floor((w - 8) / 3)
     ui.boton("m_publicar", lleno and "LLENO" or "PUBLICAR", x + bw + 4, y, bw, 13, p.celeste, libres > 0 and not lleno)
@@ -1513,6 +1651,22 @@ function movil.quieto()
 end
 
 -- algun vendedor tiene hoy esta carta (de cualquier edicion)
+-- cuantas copias tienes publicadas y cuantas vende la gente hoy (las dos ediciones)
+function movil.enVenta(id)
+    local mias = 0
+    for _, a in ipairs(partida.anuncios) do
+        if a.id == id then mias = mias + 1 end
+    end
+    local gente = 0
+    local def = mercado.carta(id)
+    for _, primera in ipairs({ true, false }) do
+        if primera or mercado.hayNormales(def.set) then
+            for _, o in ipairs(vendedores.deCarta(id, primera)) do gente = gente + o.quedan end
+        end
+    end
+    return mias, gente
+end
+
 function movil.laVenden(id)
     local def = mercado.carta(id)
     if #vendedores.deCarta(id, true) > 0 then return true end
@@ -1542,7 +1696,7 @@ end
 
 local DIBUJAR = {
     logros = appLogros,
-    cartera = appCartera, mercado = appMercado, set = appSet, ficha = appFicha,
+    cartera = appCartera, mercado = appMercado, set = appSet, ficha = appFicha, fichaprod = appFichaProd,
     ventas = appVentas, noticias = appNoticias, calendario = appCalendario, encargos = appEncargos, mejoras = appMejoras,
 }
 
@@ -1682,6 +1836,32 @@ function movil.click(id)
         seccionSet = "s1"
         scroll.set = 0
         ir("set")
+    elseif id:match("^m_colab_") then
+        local cid = tonumber(id:sub(9))
+        local pagado = partida.comprarColab(cid)
+        if pagado then
+            sonido.tocar("moneda")
+            notificar("COLAB COMPRADA: -" .. ui.dinero(pagado), p.naranja)
+            partida.guardar()
+        end
+    elseif id == "m_torneo" then
+        local pagado = partida.comprarTorneo(sobres[setVista])
+        if pagado then
+            sonido.tocar("moneda")
+            notificar("SOBRE DE TORNEO: -" .. ui.dinero(pagado) .. " (EN LOS GANCHOS DE LA MESA)", p.naranja)
+            partida.guardar()
+        end
+    elseif id:match("^m_vpr_") then
+        cobro(partida.venderPromoSobre(id:sub(7), sobres[setVista]) or 0, "SOBRECITO PROMO VENDIDO")
+    elseif id == "m_vtorneo" then
+        cobro(partida.venderTorneo(sobres[setVista]) or 0, "SOBRE DE TORNEO VENDIDO")
+    elseif id:match("^m_fp_") then
+        local pid, ed = id:match("^m_fp_(.+)_(%w)$")
+        fichaProd = { pid = pid, primera = ed == "1" }
+        scroll.fichaprod = 0
+        ir("fichaprod")
+    elseif id == "m_fped0" or id == "m_fped1" then
+        fichaProd.primera = id == "m_fped1"
     elseif id == "m_ed0" or id == "m_ed1" then
         fichaPrimera = id == "m_ed1"
     elseif id == "m_buscar" then
@@ -1696,7 +1876,8 @@ function movil.click(id)
         partida.seguir(fichaId)
         partida.guardar()
     elseif id == "m_publicar" then
-        local primera = not mercado.hayNormales(mercado.carta(fichaId).set) or fichaPrimera
+        local def = mercado.carta(fichaId)
+        local primera = (not mercado.hayNormales(def.set) or fichaPrimera) and not def.promo
         if partida.publicar(fichaId, primera) then
             notificar("PUBLICADA EN VENTAS", p.celeste)
             partida.guardar()
