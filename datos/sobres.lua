@@ -153,10 +153,10 @@ local lista = {
 
 local sobres = {
     lista = lista,
-    -- cajas selladas: 18 sobres mas baratos. Se compran mientras el set esta en
+    -- cajas selladas: 36 sobres mas baratos. Se compran mientras el set esta en
     -- la tienda (llegan "porDia" al dia); se guardan cerradas, se abren o se
     -- venden a la tienda por "valor" veces lo que valen sus sobres cerrados
-    caja = { sobres = 18, descuento = 0.1, porDia = 2, valor = 0.85 },
+    caja = { sobres = 36, descuento = 0.1, porDia = 2, valor = 0.85 },
     -- con lo que se empieza: dinero y sobres (de 1ª edicion) para abrir ya
     inicio = { dinero = 2000, sobres = { set1 = 3 } },
 }
