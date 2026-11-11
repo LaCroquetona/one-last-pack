@@ -15,7 +15,7 @@ local mercado = require "src.mercado"
 
 local menu = {}
 
-local VERSION = "v0.10.3"
+local VERSION = "v0.10.4"
 reporte.version = VERSION
 local abanico = {}
 local resumenes = {}
