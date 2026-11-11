@@ -70,7 +70,8 @@ local DIBUJOS = {
 local TEXTOS = { ["67"] = p.lima, W = p.cian, GG = p.amarillo, L = p.rojo, OMG = p.violeta, POG = p.lima, ["100"] = p.rojo,
     F = p.blanco, RIP = p.grisclaro, EZ = p.lima, GL = p.cian, ZZZ = p.celeste, ["?!"] = p.naranja,
     XD = p.amarillo, OLE = p.rojo, ILLO = p.naranja, UFF = p.celeste, ["+1"] = p.lima, TOP = p.lima, GOD = p.amarillo,
-    CLIP = p.violeta, YOLO = p.naranja, OP = p.rojo, BRB = p.grisclaro, AFK = p.grisclaro }
+    CLIP = p.violeta, YOLO = p.naranja, OP = p.rojo, BRB = p.grisclaro, AFK = p.grisclaro,
+    SUS = p.rojo, NPC = p.grisclaro, BASADO = p.cian, BASED = p.cian }
 
 -- emotes de Twitch (y palabras sueltas) que se cambian por los nuestros en el
 -- chat real; en minusculas
@@ -96,12 +97,44 @@ local DE_CHAT = {
     mald = "enfado", malding = "enfado", cringe = "mueca", chetado = "musculo", chetada = "musculo", chetadisima = "musculo",
     chetadisimo = "musculo", mimir = "dormido", yolo = "YOLO", w = "W", l = "L", afk = "AFK", brb = "BRB", aura = "estrella",
     fuego = "fuego", bulk = "calavera", rip = "RIP", top = "TOP", god = "GOD", omg = "OMG", cine = "claqueta",
+    basado = "BASADO", based = "BASED", sus = "SUS", npc = "NPC", clutch = "trofeo", crack = "corona", cracks = "corona",
+    maquina = "corona", ["máquina"] = "corona", mitico = "estrella", ["mítico"] = "estrella", goat = "corona",
+    gigachad = "musculo", chad = "musculo", ratio = "L", copium = "llora", cope = "llora", hopium = "globo",
+    nerf = "abajo", nerfeo = "abajo", buff = "musculo", manco = "payaso", manca = "payaso", noob = "payaso",
+    tryhard = "sudor", suerte = "dado", lucky = "dado", uwu = "corazon", owo = "flipa", hype = "cohete",
+    gracias = "corazon", ty = "corazon", thx = "corazon", jsjs = "risa", jsjsjs = "risa", lmao = "risa", lol = "risa",
+    bruh = "mueca", wtf = "?!", nooo = "llora", noooo = "llora", lag = "reloj", pasta = "billete", money = "billete",
+    fake = "?!", stonks = "stonks",
 }
 
 -- las que son coletilla (se pueden quitar del final sin romper la frase)
 local SUELTAS = {}
 for _, k in ipairs({ "XD", "risa", "F", "GG", "EZ", "POG", "llora", "payaso", "ILLO", "OLE", "UFF", "enfado", "mueca",
-    "YOLO", "W", "L", "AFK", "BRB", "RIP", "OMG", "dormido" }) do SUELTAS[k] = true end
+    "YOLO", "W", "L", "AFK", "BRB", "RIP", "OMG", "dormido", "SUS", "NPC", "BASADO", "BASED", "?!" }) do SUELTAS[k] = true end
+
+-- emotes propios de un canal: por lo que dice su nombre y, si no, uno fijo
+-- sacado del nombre (el mismo emote siempre da el mismo emoji)
+local PISTAS = {
+    { "love", "corazon" }, { "heart", "corazon" }, { "<3", "corazon" }, { "amor", "corazon" }, { "hug", "corazon" },
+    { "pog", "fuego" }, { "hype", "fuego" }, { "fire", "fuego" }, { "lul", "risa" }, { "kek", "risa" }, { "lol", "risa" },
+    { "lmao", "risa" }, { "sad", "llora" }, { "cry", "llora" }, { "gg", "GG" }, { "rip", "RIP" }, { "money", "billete" },
+    { "cash", "billete" }, { "cat", "gato" }, { "dog", "perro" }, { "clap", "manos" }, { "wave", "hola" }, { "hi", "hola" },
+    { "rage", "enfado" }, { "mad", "enfado" }, { "angry", "enfado" }, { "sleep", "dormido" }, { "think", "cerebro" },
+    { "cool", "gafas" }, { "wow", "flipa" }, { "omg", "flipa" }, { "shock", "flipa" }, { "clown", "payaso" },
+    { "duck", "pato" }, { "pizza", "pizza" }, { "crown", "corona" }, { "king", "corona" }, { "gem", "diamante" },
+}
+local function deEmote(nombre)
+    for _, pista in ipairs(PISTAS) do
+        if nombre:find(pista[1], 1, true) then return pista[2] end
+    end
+    local claves = {}
+    for k in pairs(DIBUJOS) do table.insert(claves, k) end
+    table.sort(claves)
+    local h = 0
+    for i = 1, #nombre do h = (h * 31 + nombre:byte(i)) % 1000003 end
+    return claves[h % #claves + 1]
+end
+emojis.deEmote = deEmote
 
 local imagenes = {}
 local function imagen(k)
@@ -142,21 +175,6 @@ function emojis.existe(k)
     return TEXTOS[k] ~= nil or DIBUJOS[k] ~= nil
 end
 
--- separa un mensaje del chat real: devuelve el texto sin los emotes que
--- conocemos y la lista de emojis nuestros que les tocan (como mucho 6)
-function emojis.deTwitch(texto)
-    local lista, resto = {}, {}
-    for palabra in texto:gmatch("%S+") do
-        local k = DE_TWITCH[palabra:lower()]
-        if k then
-            if #lista < 6 then table.insert(lista, k) end
-        else
-            table.insert(resto, palabra)
-        end
-    end
-    return table.concat(resto, " "), lista
-end
-
 -- un mensaje del chat del juego: el texto sin las palabras que pasan a emoji
 -- y esos emojis (como mucho 4). Las que van repetidas se quedan en uno
 function emojis.deChat(texto)
@@ -189,6 +207,28 @@ function emojis.deChat(texto)
         end
     end
     return table.concat(resto, " "), lista
+end
+
+-- separa un mensaje del chat real: devuelve el texto sin los emotes y la
+-- lista de emojis nuestros que les tocan (como mucho 6). canal: los emotes
+-- propios del canal que trae el mensaje (nombres en minusculas). Las palabras
+-- de la jerga van como en el chat del juego (todo el mensaje o al final)
+function emojis.deTwitch(texto, canal)
+    local lista, resto = {}, {}
+    for palabra in texto:gmatch("%S+") do
+        local p_ = palabra:lower()
+        local k = DE_TWITCH[p_] or (canal and canal[p_] and deEmote(p_))
+        if k then
+            if #lista < 6 then table.insert(lista, k) end
+        else
+            table.insert(resto, palabra)
+        end
+    end
+    local queda, mas = emojis.deChat(table.concat(resto, " "))
+    for _, k in ipairs(mas) do
+        if #lista < 6 then table.insert(lista, k) end
+    end
+    return queda, lista
 end
 
 -- todos los emojis (para las pruebas y para lanzar al azar)
