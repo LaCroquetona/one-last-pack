@@ -394,7 +394,7 @@ function directo.empezar()
     if tipoElegido == "venta" and partida.canal.seguidores < V.desbloqueo then tipoElegido = "apertura" end
     d = { t = 0, esp = 0, pico = 0, objetivo = base(partida.canal.seguidores), ruido = 0, subidon = 1,
           quieto = 0, sobres = 0, propinas = 0, seguidores = 0, acumulado = 0, tipo = tipoElegido, sueltos = 0,
-          pedidos = {}, ventas = 0, ingresos = 0, hype = 0, vendiendo = true }
+          pedidos = {}, ventas = 0, ingresos = 0, hype = 0, vendiendo = true, tarjeta = twitch.conectado() }
     chat, cola = {}, {}
     emojis.limpiar()
     sonido.tocar("nueva")
@@ -643,8 +643,9 @@ local function pedidoDe(nombre)
     for _, pe in ipairs(d.pedidos) do if pe.nombre == nombre then return pe end end
 end
 
--- nombre: si lo pide alguien de tu chat de Twitch (!comprar)
-local function nuevoPedido(nombre, color)
+-- nombre: si lo pide alguien de tu chat de Twitch (!comprar); quiere: lo que
+-- pide ({ n = 3 } o { prod = "etb" }), si se puede; si no, lo que salga
+local function nuevoPedido(nombre, color, quiere)
     local lista = sobresEnVenta()
     if #lista == 0 then return end
     -- que se puede pedir y con que peso
@@ -663,6 +664,23 @@ local function nuevoPedido(nombre, color)
         for _, pid in ipairs({ "blister", "etb" }) do
             if partida.prodDisponibles(pid, t.id) > 0 then poner_({ t = t, n = productos[pid].sobres, prod = pid }, W[pid]) end
         end
+    end
+    -- lo que pide el chat real, si se puede
+    if quiere then
+        local validas, suma = {}, 0
+        if quiere.n and quiere.n > 1 then
+            for _, t in ipairs(lista) do
+                if sobresDe(t) >= quiere.n then table.insert(validas, { o = { t = t, n = quiere.n }, peso = 1 }) suma = suma + 1 end
+            end
+        else
+            for _, x in ipairs(opciones_) do
+                if (quiere.prod and x.o.prod == quiere.prod) or (quiere.n == 1 and not x.o.prod and x.o.n == 1) then
+                    table.insert(validas, x)
+                    suma = suma + x.peso
+                end
+            end
+        end
+        if #validas > 0 then opciones_, total = validas, suma end
     end
     local r = love.math.random() * total
     local elegido = opciones_[#opciones_].o
@@ -865,15 +883,49 @@ end
 local SALUDOS = { "^hola", "^buenas", "^holi", "^hi$", "^hi ", "^hello", "^hey", "^ey", "^wenas", "^saludos" }
 local HYPE = { "pog", "vamo", "lets go", "omg", "gg", "aura", "w ", "^w$", "fire", "goat", "6.7", "brutal", "locura" }
 local COMPRAR = { "^!comprar", "^!buy", "^!compro" }
+local SOPLAR = { "^!soplar", "^!sopla", "^!blow" }
+local PAUSA = { "^!pausa", "^!pause" }
+local SEGUIR = { "^!seguir", "^!resume" }
 
 local function tiene(texto, lista)
     for _, patron in ipairs(lista) do if texto:find(patron) then return true end end
     return false
 end
 
+-- compras de tu chat real que estan esperando o abriendose
+local function comprasDelChat()
+    local n = 0
+    for _, pe in ipairs(d.pedidos) do if pe.real then n = n + 1 end end
+    return n
+end
+
+-- lo que pide un !comprar: un numero de sobres, un blister o una ETB
+local function queQuiere(texto)
+    local resto = texto:match("^!%S+%s*(.*)$") or ""
+    if resto:find("^etb") then return { prod = "etb" } end
+    if resto:find("^bl") then return { prod = "blister" } end
+    local n = tonumber(resto:match("^(%d+)"))
+    if n then return { n = math.max(1, math.min(V.maxVarios, n)) } end
+    return nil
+end
+
+-- el aviso de una sub, en el idioma del canal
+local function textoSub(m, es)
+    if m.tipo == "regalo" then
+        return es and (m.nombre .. " REGALA " .. m.cantidad .. (m.cantidad == 1 and " SUB" or " SUBS"))
+            or (m.nombre .. " GIFTS " .. m.cantidad .. (m.cantidad == 1 and " SUB" or " SUBS"))
+    elseif m.tipo == "regalada" then
+        return es and (m.nombre .. " LE REGALA UNA SUB A " .. m.para) or (m.nombre .. " GIFTS A SUB TO " .. m.para)
+    elseif (m.meses or 0) > 1 then
+        return es and (m.nombre .. " LLEVA " .. m.meses .. " MESES SUSCRITO") or (m.nombre .. " SUBSCRIBED FOR " .. m.meses .. " MONTHS")
+    end
+    return es and (m.nombre .. " SE SUSCRIBE") or (m.nombre .. " JUST SUBSCRIBED")
+end
+
 -- un mensaje (o un aviso de raid o sub) de tu chat real
 function directo.mensajeReal(m)
     if not d then return end
+    local es = partida.canal.idioma == "es"
     if m.aviso == "raid" then
         poner({ sistema = true, texto = "RAID DE " .. m.nombre:upper() .. " CON " .. m.cuantos .. " PERSONAS", color = p.violeta, nace = d.t })
         emojis.lanzar({ "cohete", "fuego", "corazon", "flipa", "W" }, math.min(20, 6 + m.cuantos), 2)
@@ -881,14 +933,44 @@ function directo.mensajeReal(m)
         sonido.tocar("nueva")
         return
     elseif m.aviso == "sub" then
-        poner({ sistema = true, texto = (m.texto ~= "" and m.texto or (m.nombre .. " SE SUSCRIBE")):upper(), color = p.violeta, nace = d.t })
-        emojis.lanzar({ "corazon", "estrella", "corona" }, 5, 1.2)
+        poner({ sistema = true, texto = textoSub(m, es):upper(), color = p.violeta, nace = d.t })
+        -- cuantas mas subs (o meses), mas lluvia
+        local fuerza = m.tipo == "regalo" and m.cantidad * 2 or math.min(6, (m.meses or 1))
+        emojis.lanzar({ "corazon", "estrella", "corona", "regalo", "diamante" }, math.min(24, 5 + fuerza), 1.2 + math.min(2, fuerza * 0.1))
+        d.subidon = d.subidon + math.min(0.4, 0.04 * fuerza)
+        sonido.tocar("nueva")
+        return
+    end
+    local texto = m.crudo or ""
+    d.quieto = 0
+    -- comandos: no salen tal cual en el chat
+    if tiene(texto, SOPLAR) then
+        d.soplo = math.min(1, (d.soplo or 0) + 0.12)
+        if d.soplo > 0.5 and d.t - (d.avisoSoplo or -99) > 12 then
+            d.avisoSoplo = d.t
+            poner({ sistema = true, texto = es and "EL CHAT ESTÁ SOPLANDO EL SOBRE" or "CHAT IS BLOWING ON THE PACK", color = p.celeste, nace = d.t })
+        end
+        return
+    elseif m.mod and d.tipo == "venta" and (tiene(texto, PAUSA) or tiene(texto, SEGUIR)) then
+        local seguir = tiene(texto, SEGUIR)
+        if d.vendiendo ~= seguir then
+            d.vendiendo = seguir
+            local t = seguir and (es and "VENTAS EN MARCHA" or "SALES ARE ON") or (es and "VENTAS PARADAS" or "SALES PAUSED")
+            poner({ sistema = true, texto = t .. " (" .. m.nombre:upper() .. ")", color = seguir and p.lima or p.naranja, nace = d.t })
+        end
+        return
+    elseif tiene(texto, COMPRAR) then
+        -- compra de verdad en un directo de venta; con el tope lleno no sale
+        if d.tipo == "venta" and d.vendiendo and comprasDelChat() < V.chatMax and not pedidoDe(m.nombre) then
+            local pe = nuevoPedido(m.nombre, m.color, queQuiere(texto))
+            if pe then
+                poner({ sistema = true, texto = m.nombre:upper() .. (es and " COMPRA " or " BUYS ") .. directo.codigoPedido(pe), color = p.lima, nace = d.t })
+            end
+        end
         return
     end
     m.nace = d.t
     poner(m)
-    d.quieto = 0
-    local texto = m.crudo or ""
     -- emotes que suben por el chat
     if m.emotes then emojis.lanzar(m.emotes, math.min(3, #m.emotes), 0.5) end
     -- hype de tu chat: anima un poco el directo (con un tope)
@@ -899,27 +981,31 @@ function directo.mensajeReal(m)
     end
     -- saludos: con el chat mezclado alguien del juego le contesta
     if tiene(texto, SALUDOS) and not callado() and d.esp >= 1 and love.math.random() < 0.5 then
-        local idioma = partida.canal.idioma
-        local hola = idioma == "es" and { "hola ", "buenas ", "ey ", "bienvenido " } or { "hi ", "welcome ", "hey " }
+        local hola = es and { "hola ", "buenas ", "ey ", "bienvenido " } or { "hi ", "welcome ", "hey " }
         table.insert(cola, { t = 1 + love.math.random() * 2, nombre = nombreAlAzar(), color = colorAlAzar(),
                              texto = azar(hola) .. m.nombre })
     end
-    -- !comprar en un directo de venta: compra de verdad (lo que salga)
-    if tiene(texto, COMPRAR) and d.tipo == "venta" and d.vendiendo and #d.pedidos < V.max + 2 and not pedidoDe(m.nombre) then
-        local pe = nuevoPedido(m.nombre, m.color)
-        if pe then
-            poner({ sistema = true, texto = m.nombre:upper() .. " COMPRA " .. directo.codigoPedido(pe), color = p.lima, nace = d.t })
-        end
-    end
+end
+
+-- lo que esta soplando el chat (0 a 1): el sobre tiembla
+function directo.soplo()
+    return d and d.soplo or 0
+end
+
+-- compras del chat real ahora y el tope
+function directo.comprasChat()
+    if not d then return 0, V.chatMax end
+    return comprasDelChat(), V.chatMax
 end
 
 -- cada frame (tambien fuera de la mesa: el directo sigue)
 function directo.update(dt, enMesa)
     -- el chat de Twitch se lee siempre (sin directo se tira)
-    local reales = twitch.update(dt)
+    local reales = twitch.update()
     if not d then return end
     emojis.update(dt)
     d.t = d.t + dt
+    if d.soplo then d.soplo = d.soplo * math.exp(-dt * 0.7) end
     d.quieto = d.quieto + dt
     local seguidores = partida.canal.seguidores
 
@@ -1240,6 +1326,56 @@ local function pintarEmotes(l, x, y)
     end
 end
 
+-- lo que puede hacer tu chat de Twitch: la tarjeta de comandos
+local COMANDOS = {
+    { "!COMPRAR N, ETB, BL", p.lima }, { "MÁX 3, 1 POR PERSONA", p.grisclaro },
+    { "!SOPLAR: TIEMBLA", p.celeste }, { "MODS: !PAUSA !SEGUIR", p.naranja },
+}
+local PALABRAS = { { "JAJA", "risa" }, { "SADGE", "llora" }, { "FUEGO", "fuego" }, { "CLUTCH", "trofeo" },
+    { "SUERTE", "dado" }, { "GRACIAS", "corazon" }, { "SALSEO", "palomitas" }, { "CRINGE", "mueca" } }
+
+-- (x, y): esquina; w: ancho; a: transparencia. Devuelve el alto
+local function dibujarTarjeta(x, y, w, a)
+    a = a or 1
+    local paso = fuentes.linea()
+    local fila = paso + 3
+    local alto = 16 + #COMANDOS * paso + 12 + math.ceil(#PALABRAS / 2) * fila
+    local function col(c) return { c[1], c[2], c[3], a } end
+    lg.setColor(p.negro[1], p.negro[2], p.negro[3], 0.94 * a)
+    lg.rectangle("fill", x, y, w, alto)
+    lg.setColor(col(p.morado))
+    lg.rectangle("line", x + 0.5, y + 0.5, w - 1, alto - 1)
+    fuentes.texto("TU CHAT PUEDE", x, y + 4, 1, col(p.blanco), "center", w)
+    local ly = y + 14
+    for _, c in ipairs(COMANDOS) do
+        fuentes.texto(c[1], x + 5, ly, 1, col(c[2]))
+        ly = ly + paso
+    end
+    fuentes.texto("PALABRAS CON EMOJI", x + 5, ly + 2, 1, col(p.grisclaro))
+    ly = ly + 12
+    local mitad = math.floor((w - 10) / 2)
+    for i, par in ipairs(PALABRAS) do
+        local cx = x + 5 + ((i - 1) % 2) * mitad
+        local cy = ly + math.floor((i - 1) / 2) * fila
+        fuentes.texto(par[1], cx, cy + 2, 1, col(p.amarillo))
+        emojis.pintar(par[2], cx + fuentes.ancho(par[1]) + 3, cy, 1, a)
+    end
+    lg.setColor(1, 1, 1)
+    return alto
+end
+
+-- la tarjeta en grande, desde el panel (COMANDOS)
+local function dibujarComandos()
+    lg.setColor(0, 0, 0, 0.6)
+    lg.rectangle("fill", 0, 0, 640, 360)
+    local w = 150
+    local x, y = math.floor(320 - w / 2), 90
+    local alto = dibujarTarjeta(x, y, w)
+    ui.boton("dir_vale", "VALE", x + w / 2 - 20, y + alto + 4, 40, 12, p.verde)
+end
+
+local DURA_TARJETA = 10
+
 local function dibujarChat(x, y, w, h)
     ui.caja(x, y, w, h, p.negro)
     -- cabecera
@@ -1274,6 +1410,8 @@ local function dibujarChat(x, y, w, h)
         local textoBoton = d.vendiendo and "VENDIENDO" or "PARA MÍ"
         local anchoBoton = fuentes.ancho("VENDIENDO") + 8
         local titulo = fuentes.ancho("COMPRAS DEL CHAT") + anchoBoton + 14 > w and "COMPRAS" or "COMPRAS DEL CHAT"
+        -- con Twitch, cuantas compras del chat real hay y el tope
+        if twitch.conectado() then titulo = "COMPRAS " .. comprasDelChat() .. "/" .. V.chatMax end
         fuentes.texto(titulo, x + 6, y + 26, 1, p.lima)
         ui.boton("dir_vender", textoBoton, x + w - anchoBoton - 4, y + 24, anchoBoton, 9, d.vendiendo and p.verdeosc or p.naranja)
         -- barra de hype: cuanto mas, mas compran y mas pagan
@@ -1354,6 +1492,11 @@ local function dibujarChat(x, y, w, h)
         end
     end
     emojis.dibujar(x, tope, w, y + h - tope)
+    -- al empezar con Twitch: lo que puede hacer el chat, unos segundos
+    if d.tarjeta and d.t < DURA_TARJETA then
+        local a = math.min(1, (DURA_TARJETA - d.t) / 1.5)
+        dibujarTarjeta(x + 2, tope + 2, w - 4, a)
+    end
 end
 
 local function dibujarPanel(x, y, w, h)
@@ -1408,7 +1551,13 @@ local function dibujarPanel(x, y, w, h)
     local twy = ty + 12 + #datos.tipos * 13
     local conectado = twitch.estado == "conectado"
     local txt = twitch.estado == "apagado" and "CONECTAR TWITCH" or ("TWITCH: " .. (conectado and "CONECTADO" or "..."))
-    ui.boton("dir_twitch", txt, x + 6, twy, w - 12, 11, conectado and p.morado or p.grisosc)
+    if conectado then
+        local mitad = math.floor((w - 14) / 2)
+        ui.boton("dir_twitch", "TWITCH", x + 6, twy, mitad, 11, p.morado)
+        ui.boton("dir_comandos", "COMANDOS", x + 8 + mitad, twy, w - 14 - mitad, 11, p.grisosc)
+    else
+        ui.boton("dir_twitch", txt, x + 6, twy, w - 12, 11, p.grisosc)
+    end
 
     botonEmpezar(x + 6, y + h - 28, w - 12)
 end
@@ -1449,6 +1598,8 @@ function directo.click(id)
                                  texto = azar(V.textos[partida.canal.idioma].rechazada) })
             sonido.tocar("latido")
         end
+    elseif id == "dir_comandos" then
+        ui.overlay = { dibujar = dibujarComandos, click = function(o) if o == "dir_vale" then ui.overlay = nil end end }
     elseif id == "dir_twitch" then
         opciones.abrir(function() require("src.tutorial").repetir() end)
     elseif id:match("^dir_tipo_") then
