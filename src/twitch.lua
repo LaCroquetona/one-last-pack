@@ -56,17 +56,7 @@ end
 
 local hilo, entrada, salida
 
--- antispam: como mucho estos mensajes por segundo en pantalla, un mensaje
--- por persona cada tanto y nada de repetir lo mismo enseguida
-local POR_SEGUNDO = 3
-local ESPERA_USUARIO = 2
-local MEMORIA_REPETIDOS = 12
 local MAX_LETRAS = 90
-
-local ultimoDe = {}       -- nombre -> segundo en que escribio
-local vistos = {}         -- texto -> segundo en que salio
-local hueco = POR_SEGUNDO -- mensajes que aun caben este segundo
-local reloj = 0
 
 -- el color que pone Twitch, al mas parecido de la paleta del juego
 local COLORES = { "rojo", "naranja", "amarillo", "lima", "verde", "celeste", "cian", "violeta", "blanco", "grisclaro" }
@@ -102,10 +92,6 @@ local function limpiar(texto)
     return texto
 end
 
-local function desescapar(v)
-    return (v or ""):gsub("\\s", " "):gsub("\\:", ";"):gsub("\\\\", "\\")
-end
-
 -- una linea del IRC: devuelve un mensaje, un aviso (raid, sub) o nil
 local function leer(linea)
     local tags, resto = {}, linea
@@ -127,8 +113,17 @@ local function leer(linea)
         local nombre = tags["display-name"]
         if not nombre or nombre == "" then nombre = nick end
         local badges = tags.badges or ""
+        -- los emotes del canal: Twitch dice donde estan (posiciones en letras)
+        local canal
+        if tags.emotes and tags.emotes ~= "" then
+            canal = {}
+            for desde, hasta in tags.emotes:gmatch("(%d+)%-(%d+)") do
+                local a, b = utf8.offset(texto, tonumber(desde) + 1), utf8.offset(texto, tonumber(hasta) + 2)
+                if a and b then canal[texto:sub(a, b - 1):lower()] = true end
+            end
+        end
         return {
-            real = true, nombre = limpiar(nombre), color = colorDe(tags.color), crudo = texto,
+            real = true, nombre = limpiar(nombre), color = colorDe(tags.color), crudo = texto, canal = canal,
             mod = tags.mod == "1" or badges:find("broadcaster") ~= nil, sub = tags.subscriber == "1",
             vip = badges:find("vip") ~= nil,
         }
@@ -137,8 +132,17 @@ local function leer(linea)
         local nombre = tags["display-name"] or tags.login or "?"
         if id == "raid" then
             return { aviso = "raid", nombre = limpiar(nombre), cuantos = tonumber(tags["msg-param-viewerCount"]) or 1 }
-        elseif id == "sub" or id == "resub" or id == "subgift" or id == "submysterygift" then
-            return { aviso = "sub", nombre = limpiar(nombre), texto = limpiar(desescapar(tags["system-msg"])) }
+        elseif id == "sub" or id == "resub" then
+            return { aviso = "sub", tipo = "sub", nombre = limpiar(nombre),
+                     meses = tonumber(tags["msg-param-cumulative-months"]) or 1 }
+        elseif id == "submysterygift" then
+            return { aviso = "sub", tipo = "regalo", nombre = limpiar(nombre),
+                     cantidad = tonumber(tags["msg-param-mass-gift-count"]) or 1 }
+        elseif id == "subgift" then
+            -- las de un regalo de varias ya se avisaron todas juntas
+            if tags["msg-param-community-gift-id"] then return nil end
+            local para = tags["msg-param-recipient-display-name"] or tags["msg-param-recipient-user-name"] or "?"
+            return { aviso = "sub", tipo = "regalada", nombre = limpiar(nombre), para = limpiar(para) }
         end
     end
     return nil
@@ -170,12 +174,10 @@ function twitch.conectado()
     return twitch.estado == "conectado"
 end
 
--- cada frame: devuelve los mensajes nuevos que pasan el antispam
-function twitch.update(dt)
+-- cada frame: devuelve los mensajes nuevos (salen todos)
+function twitch.update()
     local nuevos = {}
     if not salida then return nuevos end
-    reloj = reloj + dt
-    hueco = math.min(POR_SEGUNDO, hueco + POR_SEGUNDO * dt)
     if hilo and hilo:getError() then
         twitch.fallo = hilo:getError()
         twitch.estado = "error"
@@ -195,20 +197,11 @@ function twitch.update(dt)
             elseif m and m.aviso then
                 table.insert(nuevos, m)
             elseif m then
-                local texto, lista = emojis.deTwitch(m.crudo)
+                local texto, lista = emojis.deTwitch(m.crudo, m.canal)
                 m.texto = limpiar(texto)
                 m.emotes = #lista > 0 and lista or nil
                 m.crudo = m.crudo:lower()
-                local clave = m.texto .. "|" .. table.concat(lista, ",")
-                local libre = reloj - (ultimoDe[m.nombre] or -99) >= ESPERA_USUARIO
-                local nuevo = reloj - (vistos[clave] or -99) >= MEMORIA_REPETIDOS
-                -- los mods y el dueño del canal siempre salen
-                if (m.mod or (libre and nuevo and hueco >= 1)) and (m.texto ~= "" or m.emotes) then
-                    hueco = hueco - 1
-                    ultimoDe[m.nombre] = reloj
-                    vistos[clave] = reloj
-                    table.insert(nuevos, m)
-                end
+                if m.texto ~= "" or m.emotes then table.insert(nuevos, m) end
             end
         end
     end

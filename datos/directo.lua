@@ -102,6 +102,9 @@ return {
         -- sobres o productos esperan "masTiempo" veces mas
         pedir = { sobre = 70, varios = 16, blister = 9, etb = 5 },
         maxVarios = 4, masTiempo = 1.5,
+        -- compras de tu chat de Twitch (!comprar): como mucho estas a la vez entre
+        -- todos y una por persona; con el tope lleno el !comprar no sale
+        chatMax = 3,
         textos = {
             es = { compra = { "me pillo un {s}", "VENDEME UN {s}", "quiero un {s} pls", "un {s} para mi", "abreme un {s} que lo pago",
                               "yo compro un {s}", "{s} para el menda", "me llevo un {s} bro", "pago un {s} pa ver que sale", "un {s} y que salga la chase" },

@@ -54,7 +54,7 @@ local BALDA_W = CAJA.w - 12
 local ANCHO_PILA = { caja = 34, etb = 24, tin = 22 }
 local MEDIO_PILA = { caja = 14, etb = 10, tin = 9 }
 -- donde se queda la caja abierta: abajo a la derecha del tapete (no tapa las cartas)
-local ESQUINA = { x = TAPETE.x + TAPETE.w - 36, y = TAPETE.y + 28, e = 1 }
+local ESQUINA = { x = TAPETE.x + TAPETE.w - 36, y = TAPETE.y + 36, e = 1 }
 -- los sobres de una ETB o un tin abiertos, en abanico (en el mismo rincon)
 local ABANICO = { x = TAPETE.x + TAPETE.w - 70, y = TAPETE.y + 22 }
 -- fundas y tops sueltos que trae un producto

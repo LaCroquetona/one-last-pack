@@ -18,7 +18,7 @@ local lista = {
     { id = "etb", nombre = "ETB", sitio = "balda", sobres = 9, fundas = 10, precio = 0.92, extra = 150, porDia = 1, cabe = 2,
       desbloqueo = "cajas" },
     -- la caja de siempre: su precio, stock y valor estan en datos/sobres.lua (sobres.caja)
-    { id = "caja", nombre = "CAJA", sitio = "suelo", sobres = 18, cabe = 2, desbloqueo = "cajas" },
+    { id = "caja", nombre = "CAJA", sitio = "suelo", sobres = 36, cabe = 2, desbloqueo = "cajas" },
     { id = "tinmix", nombre = "TIN MIX", sitio = "balda", mix = { set1 = 3, set2 = 2 }, tops = 10, precio = 1, extra = 200,
       porDia = 2, cabe = 4, sale = false },
 }

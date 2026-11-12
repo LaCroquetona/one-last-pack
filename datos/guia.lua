@@ -59,7 +59,7 @@ return {
           apunta = "comprar1", pose = "saludo" },
     } },
     tienda_cajas = { titulo = "PRODUCTOS", requiere = "cajas", pasos = {
-        { texto = "¡HAN LLEGADO CAJAS Y ETB! LA CAJA TRAE 18 SOBRES MÁS BARATOS; LA ETB, 9 SOBRES Y FUNDAS. ÁBRELAS EN LA MESA O GUÁRDALAS CERRADAS PARA REVENDERLAS.",
+        { texto = "¡HAN LLEGADO CAJAS Y ETB! LA CAJA TRAE 36 SOBRES MÁS BARATOS; LA ETB, 9 SOBRES Y FUNDAS. ÁBRELAS EN LA MESA O GUÁRDALAS CERRADAS PARA REVENDERLAS.",
           apunta = "prod_caja", pose = "pulgar" },
         { texto = "CADA SET TIENE SU ESTANTERÍA: ARRIBA ELIGES EL SET, Y EN MIX ESTÁN LAS FUNDAS Y LOS TOPS.",
           apunta = "tset_", pose = "piensa" },

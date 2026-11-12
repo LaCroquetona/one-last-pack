@@ -480,8 +480,12 @@ local function dibujarSobre()
         end
     end
     local bote = math.sin(love.timer.getTime() * 2) * 2 * (1 - carga)
-    local dx = (love.math.random() * 2 - 1) * carga * 3
-    local dy = (love.math.random() * 2 - 1) * carga * 3
+    -- el chat de Twitch soplando (!soplar): el sobre tiembla
+    local soplo = directo.soplo()
+    local temblor = math.max(carga * 3, soplo * 2.5)
+    local dx = (love.math.random() * 2 - 1) * temblor
+    local dy = (love.math.random() * 2 - 1) * temblor
+    giro = giro + math.sin(love.timer.getTime() * 23) * soplo * 0.08
 
     -- solo los sobres con premio brillan de color al cargar, el resto en blanco
     if carga > 0.4 then

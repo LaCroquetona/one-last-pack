@@ -10,6 +10,39 @@ fase 3 = v0.7.2-0.7.4, fase 4 = v0.8.0-0.8.2. Desde la v0.9.0 ya no hay
 fases: se sigue el roadmap. La v0.9.0 se preparó como v0.8.3 y salió con
 otro número.
 
+## v0.10.4 - 2026-11-09 - Caja de 36 y chat de Twitch
+
+- **Caja de 36 sobres**, como una de verdad (antes traía 18), con el mismo
+  descuento: la del S1 sale a unos 65 €. Así la ETB queda como la opción
+  barata y la caja como la compra gorda. Las cajas que tengas cerradas
+  también traen 36.
+- **Caja expositor**: al abrirla, la tapa se queda de pie detrás como cartel
+  y los sobres salen de cara en tres columnas de 12, que se gastan de
+  delante a atrás. Cada sobre pequeño es el sobre de verdad en miniatura.
+  La tapa cerrada lleva el mismo dibujo que el cartel (rombo en medio y
+  rejilla de rombos a los lados) y el frente, el nombre del set en la franja
+  negra. La tapa ya no sale volando: el cartel sube mientras asoman los
+  sobres.
+- **Chat de Twitch**:
+  - Sin antispam: sale todo lo que se escribe.
+  - `!comprar` en la venta de sobres: `!comprar 3` pide 3 sobres,
+    `!comprar etb` una ETB y `!comprar bl` un blíster. Como mucho 3 compras
+    del chat a la vez entre todos y una por persona; con el tope lleno el
+    mensaje no sale. Arriba se ve COMPRAS 2/3 y cada compra sale como aviso.
+  - `!soplar`: cuanta más gente sopla, más tiembla el sobre antes de abrirlo.
+  - `!pausa` y `!seguir`: tus mods (y tú) paran y vuelven a poner las ventas.
+  - Tarjeta con lo que puede hacer el chat: botón COMANDOS junto a TWITCH y
+    unos segundos al empezar el directo, con las palabras que sacan emoji.
+  - Unas 40 palabras más que pasan a emoji (BASADO, SUS, NPC, CLUTCH,
+    SUERTE, GRACIAS, BRUH...), solo en mensajes cortos o al final.
+  - Los emotes propios del canal sacan un emoji según su nombre (LOVE,
+    POG, LUL, SAD...) y, si no dice nada, uno fijo: el mismo emote siempre
+    da el mismo.
+  - Subs: los meses de las resubs, quién regala una sub a quién y, con un
+    regalo de varias, un solo aviso con lluvia de emojis según cuántas son.
+- **Arreglo**: pasar el día ya no peta en partidas que tenían guardadas
+  cartas que ya no existen (promos de una versión anterior).
+
 ## v0.10.3 - 2026-11-03 - Carpetas, promos y arreglos
 
 - **Inicio nuevo**: a la izquierda, PARTIDA 1, 2 y 3 con su día y su

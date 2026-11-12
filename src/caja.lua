@@ -1,5 +1,6 @@
 -- Dibujo de las cajas selladas (booster box) y la animacion de abrirlas en la
--- mesa: cae, tiembla, salta la tapa, asoman los sobres y se va a su esquina.
+-- mesa: cae, tiembla, la tapa se queda de pie como cartel, asoman los sobres
+-- (de cara, en columnas) y se va a su esquina.
 -- La caja es un sprite de pixel en vista 3/4 (tapa arriba, frente y lateral
 -- derecho) que se pinta una vez por set en caja.preparar; asi gira y escala
 -- entera sin romperse. Hay una version mini para la caja lateral.
@@ -9,16 +10,26 @@ local p = require "datos.paleta"
 local fuentes = require "src.fuentes"
 local fx = require "src.fx"
 local encima = require "src.encima"
+local muebles = require "src.muebles"
 
 local lg = love.graphics
 
 -- W ancho del frente, H alto del frente, T filas de la tapa, HEAD hueco de
--- arriba (para los sobres que asoman), LABIO filas del borde de la tapa
-local GRANDE = { W = 50, H = 24, T = 14, HEAD = 7, LABIO = 4 }
-local MINI = { W = 28, H = 14, T = 10, HEAD = 0, LABIO = 2, mini = true }
+-- arriba (para los sobres que asoman), LABIO filas que baja la tapa por
+-- delante (por los lados baja en diagonal: LABIO delante y nada detras). El
+-- corte de delante pasa por la mitad de la gema y la deja entera en la caja
+local GRANDE = { W = 50, H = 24, T = 14, HEAD = 7, LABIO = 10 }
+local MINI = { W = 28, H = 14, T = 10, HEAD = 0, LABIO = 7, mini = true }
 
 local caja = {}
 local sprites = {}
+
+-- caja abierta de expositor: los sobres de cara en columnas, apilados de
+-- delante a atras; la tapa (con su labio) se quita y queda de pie detras
+-- como cartel, y la caja se queda con el cuerpo de debajo
+-- sw, sh: tamaño del sobre; hueco: separacion entre columnas
+local EXPO = { cols = 3, prof = 12, asoma = 6, cartel = 14, sw = 13, sh = 19, hueco = 1 }
+caja.EXPO = EXPO
 
 for _, g in ipairs({ GRANDE, MINI }) do
     g.FUGA = math.floor((g.T - 1) / 2)
@@ -67,18 +78,52 @@ local function cara(g, x, y)
     end
 end
 
--- en que piezas va cada pixel: la caja cerrada, la tapa sola, y la abierta
--- en dos capas (fondo por detras de los sobres, frente por delante)
-local function pieza(g, modo, f, _, b)
-    if not f then return false end
-    if modo == "cerrada" then return true end
-    if modo == "tapa" then return f == "top" or (f ~= "top" and b < g.LABIO) end
-    if modo == "fondo" then return f == "top" and b < g.T - 1 end
-    return f ~= "top" or b == g.T - 1
+-- filas que baja la tapa por el lateral en la columna k (1 delante, FUGA detras)
+local function labio(g, k)
+    return math.max(0, math.floor(g.LABIO * (1 - (2 * k - 1) / (g.T - 1)) + 0.5))
 end
 
 local function rombo(u, v, cu, cv)
     return math.floor(math.abs(u - cu)) + math.abs(v - cv)
+end
+
+-- la mitad de arriba de la gema del frente: se queda en la caja al abrirla
+local function enGema(g, u, v)
+    return not g.mini and v < g.LABIO and rombo(u, v, (g.W - 1) / 2, g.LABIO) <= 4
+end
+
+-- en que piezas va cada pixel: la caja cerrada, la tapa sola, y la abierta
+-- en dos capas (fondo por detras de los sobres, frente por delante)
+local function pieza(g, modo, f, a, b)
+    if not f then return false end
+    if modo == "cerrada" then return true end
+    if modo == "tapa" then
+        return f == "top" or (f == "front" and b < g.LABIO and not enGema(g, a, b)) or (f == "side" and b < labio(g, a))
+    end
+    -- el cuerpo de la abierta: lo que queda debajo de la tapa (con la gema entera)
+    if modo == "cuerpo" then
+        return (f == "front" and (b >= g.LABIO or enGema(g, a, b))) or (f == "side" and b >= labio(g, a))
+    end
+    if modo == "fondo" then return f == "top" and b < g.T - 1 end
+    return f ~= "top" or b == g.T - 1
+end
+
+
+-- el dibujo de la tapa (u, v en una cara de w x h): rejilla de rombos a los
+-- lados y el rombo grande en medio. Es el mismo con la caja cerrada y en el
+-- cartel de la abierta (la tapa de pie)
+local function dibujoTapa(c, u, v, w, h)
+    local mx, my = (w - 1) / 2, (h - 1) / 2
+    local lado = math.floor(w * 0.18)
+    local k = h / 14
+    local col = c.base
+    local ax = math.abs(u - mx)
+    if ax > lado + 1 and ((u + v) % 6 == 0 or (u - v) % 6 == 0) then col = c.rayas end
+    if ax > lado and ax <= lado + 1 then col = p.negro end
+    local dd = ax * 0.7 + math.abs(v - my)
+    if dd <= 5.5 * k then col = dd <= 3.5 * k and (dd <= 1.5 * k and c.rayas or c.letras) or p.negro end
+    if v == 0 or v == h - 1 or u == 0 or u == w - 1 then col = c.rayas end
+    return col
 end
 
 local function colorPixel(g, t, modo, f, u, v, x, y)
@@ -101,49 +146,29 @@ local function colorPixel(g, t, modo, f, u, v, x, y)
         elseif abierta then
             col = claro(base, 0.42)
         else
-            col = claro(base, osc and 0.22 or 0.18)
-            local m = g.mini and 1 or 2
-            local enMarco = u >= m and u <= g.W - 1 - m and v >= m and v <= g.T - 1 - m
-            if enMarco and (u == m or u == g.W - 1 - m or v == m or v == g.T - 1 - m) then col = c.rayas end
-            if g.mini then
-                if v >= 3 and v <= 6 and u >= 6 and u <= g.W - 7 then
-                    col = p.negro
-                    if (u == 13 or u == 14) and (v == 4 or v == 5) then col = c.letras end
-                end
-            elseif v >= 4 and v <= 10 and u >= 9 and u <= g.W - 10 then
-                col = p.negro
-                -- las letras van rectas (si se inclinan se rompen)
-                local recta = x - 1 - math.floor((g.T - 1 - 7) / 2)
-                if g.letrasTapa(recta - 14, v - 5) then col = c.letras end
-                for _, cu in ipairs({ 11, g.W - 12 }) do
-                    if rombo(u, v, cu, 7) <= 2 then col = c.letras end
-                end
-            end
+            col = dibujoTapa(c, u, v, g.W, g.T)
             if v == 0 then col = claro(base, 0.3) end
             if v == g.T - 1 then col = claro(base, 0.42) end
         end
     elseif f == "front" then
         local raya = (u + v) % 8 < 2
         col = raya and c.rayas or base
-        if not abierta and v < g.LABIO then
-            col = base
-            if v == 0 then col = claro(base, 0.35) end
-            if v == g.LABIO - 1 and not g.mini then col = oscuro(base, 0.85) end
+        if v == 0 then col = claro(base, 0.35) end
+        if modo == "cuerpo" and v == g.LABIO then
+            col = claro(base, 0.4)
         elseif not abierta and v == g.LABIO then
             col = osc and claro(base, 0.12) or oscuro(base, 0.45)
-        elseif abierta and v == 0 then
-            col = claro(base, 0.4)
         end
         if g.mini then
-            if v == 7 or v == 11 then col = c.letras end
-            if v >= 8 and v <= 10 then col = (v == 9 and (u == 13 or u == 14)) and c.letras or p.negro end
+            if v == 8 or v == 12 then col = c.letras end
+            if v >= 9 and v <= 11 then col = (v == 10 and (u == 13 or u == 14)) and c.letras or p.negro end
         else
-            local d = rombo(u, v, (g.W - 1) / 2, 9)
+            local d = rombo(u, v, (g.W - 1) / 2, g.LABIO)
             if d <= 4 then col = d <= 1 and base or d <= 3 and c.letras or p.negro end
-            if v == 14 or v == 22 then col = c.letras end
-            if v >= 15 and v <= 21 then
+            if v == 15 or v == 23 then col = c.letras end
+            if v >= 16 and v <= 22 then
                 col = p.negro
-                if g.letrasFrente(u, v - 16) then col = c.letras end
+                if g.letrasFrente(u, v - 17) then col = c.letras end
             end
         end
     else
@@ -151,16 +176,17 @@ local function colorPixel(g, t, modo, f, u, v, x, y)
         brillo = false
         local lado = osc and claro(base, 0.08) or oscuro(base, 0.62)
         col = ((u + v) % 8 < 2) and mezcla(lado, c.rayas, 0.35) or lado
-        local b1, b2 = 14, 22
-        if g.mini then b1, b2 = 7, 11 end
+        local b1, b2 = 15, 23
+        if g.mini then b1, b2 = 8, 12 end
         if v == b1 or v == b2 then col = oscuro(c.letras, 0.7) end
         if v > b1 and v < b2 then col = p.negro end
-        if not abierta and v < g.LABIO then
-            col = osc and claro(base, 0.13) or oscuro(base, 0.72)
-        elseif not abierta and v == g.LABIO then
-            col = oscuro(lado, 0.6)
-        elseif abierta and v == 0 then
+        local l = labio(g, u)
+        if modo == "cuerpo" and v == l then
             col = claro(base, 0.3)
+        elseif v < l then
+            col = osc and claro(base, 0.13) or oscuro(base, 0.72)
+        elseif v == l then
+            col = oscuro(lado, 0.6)
         end
     end
     -- el plastico: reflejos en diagonal por la tapa y el frente
@@ -189,7 +215,8 @@ local function pintar(g, t, modo)
     end
     -- contorno negro de 1 pixel: el de la tapa es el suyo; el de las capas de
     -- la abierta es el de la caja entera, repartido segun a quien toca
-    local forma = modo == "tapa" and suya or dentro
+    local propia = modo == "tapa" or modo == "cuerpo"
+    local forma = propia and suya or dentro
     for y = 0, g.CH - 1 do
         for x = 0, g.CW - 1 do
             if not forma[idx(x, y)] then
@@ -201,7 +228,7 @@ local function pintar(g, t, modo)
                         if suya[idx(nx, ny)] then tocaSuya = true end
                     end
                 end
-                local vale = toca and (modo == "cerrada" or modo == "tapa" or tocaSuya)
+                local vale = toca and (modo == "cerrada" or propia or tocaSuya)
                 -- en el fondo solo lo que no toca al frente
                 if vale and modo == "fondo" then
                     for _, o in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
@@ -220,19 +247,46 @@ local function pintar(g, t, modo)
 end
 
 -- un sobre de pie visto desde arriba, para dentro de la caja abierta
-local function pintarSobrecito(t)
+-- el sobre del juego (src/sobre.lua) en pequeño: dientes arriba y abajo,
+-- rayas en diagonal, bordes, banda negra con el rombo, banda del nombre y
+-- la linea de corte
+local function pintarSobreMini(t)
+    local SW, SH = EXPO.sw, EXPO.sh
     local c = t.colores
-    local d = love.image.newImageData(4, 13)
-    local function pon(x, y, col) d:setPixel(x, y, col[1], col[2], col[3], 1) end
-    for y = 0, 12 do
-        for x = 0, 3 do
-            local col = c.base
-            if x == 0 then col = claro(c.base, 0.3) elseif x == 3 then col = oscuro(c.base, 0.6) end
-            if y == 3 or y == 10 then col = c.rayas end
-            if y >= 5 and y <= 7 then col = (y == 6 and (x == 1 or x == 2)) and c.letras or p.negro end
-            if y == 1 then col = p.grisclaro end
-            if y == 0 and x % 2 == 0 then col = p.grisclaro end
-            if not (y == 0 and x % 2 == 1) then pon(x, y, col) end
+    local d = love.image.newImageData(SW, SH)
+    local mx, my = (SW - 1) / 2, 8
+    for y = 0, SH - 1 do
+        for x = 0, SW - 1 do
+            local col = (x + y) % 4 == 0 and c.rayas or c.base
+            if x == 0 or x == SW - 1 then col = c.borde end
+            if y >= 5 and y <= 11 then
+                col = p.negro
+                local dd = math.abs(x - mx) + math.abs(y - my)
+                if dd <= 2.5 then col = dd <= 1 and c.base or c.letras end
+            end
+            if y >= 13 and y <= 15 then
+                col = p.negro
+                if y == 14 and x >= 3 and x <= SW - 4 and x % 2 == 1 then col = c.letras end
+            end
+            if y == 3 and x % 2 == 1 then col = p.blanco end
+            -- el cierre: dientes plateados y una fila clara (en la pila se ve el color)
+            if y == 1 or y == SH - 2 then col = claro(c.base, 0.25) end
+            if (y == 0 or y == SH - 1) and x % 2 == 0 then col = p.grisclaro end
+            if not ((y == 0 or y == SH - 1) and x % 2 == 1) then d:setPixel(x, y, col[1], col[2], col[3], 1) end
+        end
+    end
+    local img = lg.newImage(d)
+    img:setFilter("nearest", "nearest")
+    return img
+end
+
+-- el frente del cartel: el mismo dibujo que la tapa de la caja cerrada
+local function pintarCartel(t, w, h)
+    local d = love.image.newImageData(w, h)
+    for y = 0, h - 1 do
+        for x = 0, w - 1 do
+            local col = dibujoTapa(t.colores, x, y, w, h)
+            d:setPixel(x, y, col[1], col[2], col[3], 1)
         end
     end
     local img = lg.newImage(d)
@@ -242,15 +296,15 @@ end
 
 function caja.preparar()
     for _, t in ipairs(sobres.lista) do
-        GRANDE.letrasTapa = mascara(sets[t.set].nombre:upper(), 22)
-        GRANDE.letrasFrente = mascara("BOOSTER BOX", GRANDE.W)
+        local nombre = sets[t.set].nombre:upper()
+        GRANDE.letrasFrente = mascara(nombre, GRANDE.W)
         sprites[t.id] = {
             cerrada = pintar(GRANDE, t, "cerrada"),
             tapa = pintar(GRANDE, t, "tapa"),
-            fondo = pintar(GRANDE, t, "fondo"),
-            frente = pintar(GRANDE, t, "frente"),
             mini = pintar(MINI, t, "cerrada"),
-            sobre = pintarSobrecito(t),
+            mini1 = pintarSobreMini(t),
+            cartel = pintarCartel(t, GRANDE.W, EXPO.cartel),
+            cuerpo = pintar(GRANDE, t, "cuerpo"),
         }
     end
     lg.setColor(1, 1, 1)
@@ -258,6 +312,61 @@ end
 
 local function spritesDe(tipoId)
     return sprites[tipoId] or sprites[sobres.lista[1].id]
+end
+
+-- la caja abierta de expositor en las coordenadas del sprite. o.quedan:
+-- sobres que quedan; o.asoman (0 a 1): lo que han salido los sobres y el cartel
+local function dibujarExpositor(tipoId, s, g, o)
+    local t = sobres[tipoId] or sobres.lista[1]
+    local c = t.colores
+    local dz, rect = muebles.dz, muebles.rect
+    local X, Y, W, H, D = 1, g.HEAD + 1 + g.T, g.W, g.H, g.T
+    local B = g.LABIO
+    local asoman = o.asoman or 1
+    local tonos = muebles.tonos(c.base)
+    local hondo = { c.base[1] * 0.3, c.base[2] * 0.3, c.base[3] * 0.3 }
+    local hondo2 = { c.base[1] * 0.2, c.base[2] * 0.2, c.base[3] * 0.2 }
+    -- la tapa, de pie detras como cartel (sube al abrirla)
+    local ch = math.floor(EXPO.cartel * math.min(1, asoman * 1.4) + 0.5)
+    if ch > 2 then
+        local cx, cy = X + dz(D), Y - D - ch
+        muebles.bloque(cx, cy, W, ch, 2, tonos)
+        lg.setColor(1, 1, 1)
+        lg.draw(s.cartel, cx, cy, 0, 1, ch / EXPO.cartel)
+    end
+    -- la pared de atras por dentro
+    rect(p.negro, X + dz(D) - 1, Y - D - 1, W + 2, H + 1)
+    rect(hondo2, X + dz(D), Y - D, W, H)
+    rect(tonos[2], X + dz(D), Y - D, W, 1)
+    -- la pared de la izquierda por dentro, cortada en diagonal
+    for k = 0, math.floor(D / 2) do
+        local top = Y - 2 * k + labio(g, math.max(1, k))
+        rect(p.negro, X - 1 + k, top - 1, 1, 1)
+        rect(hondo, X + k, top, 1, Y + H - top)
+        rect(tonos[2], X + k, top, 1, 1)
+    end
+    -- los sobres: cada columna es una pila; se gastan de delante a atras
+    local img = s.mini1
+    local SW, SH = img:getWidth(), img:getHeight()
+    local total = EXPO.cols * EXPO.prof
+    local quedan = math.max(0, math.min(total, o.quedan or total))
+    local hueco = EXPO.hueco
+    local x0 = X + math.floor((W - EXPO.cols * SW - (EXPO.cols - 1) * hueco) / 2)
+    local sube = math.floor(EXPO.asoma * asoman + 0.5)
+    for z = EXPO.prof - 1, 0, -1 do
+        local zz = math.floor(z * (D - 2) / EXPO.prof) + 1
+        local l = 1 - z * 0.025
+        lg.setColor(l, l, l)
+        for col = 0, EXPO.cols - 1 do
+            local enCol = math.max(0, math.min(EXPO.prof, quedan - col * EXPO.prof))
+            if EXPO.prof - z <= enCol then
+                lg.draw(img, x0 + col * (SW + hueco) + dz(zz), Y + B - zz - SH + sube)
+            end
+        end
+    end
+    -- el cuerpo de la caja (frente y lateral de debajo de la tapa) por delante
+    lg.setColor(1, 1, 1)
+    lg.draw(s.cuerpo, 0, 0)
 end
 
 -- la caja con su centro en (x, y). o.rot giro, o.mini la pequeña,
@@ -285,28 +394,9 @@ function caja.dibujar(tipoId, x, y, e, o)
     lg.rotate(rot)
     lg.scale(e, e)
     lg.translate(-g.ox, -oy)
-    lg.draw(s.fondo, 0, 0)
-    -- sobres de pie en dos filas, de atras adelante
-    local n = math.min(18, o.quedan or 18)
-    local sube = math.floor((o.asoman or 1) * 4 + 0.5)
-    for fila = 0, 1 do
-        local r = fila == 0 and 4 or 10
-        local fuga = math.floor((g.T - 1 - r) / 2)
-        for i = 1, 9 do
-            local k = fila * 9 + i
-            if k <= n then
-                local sx = 1 + fuga + 3 + (i - 1) * 5
-                local sy = g.HEAD + 1 + r - 3 - sube - (k % 2)
-                -- la fila de atras, un poco en sombra
-                local l = fila == 0 and 0.8 or 1
-                lg.setColor(l, l, l)
-                lg.draw(s.sobre, sx, sy)
-            end
-        end
-    end
-    lg.setColor(1, 1, 1)
-    lg.draw(s.frente, 0, 0)
+    dibujarExpositor(tipoId, s, g, o)
     lg.pop()
+    lg.setColor(1, 1, 1)
 end
 
 -- la tapa sola, centrada en (x, y)
@@ -339,7 +429,6 @@ function caja.dibujarAnim(a, cx, cy)
     local t = a.t
     local col = sobres[a.tipo].colores
     local x, y, e, rot, abierta, asoman = cx, cy, E, 0, false, 0
-    local tapa
     if t < CAE then
         local q = fx.salidaRebote(t / CAE)
         x, y = fx.lerp(a.x0, cx, q), fx.lerp(a.y0, cy, q)
@@ -368,17 +457,11 @@ function caja.dibujarAnim(a, cx, cy)
             x, y = fx.lerp(cx, a.x1, q), fx.lerp(cy, a.y1, q)
             e = fx.lerp(E, a.e1 or 1, q)
         end
-        -- la tapa sale volando dando vueltas desde donde estaba
-        if t2 < 1.2 then
-            local tx = cx + (TAPA_X - GRANDE.ox) * E + t2 * 160
-            local ty = cy + (TAPA_Y - GRANDE.oy) * E - t2 * 260 + t2 * t2 * 420
-            tapa = { tx, ty, t2 * 9 }
-        end
+        -- la tapa no sale volando: se queda de pie detras como cartel
     end
     local o = { abierta = abierta, asoman = asoman, quedan = a.quedan, rot = rot }
     encima.anotar(function()
         caja.dibujar(a.tipo, x, y, e, o)
-        if tapa then caja.tapa(a.tipo, tapa[1], tapa[2], E, tapa[3]) end
     end)
 end
 

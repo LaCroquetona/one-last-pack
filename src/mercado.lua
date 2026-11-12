@@ -1061,6 +1061,12 @@ function mercado.cargar(estado)
     for _, s in ipairs(sets.lista) do
         estado.sets[s.id] = estado.sets[s.id] or nuevoSet()
     end
+    -- ids que ya no estan en la lista de cartas (promos de una version anterior)
+    for _, t in ipairs({ estado.cartas, estado.burbujas or {}, estado.saturacion or {} }) do
+        for id in pairs(t) do
+            if not porId[id] then t[id] = nil end
+        end
+    end
     -- cartas nuevas de un set que ya habia salido (el set 1 paso de 40 a 80)
     abrirSets(estado.dia)
     -- partidas de antes de las cajas: hoy llegan las de siempre

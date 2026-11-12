@@ -199,7 +199,7 @@ return function(t)
     esperar(10)
     ok(directo.activo(), "en la tienda sigue el directo")
     -- cajas de sobres
-    partida.dinero = partida.dinero + 10000
+    partida.dinero = partida.dinero + 20000
     esperar(2)
     local antesCaja = partida.sobres("set1")
     if partida.desbloqueos and not partida.desbloqueos.todo then partida.desbloqueos.cajas = true end
@@ -214,7 +214,7 @@ return function(t)
     click("comprarProd")
     esperar(3)
     partida.venderCaja(require("datos.sobres").set1, true)
-    ok(partida.cajasDe("set1") == 1 and partida.dinero > dineroCaja - 4000, "se vende una caja cerrada")
+    ok(partida.cajasDe("set1") == 1 and partida.dinero > dineroCaja - 8000, "se vende una caja cerrada")
     click("tipo_set1")
     esperar(2)
     -- la caja se abre en la mesa: se arrastra al tapete
@@ -235,12 +235,12 @@ return function(t)
         foto("22c_caja_tapa")
         esperar(150)
         foto("22d_caja_esquina")
-        ok(partida.cajaAbierta and partida.cajaAbierta.quedan == 18 and partida.cajasDe("set1") == 0, "caja abierta en la esquina con 18")
+        ok(partida.cajaAbierta and partida.cajaAbierta.quedan == 36 and partida.cajasDe("set1") == 0, "caja abierta en la esquina con 36")
         local antesS = partida.sobres("set1")
         require("src.dev").saltar = true
         love.keypressed("space")
         esperar(5)
-        ok(partida.cajaAbierta.quedan == 17 and partida.sobres("set1") >= antesS, "espacio saca el sobre de la caja, no de los guardados")
+        ok(partida.cajaAbierta.quedan == 35 and partida.sobres("set1") >= antesS, "espacio saca el sobre de la caja, no de los guardados")
         esperar(100)
         foto("22e_sobre_de_la_caja")
         require("src.dev").saltar = false

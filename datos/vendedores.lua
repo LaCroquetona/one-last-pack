@@ -20,7 +20,7 @@ return {
         caja    = { media = 1.12, desv = 0.07, min = 0.95, max = 1.50 },
         porEstrella = 0.025,
     },
-    -- una caja de reventa se mira contra sus 18 sobres cerrados
+    -- una caja de reventa se mira contra sus 36 sobres cerrados
     cajaReventa = 1.0,
     -- cuantas ofertas hay de cada cosa ({ minimo, maximo }) y cuantas unidades
     -- tiene cada vendedor
