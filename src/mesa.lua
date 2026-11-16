@@ -53,6 +53,9 @@ local FONDO_BALDA = 5
 local BALDA_W = CAJA.w - 12
 local ANCHO_PILA = { caja = 34, etb = 24, tin = 22 }
 local MEDIO_PILA = { caja = 14, etb = 10, tin = 9 }
+-- cuantas se ven apiladas como mucho y lo que sube cada una (su frente)
+local MAX_PILA = { caja = 2, etb = 2, tin = 3 }
+local ALTO_PILA = { caja = 14, etb = 17, tin = 9 }
 -- donde se queda la caja abierta: abajo a la derecha del tapete (no tapa las cartas)
 local ESQUINA = { x = TAPETE.x + TAPETE.w - 36, y = TAPETE.y + 36, e = 1 }
 -- los sobres de una ETB o un tin abiertos, en abanico (en el mismo rincon)
@@ -131,7 +134,7 @@ local function entradasTodas()
     for _, tipo in ipairs(sobres.lista) do
         if filtro == "todo" or filtro == tipo.id then
             for _, o in ipairs({ "correo", "etb", "caja", "torneo" }) do
-                if partida.promoSobresDe(o, tipo.id) > 0 then
+                if partida.sinApartar("pr" .. o, tipo.id, false) > 0 then
                     table.insert(lista, { clase = "promo", origen = o, tipo = tipo, id = "pcaja_" .. o .. "_" .. tipo.id })
                 end
             end
@@ -152,7 +155,7 @@ local function blistersMesa()
 end
 
 local function cuantosEntrada(e)
-    if e.clase == "promo" then return partida.promoSobresDe(e.origen, e.tipo.id) end
+    if e.clase == "promo" then return partida.sinApartar("pr" .. e.origen, e.tipo.id, false) end
     if e.primera == nil then return partida.disponibles(e.tipo.id) end
     return partida.sinApartar("s", e.tipo.id, e.primera)
 end
@@ -665,14 +668,16 @@ local function dibujarCaja()
         izq = izq + ancho + 1
         local cogida = mano and mano.cosa == "cajabox" and mano.tipo == tipo.id and mano.prod == pid
         local quedan = n - (cogida and 1 or 0)
-        local pila_ = math.min(pid == "caja" and 4 or 3, quedan)
-        local alto = pid == "caja" and 9 or (pid == "etb" and 17 or 10)
+        -- como mucho unas pocas por pila (el resto lo dice el contador), cada una
+        -- encima de la otra subida justo su alto, sin correrla
+        local pila_ = math.min(MAX_PILA[pid] or 2, quedan)
+        local alto = ALTO_PILA[pid] or 10
         for k = 0, pila_ - 1 do
-            if pid == "caja" then caja.dibujar(tipo.id, cx + (k % 2), cy - k * 9, 1, { mini = true })
-            else prDib.mini(pid, tipo.id, cx + (k % 2), BALDA - FONDO_BALDA - k * alto) end
+            if pid == "caja" then caja.dibujar(tipo.id, cx, cy - k * alto, 1, { mini = true })
+            else prDib.mini(pid, tipo.id, cx, BALDA - FONDO_BALDA - k * alto) end
         end
         fuentes.texto("X" .. quedan, izq - ancho - 1, BALDA + 7, 1, p.blanco, "center", ancho)
-        local top = pid == "caja" and cy - math.max(0, pila_ - 1) * 9 or BALDA - FONDO_BALDA - pila_ * alto + 6
+        local top = pid == "caja" and cy - math.max(0, pila_ - 1) * alto or BALDA - FONDO_BALDA - pila_ * alto + 6
         sitioCajas[pid .. "_" .. tipo.id] = { x = cx, y = top, pid = pid, tipo = tipo.id }
         local zid = pid == "caja" and ("cajabox_" .. tipo.id) or ("prodbox_" .. pid .. "_" .. tipo.id)
         if not bloqueada and not animCaja and quedan > 0 then ui.zona(zid, izq - ancho - 1, top - 10, ancho, BALDA - top + 12) end
@@ -1533,7 +1538,15 @@ function mesa.soltar(x, y)
             chipCaja = { prod = m.prod, tipo = m.tipo, t = 3 }
             return
         end
-        if dentro(TAPETE, x, y) and not apertura.bloqueada() and not animCaja and partida.abrirProd(m.prod, sobres[m.tipo]) then
+        -- lo comprado por alguien del directo se acaba antes de abrir otra cosa
+        local abierta = partida.cajaAbierta
+        local deOtro = dentro(TAPETE, x, y) and abierta and abierta.comprador and abierta.quedan > 0
+        if deOtro then
+            fx.texto(TAPETE.x + TAPETE.w / 2, TAPETE.y + TAPETE.h / 2, "ANTES ACABA LO DE " .. abierta.comprador:upper(), p.naranja)
+        end
+        local pe = not deOtro and directo.compradorDe(m.prod, m.tipo)
+        if not deOtro and dentro(TAPETE, x, y) and not apertura.bloqueada() and not animCaja
+            and partida.abrirProd(m.prod, sobres[m.tipo], nil, pe and pe.nombre or nil) then
             apertura.recoger()
             partida.recogerMesa()
             mesaSel = nil
@@ -1547,16 +1560,14 @@ function mesa.soltar(x, y)
                     promoU = s.u
                 end
             end
+            -- si alguien del directo lo habia comprado, se cobra y sus sobres son suyos
+            if pe then directo.abrirProducto(m.prod, m.tipo, partida.cajaAbierta and partida.cajaAbierta.primera == true) end
             if m.prod == "caja" then
                 logros.marcar("caja")
                 animCaja = { tipo = m.tipo, t = 0, x0 = m.x, y0 = m.y + caja.COLGADO * m.escala, x1 = ESQUINA.x, y1 = ESQUINA.y, e1 = ESQUINA.e,
                              quedan = sobres.caja.sobres }
             else
                 if m.prod == "etb" then logros.marcar("etb") end
-                if m.prod == "etb" or m.prod == "blister" then
-                    -- si alguien del directo lo habia comprado, se cobra y sus sobres son suyos
-                    directo.abrirProducto(m.prod, m.tipo, partida.cajaAbierta and partida.cajaAbierta.primera == true)
-                end
                 animCaja = { prod = m.prod, tipo = m.tipo, t = 0, x0 = m.x, y0 = m.y + 10, destinos = destinosAbanico(productos[m.prod].sobres),
                              promo = promoU }
             end

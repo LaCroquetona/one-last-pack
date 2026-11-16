@@ -619,9 +619,16 @@ local function edicionQueSale(t)
     return partida.cajasDe(t.id, false) <= 0
 end
 
+-- la caja o el producto abierto en la mesa, si es tuyo (lo comprado por
+-- alguien del chat ya no se vende otra vez)
+local function cajaTuya()
+    local caja = partida.cajaAbierta
+    if caja and not caja.comprador then return caja end
+end
+
 local function sobresEnVenta()
     local lista = {}
-    local caja = partida.cajaAbierta
+    local caja = cajaTuya()
     for _, t in ipairs(sobres.lista) do
         -- los de la caja abierta y los de las cajas cerradas tambien se venden
         if partida.disponibles(t.id) > 0 or partida.cajasDisponibles(t.id) > 0
@@ -630,10 +637,22 @@ local function sobresEnVenta()
     return lista
 end
 
+-- productos que el chat puede comprar enteros
+local VENDIBLES = { "blister", "tin", "etb", "caja" }
+local function productosEnVenta()
+    local lista = {}
+    for _, t in ipairs(sobres.lista) do
+        for _, pid in ipairs(VENDIBLES) do
+            if partida.prodDisponibles(pid, t.id) > 0 then table.insert(lista, { t = t, pid = pid }) end
+        end
+    end
+    return lista
+end
+
 -- lo que puedes vender ahora de un tipo de sobre: sobres sueltos (guardados,
 -- de la caja abierta y de blisters) y productos enteros
 local function sobresDe(t)
-    local caja = partida.cajaAbierta
+    local caja = cajaTuya()
     local n = partida.disponibles(t.id) + partida.prodDisponibles("blister", t.id) * productos.blister.sobres
     if caja and caja.tipo == t.id then n = n + caja.quedan end
     return n + partida.cajasDisponibles(t.id) * sobres.caja.sobres
@@ -646,8 +665,8 @@ end
 -- nombre: si lo pide alguien de tu chat de Twitch (!comprar); quiere: lo que
 -- pide ({ n = 3 } o { prod = "etb" }), si se puede; si no, lo que salga
 local function nuevoPedido(nombre, color, quiere)
-    local lista = sobresEnVenta()
-    if #lista == 0 then return end
+    local lista, prods = sobresEnVenta(), productosEnVenta()
+    if #lista == 0 and #prods == 0 then return end
     -- que se puede pedir y con que peso
     local W = V.pedir
     local opciones_, total = {}, 0
@@ -660,10 +679,8 @@ local function nuevoPedido(nombre, color, quiere)
         local hay = sobresDe(t)
         if hay >= 2 then poner_({ t = t, n = love.math.random(2, math.min(V.maxVarios, hay)) }, W.varios / #lista) end
     end
-    for _, t in ipairs(sobres.lista) do
-        for _, pid in ipairs({ "blister", "etb" }) do
-            if partida.prodDisponibles(pid, t.id) > 0 then poner_({ t = t, n = productos[pid].sobres, prod = pid }, W[pid]) end
-        end
+    for _, x in ipairs(prods) do
+        poner_({ t = x.t, n = productos[x.pid].sobres, prod = x.pid }, W[x.pid] or 0)
     end
     -- lo que pide el chat real, si se puede
     if quiere then
@@ -706,10 +723,12 @@ local function nuevoPedido(nombre, color, quiere)
     return pe
 end
 
+local CODIGOS = { blister = "BL", tin = "TIN", etb = "ETB", caja = "CAJA" }
+local NOMBRES = { blister = "BLÍSTER", tin = "TIN", etb = "ETB", caja = "CAJA" }
+
 -- lo que pone en la lista: S1, 3X S1, BL S1, ETB S1
 function directo.codigoPedido(pe)
-    if pe.prod == "blister" then return "BL " .. pe.codigo end
-    if pe.prod == "etb" then return "ETB " .. pe.codigo end
+    if pe.prod then return (CODIGOS[pe.prod] or pe.prod:upper()) .. " " .. pe.codigo end
     if (pe.n or 1) > 1 then return (pe.n - (pe.hechos or 0)) .. "X " .. pe.codigo end
     return pe.codigo
 end
@@ -719,7 +738,7 @@ function directo.precioPedido(pe, primera)
     local t
     for _, s_ in ipairs(sobres.lista) do if s_.id == pe.tipo then t = s_ end end
     if pe.prod then
-        if primera == nil then primera = partida.sinApartar(pe.prod, t.id, false) <= 0 end
+        if primera == nil then primera = partida.sinApartar(pe.prod == "caja" and "c" or pe.prod, t.id, false) <= 0 end
         local v = mercado.valorProd(productos[pe.prod], t, primera) / sobres.caja.valor
         return math.floor(v * pe.margen / 10 + 0.5) * 10
     end
@@ -748,28 +767,36 @@ local function cobrar(pe, precio, texto)
     fx.monedas(570, 200, 10, 120, 200)
 end
 
--- abres un blister o una ETB que alguien ha comprado: se cobra entero y sus
--- sobres son del comprador
-function directo.abrirProducto(pid, tipoId, primera)
+-- quien ha comprado este producto entero y aun no se ha abierto (o nil)
+function directo.compradorDe(pid, tipoId)
     if not d or d.tipo ~= "venta" or not d.vendiendo then return nil end
     for _, pe in ipairs(d.pedidos) do
-        if pe.prod == pid and pe.tipo == tipoId and not pe.empezado then
-            pe.empezado = true
-            pe.prepago = productos[pid].sobres
-            cobrar(pe, directo.precioPedido(pe, primera), (pid == "etb" and "ETB" or "BLÍSTER") .. " VENDIDO A ")
-            partida.guardar()
-            return pe
-        end
+        if pe.prod == pid and pe.tipo == tipoId and not pe.empezado then return pe end
     end
+end
+
+-- abres un producto que alguien ha comprado: se cobra entero, sus sobres son
+-- del comprador y lo que trae (promo, fundas, tops, sobrecito) tambien
+function directo.abrirProducto(pid, tipoId, primera)
+    local pe = directo.compradorDe(pid, tipoId)
+    if not pe then return nil end
+    pe.empezado = true
+    pe.prepago = productos[pid].sobres
+    cobrar(pe, directo.precioPedido(pe, primera), (NOMBRES[pid] or pid:upper()) .. " VENDIDO A ")
+    poner({ sistema = true, texto = "LO QUE TRAE ES PARA " .. pe.nombre:upper(), color = p.gris, nace = d.t })
+    partida.guardar()
+    return pe
 end
 
 -- la mesa empieza a abrir un sobre: si alguien lo ha comprado, cobras y las
 -- cartas son suyas (devuelve el pedido o nil)
-function directo.reservar(tipo, primera)
+-- deCaja: el sobre sale del producto abierto en la mesa (solo esos cuentan
+-- para quien lo ha comprado entero)
+function directo.reservar(tipo, primera, deCaja)
     if not d or d.tipo ~= "venta" or not d.vendiendo then return nil end
-    -- primero los sobres de un blister o una ETB ya pagados
+    -- primero los sobres de un producto ya pagado, si salen de el
     for i, pe in ipairs(d.pedidos) do
-        if pe.tipo == tipo.id and (pe.prepago or 0) > 0 then
+        if deCaja and pe.tipo == tipo.id and (pe.prepago or 0) > 0 then
             pe.prepago = pe.prepago - 1
             pe.hechos = pe.hechos + 1
             pe.acabado = pe.prepago <= 0
@@ -904,6 +931,8 @@ local function queQuiere(texto)
     local resto = texto:match("^!%S+%s*(.*)$") or ""
     if resto:find("^etb") then return { prod = "etb" } end
     if resto:find("^bl") then return { prod = "blister" } end
+    if resto:find("^tin") then return { prod = "tin" } end
+    if resto:find("^caja") or resto:find("^box") then return { prod = "caja" } end
     local n = tonumber(resto:match("^(%d+)"))
     if n then return { n = math.max(1, math.min(V.maxVarios, n)) } end
     return nil
