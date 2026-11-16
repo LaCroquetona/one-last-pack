@@ -1,5 +1,6 @@
 local cartas = require "datos.cartas"
 local rarezas = require "datos.rarezas"
+local TOPE = require("datos.variantes").tope
 
 local generador = {}
 
@@ -48,7 +49,7 @@ local function chancesDe(tipo)
             local cada = clave and tipo.variantes and tipo.variantes[clave]
             if cada and (esperadas[r] or 0) > 0 then
                 t[r] = t[r] or {}
-                t[r][nombre] = math.min(1, (1 / cada) / (esperadas[r] * con / #lista))
+                t[r][nombre] = math.min(TOPE, (1 / cada) / (esperadas[r] * con / #lista))
             end
         end
     end

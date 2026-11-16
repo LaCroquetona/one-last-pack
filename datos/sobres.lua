@@ -20,7 +20,7 @@ local lista = {
         precio = 200,
         godpack = 1 / 360,
         dificultad = 1,
-        variantes = { alt_holo = 14, alt_fullart = 33, alt_secreta = 300, silver = 900, golden = 2200 },
+        variantes = { alt_holo = 21, alt_fullart = 67, alt_secreta = 300, silver = 900, golden = 2200 },
         piedad = 12,
         colores = { base = p.rojo, rayas = p.naranja, borde = p.morado, letras = p.amarillo },
         huecos = {
@@ -37,7 +37,7 @@ local lista = {
         precio = 800,
         godpack = 1 / 817,
         dificultad = 2.27,
-        variantes = { alt_holo = 17, alt_fullart = 72, alt_secreta = 681, silver = 2043, golden = 4994 },
+        variantes = { alt_holo = 25, alt_fullart = 95, alt_secreta = 681, silver = 2043, golden = 4994 },
         piedad = 20,
         colores = { base = p.azulosc, rayas = p.azul, borde = p.negro, letras = p.cian },
         huecos = {
@@ -54,7 +54,7 @@ local lista = {
         precio = 500,
         godpack = 1 / 562,
         dificultad = 1.56,
-        variantes = { alt_holo = 16, alt_fullart = 77, alt_secreta = 468, silver = 1404, golden = 3432 },
+        variantes = { alt_holo = 23, alt_fullart = 79, alt_secreta = 468, silver = 1404, golden = 3432 },
         piedad = 15,
         colores = { base = p.morado, rayas = p.naranja, borde = p.negro, letras = p.amarillo },
         huecos = {
@@ -71,7 +71,7 @@ local lista = {
         precio = 1200,
         godpack = 1 / 428,
         dificultad = 1.19,
-        variantes = { alt_holo = 11, alt_fullart = 57, alt_secreta = 357, silver = 1071, golden = 2618 },
+        variantes = { alt_holo = 15, alt_fullart = 57, alt_secreta = 357, silver = 1071, golden = 2618 },
         piedad = 10,
         colores = { base = p.negro, rayas = p.violeta, borde = p.azulosc, letras = p.cian },
         huecos = {
@@ -88,7 +88,7 @@ local lista = {
         precio = 600,
         godpack = 1 / 500,
         dificultad = 1.39,
-        variantes = { alt_holo = 15, alt_fullart = 68, alt_secreta = 417, silver = 1251, golden = 3058 },
+        variantes = { alt_holo = 22, alt_fullart = 70, alt_secreta = 417, silver = 1251, golden = 3058 },
         piedad = 15,
         colores = { base = p.violeta, rayas = p.lima, borde = p.morado, letras = p.lima },
         huecos = {
@@ -105,7 +105,7 @@ local lista = {
         precio = 300,
         godpack = 1 / 450,
         dificultad = 1.25,
-        variantes = { alt_holo = 19, alt_fullart = 38, alt_secreta = 375, silver = 1125, golden = 2750 },
+        variantes = { alt_holo = 22, alt_fullart = 72, alt_secreta = 375, silver = 1125, golden = 2750 },
         piedad = 12,
         colores = { base = p.celeste, rayas = p.blanco, borde = p.azul, letras = p.azulosc },
         huecos = {
@@ -122,7 +122,7 @@ local lista = {
         precio = 1500,
         godpack = 1 / 346,
         dificultad = 0.96,
-        variantes = { alt_holo = 11, alt_fullart = 50, alt_secreta = 288, silver = 864, golden = 2112 },
+        variantes = { alt_holo = 14, alt_fullart = 54, alt_secreta = 288, silver = 864, golden = 2112 },
         piedad = 10,
         colores = { base = p.verdeosc, rayas = p.verde, borde = p.negro, letras = p.naranja },
         huecos = {
@@ -139,7 +139,7 @@ local lista = {
         precio = 900,
         godpack = 1 / 450,
         dificultad = 1.25,
-        variantes = { alt_holo = 14, alt_fullart = 37, alt_secreta = 375, silver = 1125, golden = 2750 },
+        variantes = { alt_holo = 21, alt_fullart = 70, alt_secreta = 375, silver = 1125, golden = 2750 },
         piedad = 16,
         colores = { base = p.amarillo, rayas = p.blanco, borde = p.naranja, letras = p.rojo },
         huecos = {
