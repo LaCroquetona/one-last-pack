@@ -44,10 +44,12 @@ local promos = {
     -- torneo: sobres en el mercado; precio = lo que vale de media lo que trae
     -- x margen x (1 + dias desde que salio el set / subida); cada dia hay menos
     torneo = { margen = 1.15, subida = 90, stock = 5, menosCada = 25 },
-    -- colabs: cada cuanto sale una, cuantas copias hay, cuanto suben al dia
-    -- los primeros dias y cuantas puedes comprar tu
-    colab = { cada = { 15, 20 }, primera = 12, stock = { 18, 28 }, venden = { 0.3, 0.55 }, sube = 0.3, diasSube = 6,
-              maximo = 3, valor = 2.5 },
+    -- colabs: cada cuanto sale una, cuantas copias hay, que parte compra la gente
+    -- cada dia, cuanto sube en reventa al agotarse (escasez: x1 con todo el
+    -- stock, x(1 + escasez) agotada), cuantas puedes comprar tu y cuantos dias
+    -- sigue en la lista del mercado ya agotada (para ir a la reventa)
+    colab = { cada = { 15, 20 }, primera = 12, stock = { 18, 28 }, venden = { 0.3, 0.55 }, escasez = 1.8,
+              maximo = 5, valor = 2.5, diasAgotada = 20 },
     marcas = {
         { "MCDONAS", p.rojo, p.amarillo, p.rojo }, { "NAIK", p.blanco, p.negro, p.blanco },
         { "TELEPIZO", p.azul, p.rojo, p.blanco }, { "KOLALOKA", p.negro, p.rojo, p.blanco },

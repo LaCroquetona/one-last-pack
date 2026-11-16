@@ -566,13 +566,19 @@ local function appMercado()
             ui.caja(x, y, w, 40, p.grisosc)
             carta.dibujar(def, x + 12, y + 20, 0.7, 0.7, 0, true, nil, nil, { quieta = true })
             fuentes.texto("OLP X " .. def.marca, x + 26, y + 4, 1, p.amarillo)
-            fuentes.texto(rarezas.nombre(def):upper(), x + 26, y + 13, 1, p.blanco)
             local compradas = partida.colabCompradas[def.id] or 0
-            fuentes.texto("QUEDAN " .. mercado.stockColab(def.id) .. "  TUYAS " .. compradas .. "/" .. datosPromos.colab.maximo,
-                x + 26, y + 20, 1, p.grisclaro)
-            local precio = mercado.valor(def.id, true)
-            ui.boton("m_colab_" .. def.id, "COMPRAR " .. ui.dinero(precio), x + 26, y + 28, w - 30, 11, p.naranja,
-                partida.puedeColab(def.id) and partida.dinero >= precio)
+            if compradas > 0 then fuentes.texto("TUYAS " .. compradas, x, y + 4, 1, p.lima, "right", w - 4) end
+            fuentes.texto(rarezas.nombre(def):upper(), x + 26, y + 13, 1, p.blanco)
+            local quedan = mercado.stockColab(def.id)
+            if quedan > 0 then
+                fuentes.texto("QUEDAN " .. quedan .. "  MÁX. " .. datosPromos.colab.maximo .. " POR CLIENTE", x + 26, y + 20, 1, p.grisclaro)
+                local precio = mercado.precioColab(def.id)
+                ui.boton("m_colab_" .. def.id, "COMPRAR " .. ui.dinero(precio), x + 26, y + 28, w - 30, 11, p.naranja,
+                    partida.puedeColab(def.id) and partida.dinero >= precio)
+            else
+                fuentes.texto("AGOTADA: SOLO EN REVENTA", x + 26, y + 20, 1, p.rojo)
+                ui.boton("m_carta_" .. def.id .. "_1", "VER REVENTA (VALE " .. ui.dinero(mercado.valor(def.id, true)) .. ")", x + 26, y + 28, w - 30, 11, p.morado)
+            end
             ui.zona("m_carta_" .. def.id .. "_1", x, y, 24, 40)
             y = y + 44
         end
@@ -759,7 +765,7 @@ local function seccionCajas(tipo, primera, x, y, w)
                 fuentes.texto("PROMO " .. (o == "etb" and "ETB" or "CAJA"), x + 22, y + 3, 1, p.naranja)
                 fuentes.texto("TIENES " .. tengo, x + 22, y + 11, 1, p.grisclaro)
                 fuentes.texto(ui.dinero(valor), x, y + 3, 1, p.amarillo, "right", w - 54)
-                ui.boton("m_vpr_" .. o, "VENDER", x + w - 50, y + 8, 46, 12, p.morado, valor > 0)
+                ui.boton("m_vpr_" .. o, "VENDER", x + w - 50, y + 8, 46, 12, p.morado, valor > 0 and partida.sinApartar("pr" .. o, tipo.id, false) > 0)
                 y = y + 30
             end
         end
@@ -780,7 +786,7 @@ local function seccionPromos(tipo, x, y, w)
     local bw = math.floor((w - 32) / 2)
     ui.boton("m_torneo", "COMPRAR " .. (precio and ui.dinero(precio) or "-"), x + 28, y + 27, bw, 11, p.naranja,
         precio ~= nil and stock > 0 and partida.dinero >= precio)
-    ui.boton("m_vtorneo", "VENDER", x + 32 + bw, y + 27, w - 36 - bw, 11, p.morado, tengo > 0 and precio ~= nil)
+    ui.boton("m_vtorneo", "VENDER", x + 32 + bw, y + 27, w - 36 - bw, 11, p.morado, partida.sinApartar("prtorneo", tipo.id, false) > 0 and precio ~= nil)
     y = y + 44
     fuentes.texto("CADA VEZ HAY MENOS Y SUBEN", x, y, 1, p.gris)
     y = y + 12
