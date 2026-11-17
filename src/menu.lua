@@ -15,7 +15,7 @@ local mercado = require "src.mercado"
 
 local menu = {}
 
-local VERSION = "v0.10.4"
+local VERSION = "v0.10.5"
 reporte.version = VERSION
 local abanico = {}
 local resumenes = {}
@@ -164,7 +164,7 @@ function menu.dibujar()
         local c = e.c or {}
         local luz = (cogida and cogida.e == e) and 1 or (e.i == 3 and 1 or 0.3)
         carta.dibujar(e.def, x, y, 2 * sx, 2, a, cara, { kx = 0, ky = 0, brillo = luz, lx = math.sin(hora), ly = 0 },
-            cara and c.f or nil, { primera = cara and c.p or nil, top = cara and c.t or nil })
+            c.f, { primera = cara and c.p or nil, top = c.t })
         ui.zona("abanico" .. e.i, x - 36, y - 50, 72, 100)
     end
 
