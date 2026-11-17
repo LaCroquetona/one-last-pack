@@ -9,7 +9,6 @@ local datos = require "datos.fundas"
 local muebles = require "src.muebles"
 local fuentes = require "src.fuentes"
 local carta = require "src.carta"
-local bicho = require "src.bicho"
 
 local lg = love.graphics
 local ORO = muebles.ORO
@@ -33,7 +32,7 @@ end
 local function lienzo(w, h, f)
     local cv = lg.newCanvas(w, h)
     cv:setFilter("nearest", "nearest")
-    lg.push("all") lg.origin() lg.setCanvas(cv) lg.clear(0, 0, 0, 0) f() lg.pop()
+    lg.push("all") lg.origin() lg.setScissor() lg.setCanvas(cv) lg.clear(0, 0, 0, 0) f() lg.pop()
     return cv
 end
 local BAYER = { { 0, 8, 2, 10 }, { 12, 4, 14, 6 }, { 3, 11, 1, 9 }, { 15, 7, 13, 5 } }
@@ -320,9 +319,12 @@ local function chase(def, id)
             if k % 2 == 0 then return bay(x, y, r / 30) and e.cielo or e.horizonte end
             return bay(x, y, r / 22) and e.cielo or e.sombra
         end)
-        local img = bicho.crear(def.semilla or def.id * 7919 + 13, 30, 30, e)
-        lg.setColor(0, 0, 0, 0.5) lg.draw(img, CX - 15 + 1, 8 + 1)
-        lg.setColor(1, 1, 1) lg.draw(img, CX - 15, 8)
+        -- el mismo bicho que su carta (otro tamaño seria otro bicho)
+        local img = carta.imagenBicho(def)
+        local iw, ih = img:getDimensions()
+        local bx, by = math.floor(CX - iw / 2), math.floor(23 - ih / 2)
+        lg.setColor(0, 0, 0, 0.5) lg.draw(img, bx + 1, by + 1)
+        lg.setColor(1, 1, 1) lg.draw(img, bx, by)
         R(p.negro, 3, FH - 13, FW - 6, 10)
         L(ORO.oro, 3, FH - 13, FW - 6, 10)
         texto(def.nombre:upper(), CX, FH - 10, ORO.claro, "center")

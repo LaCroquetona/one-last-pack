@@ -57,7 +57,9 @@ end
 -- tienes (y el que lleva puesto)
 local function opciones(esTop)
     local c = copia()
-    local puesto = esTop and c.t or c.f
+    -- sin top no vale "esTop and c.t or c.f": daria la funda
+    local puesto
+    if esTop then puesto = c.t else puesto = c.f end
     local l = { false }
     local de = esTop and partida.topsDe or partida.fundasDe
     if de(true) > 0 or puesto == true then table.insert(l, true) end

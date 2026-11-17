@@ -555,6 +555,7 @@ local function imagenDe(def, cerrados)
     end
     return imagenBicho(def, rarezas[def.rareza].nivel >= 5, cerrados)
 end
+carta.imagenBicho = imagenDe
 
 function carta.preparar()
     shader = lg.newShader(CODIGO_SHADER)
@@ -581,6 +582,7 @@ local function lienzoSeguro(w, h, pintar, ...)
     lg.push("all")
     lg.origin()
     lg.setShader()
+    lg.setScissor()
     local c = lienzo(w, h, pintar, ...)
     lg.pop()
     return c
@@ -751,9 +753,16 @@ function carta.dibujar(def, x, y, sx, sy, rot, bocaArriba, h, enFunda, extra)
     -- lo que mide de verdad en pantalla (tambien si se pinta encima, ya escalada)
     local alto = altoEn(x, y - alza, H * math.abs(sy))
     if not bocaArriba then
+        -- por detras: el dorso de la funda (o el de la carta sin funda) y el top
         preparar3D(gx, gy, cx, cy, alto, 0, 0, 0, 0)
-        lg.draw(dorso, x, y - alza, rot, sx, sy, W / 2, H / 2)
+        if enFunda then
+            local fd = require "src.fundas"
+            lg.draw(fd.dorso(enFunda), x, y - alza, rot, sx, sy, fd.W / 2, fd.H / 2)
+        else
+            lg.draw(dorso, x, y - alza, rot, sx, sy, W / 2, H / 2)
+        end
         lg.setShader()
+        if extra.top then toploader(x, y - alza, sx, sy, rot, gx, gy, extra.top) end
         return
     end
 
@@ -822,10 +831,17 @@ function carta.pila(defs, x, y, escala, total, h, enFunda, extra)
         local giro = -0.12 * i * a
         local cx = x + i * escala * (1 - a) - i * 8 * escala * a + math.sin(giro) * mitad
         local cy = y - i * escala * 2 * (1 - a) + mitad - math.cos(giro) * mitad
-        carta.dibujar(def, cx, cy, escala, escala, giro, true, nil, false, { quieta = true, primera = ediciones and ediciones[i + 1] })
+        local fundasL, topsL = extra and extra.fundas, extra and extra.tops
+        carta.dibujar(def, cx, cy, escala, escala, giro, true, nil, fundasL and fundasL[i + 1] or false,
+            { quieta = true, primera = ediciones and ediciones[i + 1], top = topsL and topsL[i + 1] or nil })
     end
     if ediciones then
-        extra = { primera = ediciones[1], top = extra.top }
+        if extra.fundas then
+            enFunda = extra.fundas[1]
+            extra = { primera = ediciones[1], top = extra.tops[1] or nil }
+        else
+            extra = { primera = ediciones[1], top = extra.top }
+        end
     end
     carta.dibujar(defs[1], x, y, escala, escala, 0, true, h, enFunda, extra)
     if total > 1 then
