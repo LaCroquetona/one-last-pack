@@ -98,7 +98,7 @@ function apertura.empezar(tipo, primera, desde, dados)
         defs, godpack, paraOtro = dados, false, nil
     else
         -- venta en directo: si alguien del chat ha comprado este sobre, las cartas son suyas
-        paraOtro = directo.reservar(tipo, primera)
+        paraOtro = directo.reservar(tipo, primera, desde and desde.deCaja)
         -- si este sobre ya se saco y se guardo sin abrir, trae lo que le toco
         defs, godpack = partida.sacarTirada(tipo.id, primera)
         if not defs then defs, godpack = generador.sobre(tipo) end

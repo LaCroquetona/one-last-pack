@@ -147,14 +147,12 @@ function productos.tin(col, x, y, e)
     x, y = math.floor(x), math.floor(y)
     local W, H, D = math.floor(30 * e), math.floor(16 * e), math.floor(12 * e)
     local tapa = math.max(3, math.floor(6 * e))
-    muebles.bloque(x + 1, y + tapa, W - 2, H - tapa, D - 2, muebles.tonos(METAL, 0.9, 1.2, 0.6))
+    -- el cuerpo, 1 px mas estrecho que la tapa por cada lado y con el mismo fondo
+    muebles.bloque(x + 1, y + tapa, W - 2, H - tapa, D, muebles.tonos(METAL, 0.9, 1.2, 0.6))
     muebles.bloque(x, y, W, tapa, D, muebles.tonos(METAL, 1.05, 1.3, 0.7))
     rect(p.blanco, x + 3, y + 1, 1, tapa - 2, 0.7)
     rect(p.blanco, x + 5, y + tapa + 1, 2, H - tapa - 2, 0.35)
     rect(p.negro, x, y + tapa, W, 1, 0.55)
-    for _, c in ipairs({ { x - 1, y - 1 }, { x + W, y - 1 }, { x - 1, y + H - 1 }, { x + W - 1, y + H } }) do
-        rect(p.negro, c[1], c[2], 1, 1)
-    end
     local by = y + tapa + math.floor((H - tapa) / 2) - math.floor(3 * e)
     local bh = math.max(3, math.floor(6 * e))
     rect(col.base, x + 1, by, W - 2, bh)

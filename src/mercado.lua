@@ -185,12 +185,16 @@ local function salidaSet(set)
     return plan and plan[1] and plan[1].desde or 1
 end
 
--- colab: sube deprisa los primeros dias y luego sigue como una promo
+-- colab: en reventa sube cuanto menos stock queda y luego sigue como una promo
 local function multColab(def, dia)
     local C = datosPromos.colab
-    local salida = mercado.estado.colabs and mercado.estado.colabs.dias[def.id] or dia
+    local k = mercado.estado.colabs
+    local salida = k and k.dias[def.id] or dia
     local d = math.max(0, dia - salida)
-    return (1 + C.sube * math.min(C.diasSube, d)) * crecePromo(def, d)
+    local inicial = k and k.inicial and k.inicial[def.id] or C.stock[2]
+    local quedan = k and k.stock[def.id] or inicial
+    local escasez = 1 - math.min(1, quedan / math.max(1, inicial))
+    return (1 + C.escasez * escasez) * crecePromo(def, d)
 end
 
 -- precio de la 1ª edicion respecto a su valor base, segun la fase de su set
@@ -908,7 +912,8 @@ end
 -- Colabs: ONE LAST PACK X MARCA. Salen cada 15-20 dias con unas pocas copias
 -- que solo se compran en el mercado; la gente las compra deprisa y suben.
 -- estado.colabs = { sig = dia de la siguiente, n = cuantas han salido, salidas = ids,
---   dias = { [id] = dia en que salio }, stock = { [id] = copias que quedan } }
+--   dias = { [id] = dia en que salio }, stock = { [id] = copias que quedan },
+--   inicial = { [id] = copias con las que salio }, oficial = { [id] = precio oficial } }
 local function estadoColabs()
     local e = mercado.estado
     if not e.colabs then
@@ -944,25 +949,44 @@ function mercado.avanzarColabs(dia)
     table.insert(k.salidas, def.id)
     k.dias[def.id] = dia
     k.stock[def.id] = love.math.random(C.stock[1], C.stock[2])
+    k.inicial = k.inicial or {}
+    k.inicial[def.id] = k.stock[def.id]
     local c = nuevaCarta(def.id)
     c.h0 = dia
     e.cartas[def.id] = c
     c.p1 = objetivo(def, dia, true)
     apuntar(c, dia)
+    k.oficial = k.oficial or {}
+    k.oficial[def.id] = mercado.valor(def.id, true)
     anadirNoticia({ clave = "colab", tono = "sube", set = def.set, carta = def.id,
         texto = "ONE LAST PACK X " .. def.marca .. ": sale la carta colab. Pocas copias, solo en el mercado" })
 end
 
--- colabs a la venta ahora (salidas y con stock), la ultima primero
+-- colabs en la lista del mercado (con stock o agotadas hace poco, para ir a la
+-- reventa), la ultima primero
 function mercado.colabsALaVenta()
     local k = estadoColabs()
+    local C = datosPromos.colab
     local lista = {}
     local salidas = k.salidas or {}
     for i = #salidas, 1, -1 do
         local def = porId[salidas[i]]
-        if def and (k.stock[def.id] or 0) > 0 then table.insert(lista, def) end
+        if def and ((k.stock[def.id] or 0) > 0 or mercado.estado.dia - (k.dias[def.id] or 0) <= C.diasAgotada) then
+            table.insert(lista, def)
+        end
     end
     return lista
+end
+
+-- precio oficial de una colab: el de cuando salio, fijo mientras quede stock
+function mercado.precioColab(id)
+    local k = estadoColabs()
+    k.oficial = k.oficial or {}
+    if not k.oficial[id] then
+        local def = porId[id]
+        k.oficial[id] = math.floor(def.valor * datos.valorCartas / 10 + 0.5) * 10
+    end
+    return k.oficial[id]
 end
 
 function mercado.stockColab(id)

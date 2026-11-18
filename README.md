@@ -137,7 +137,7 @@ docs/img/       capturas de este README
 
 Casi todo lo que se ajusta está en `datos/`, separado del código:
 
-- `datos/cartas.lua`: todas las cartas, una línea por carta. Las de fuera de set (ALT, SILVER y GOLDEN) salen solas de las marcadas.
+- `datos/cartas.lua`: todas las cartas, una línea por carta. Las de fuera de set salen solas: una ALT de cada holo, full art y secreta, y SILVER o GOLDEN de cada secreta.
 - `datos/rarezas.lua`: suspense, brillo y acabado de cada rareza.
 - `datos/variantes.lua`: las cartas de fuera de set: nombre, color, brillo y suspense.
 - `datos/sets.lua`: los sets y lo que vale cada rareza en cada uno.

@@ -10,6 +10,42 @@ fase 3 = v0.7.2-0.7.4, fase 4 = v0.8.0-0.8.2. Desde la v0.9.0 ya no hay
 fases: se sigue el roadmap. La v0.9.0 se preparó como v0.8.3 y salió con
 otro número.
 
+## v0.10.5 - 2026-11-10 - Arreglos de la 0.10.4
+
+- **ALT**: ahora tienen ALT todas las holo y las full art (antes solo unas
+  pocas), y una ALT nunca sale más de 1 de cada 5 veces que sale su carta.
+  Antes, para que salieran tan a menudo, algunas cartas salían casi siempre
+  en ALT (Bosque y Trueno, 8 de cada 10). Cada ALT sale menos y vale más; lo
+  que vale un sobre de media no cambia.
+- **Venta en directo**:
+  - Lo que compra alguien entero (blíster, tin, ETB o caja) es suyo: solo
+    cuentan los sobres de ese producto, y su promo, sus fundas, sus tops y su
+    sobrecito se los lleva él. Hasta que no acabas sus sobres no abres otro.
+  - Con solo productos (sin sobres sueltos) también hay compradores. El chat
+    ya puede pedir tins y cajas (`!comprar tin`, `!comprar caja`).
+- **Sobres de torneo y sobrecitos promo**: se pueden apartar desde el
+  armario. Apartados no salen en los ganchos de la mesa ni se venden.
+- **Colabs en el mercado**: precio oficial fijo mientras queda stock y como
+  mucho 5 por cliente (antes 3). El stock baja cada día hasta AGOTADA; luego
+  sigue en la lista unos días con el botón de la reventa, que sube cuanto
+  menos quedan.
+- **Fundas y tops**:
+  - Al girar una carta del inicio ya no pierde la funda ni el top.
+  - En los montones del armario, cada copia de detrás enseña su funda y su
+    top (delante, las que llevan algo).
+  - INSPECCIONAR: el top básico salía de la lista cuando la carta tenía
+    funda. Ya sale.
+  - La funda de premio de cada set lleva el bicho de su carta (la del S1
+    enseñaba otro).
+  - Lo que se enfunda solo cuenta para los encargos de enfundar y de top.
+- **Colabs y placas en blanco**: si se pintaban por primera vez dentro de
+  una lista con recorte (el mercado), salían casi vacías. Arreglado.
+- **Mesa**: en la balda, pilas de 2 (cajas y ETB) o 3 (tins) con su
+  contador, cada una justo encima de la otra; ya no tapan el selector de
+  set.
+- **Tin** sin los píxeles sueltos de las esquinas y con el cuerpo alineado
+  con la tapa.
+
 ## v0.10.4 - 2026-11-09 - Caja de 36 y chat de Twitch
 
 - **Caja de 36 sobres**, como una de verdad (antes traía 18), con el mismo

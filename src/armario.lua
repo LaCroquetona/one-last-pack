@@ -199,13 +199,19 @@ local function extraCarta(id)
 end
 
 -- edicion de cada copia del monton, las de 1ª arriba
+-- las copias que se ven en el monton (hasta 4), delante las que llevan top o
+-- funda, cada una con lo suyo
 local function edicionesPila(id)
-    local lista = {}
-    for i, c in ipairs(partida.lista(id)) do
-        if i > 4 then break end
-        lista[i] = c.p or false
+    local copias = {}
+    for i, c in ipairs(partida.lista(id)) do copias[i] = c end
+    local function peso(c) return (c.t and 2 or 0) + (c.f and 1 or 0) end
+    table.sort(copias, function(a, b) return peso(a) > peso(b) end)
+    local lista, fundasL, topsL = {}, {}, {}
+    for i = 1, math.min(4, #copias) do
+        local c = copias[i]
+        lista[i], fundasL[i], topsL[i] = c.p or false, c.f or false, c.t or false
     end
-    return { ediciones = lista, top = conTop(id) }
+    return { ediciones = lista, fundas = fundasL, tops = topsL, top = conTop(id) }
 end
 
 local function hayNormales(def)
@@ -734,8 +740,15 @@ local function fichaSellado()
         end
         fuentes.texto("CUELGAN EN LOS GANCHOS DE LA MESA:", FX + 8, FY + 104, 1, p.grisclaro)
         fuentes.texto("ARRÁSTRALO AL TAPETE PARA ABRIRLO", FX + 8, FY + 114, 1, p.grisclaro)
-        ui.boton("hs_vpromo", "VENDER 1 +" .. ui.dinero(mercado.trasComision(valor)), FX + 8, FY + 130, FW - 16, 16, p.naranja, total > 0 and valor > 0)
+        local apartados = partida.apartadosDe(pid, tipoId, false)
+        ui.boton("hs_vpromo", "VENDER 1 +" .. ui.dinero(mercado.trasComision(valor)), FX + 8, FY + 130, FW - 16, 16, p.naranja,
+            total > apartados and valor > 0)
         fuentes.texto("LA APP SE QUEDA SU COMISIÓN", FX + 8, FY + 150, 1, p.gris)
+        if origen ~= "correo" then
+            ui.boton("hs_apromo", apartados > 0 and "QUITAR APARTADO" or "APARTAR", FX + 8, FY + 164, FW - 16, 14, p.grisosc, total > 0)
+            fuentes.texto(apartados > 0 and ("APARTADOS: " .. apartados .. ". NI SE VENDEN NI SALEN EN LA MESA") or "TODO SALE EN LA MESA",
+                FX + 8, FY + 182, 1, apartados > 0 and p.naranja or p.gris, "left", FW - 16)
+        end
     else
         local pid, tipoId, primera = partesClave(huecoSel)
         local tipo = sobres[tipoId]
@@ -1565,6 +1578,11 @@ function armario.click(id)
             fx.texto(ui.mx, ui.my - 10, "+" .. ui.dinero(cobro), p.amarillo)
             partida.guardar()
         end
+    elseif id == "hs_apromo" and huecoSel then
+        local pid, tipoId = partesClave(huecoSel)
+        partida.apartar(pid, tipoId, false)
+        sonido.tocar("giro")
+        partida.guardar()
     elseif id == "hs_menos" or id == "hs_mas" then
         cuantosSel = cuantosSel + (id == "hs_mas" and 1 or -1)
     elseif (id == "hs_mesa" or id == "hs_apartar" or id == "hs_vaciar") and huecoSel then

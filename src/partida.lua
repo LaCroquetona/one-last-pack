@@ -393,6 +393,9 @@ function partida.anadir(id, primera, deSobre)
         partida.topsLibres = partida.topsLibres - 1
         c.t = true
     end
+    -- lo que se enfunda solo tambien cuenta para los encargos de enfundar y de top
+    if c.f then partida.avanzarEncargo("enfundar", nil, c.u) end
+    if c.t then partida.avanzarEncargo("top", nil, c.u) end
     local primeraP = primera and partida.deEdicion(id, true) == 0
     table.insert(l, c)
     if not enOrden[id] then
@@ -941,7 +944,7 @@ function partida.valorPromoSobre(origen, tipo)
 end
 
 function partida.venderPromoSobre(origen, tipo)
-    if origen == "correo" or partida.promoSobresDe(origen, tipo.id) <= 0 then return nil end
+    if origen == "correo" or partida.sinApartar("pr" .. origen, tipo.id, false) <= 0 then return nil end
     local cobro = mercado.trasComision(partida.valorPromoSobre(origen, tipo))
     partida.sumarPromoSobre(origen, tipo.id, -1)
     partida.dinero = partida.dinero + cobro
@@ -1013,7 +1016,7 @@ end
 
 function partida.venderTorneo(tipo)
     local precio = mercado.sobreTorneo(tipo)
-    if not precio or partida.promoSobresDe("torneo", tipo.id) <= 0 then return nil end
+    if not precio or partida.sinApartar("prtorneo", tipo.id, false) <= 0 then return nil end
     partida.sumarPromoSobre("torneo", tipo.id, -1)
     local cobro = mercado.trasComision(math.floor(precio / datosPromos.torneo.margen))
     partida.dinero = partida.dinero + cobro
@@ -1026,7 +1029,7 @@ function partida.puedeColab(id)
 end
 
 function partida.comprarColab(id)
-    local precio = mercado.valor(id, true)
+    local precio = mercado.precioColab(id)
     if not partida.puedeColab(id) or partida.dinero < precio then return nil end
     partida.dinero = partida.dinero - precio
     mercado.comprarColab(id)
@@ -1071,14 +1074,20 @@ end
 
 -- se abre en la mesa: sus sobres se quedan en la esquina y se sacan de ahi;
 -- las fundas y los tops se quedan sueltos en la mesa. Si ya habia algo
--- abierto, sus sobres pasan a los guardados
-function partida.abrirProd(pid, tipo, primera)
+-- abierto, sus sobres pasan a los guardados.
+-- comprador: lo ha comprado alguien del directo: lo que trae es suyo
+function partida.abrirProd(pid, tipo, primera, comprador)
     local prod = productos[pid]
     primera = sacarProd(pid, tipo.id, primera)
     if primera == nil then return false end
     local vieja = partida.cajaAbierta
     if vieja and vieja.quedan > 0 then partida.meterSobres(vieja.tipo, vieja.quedan, vieja.primera) end
-    partida.cajaAbierta = { tipo = tipo.id, quedan = prod.sobres, primera = primera or nil, prod = pid ~= "caja" and pid or nil }
+    partida.cajaAbierta = { tipo = tipo.id, quedan = prod.sobres, primera = primera or nil, prod = pid ~= "caja" and pid or nil,
+                            comprador = comprador }
+    if comprador then
+        tocar()
+        return true
+    end
     lleva(prod, tipo.id)
     promoProducto(pid, tipo, true)
     tocar()
@@ -1384,6 +1393,8 @@ end
 -- cuantos hay de una clase y edicion
 function partida.cuantos(clase, tipoId, primera)
     if clase == "s" then return partida.sobres(tipoId, primera) end
+    -- sobrecitos promo y de torneo ("prtorneo"...): no tienen edicion
+    if clase:sub(1, 2) == "pr" then return primera and 0 or partida.promoSobresDe(clase:sub(3), tipoId) end
     if clase == "c" then return partida.cajasDe(tipoId, primera) end
     return partida.prodDe(clase, tipoId, primera)
 end

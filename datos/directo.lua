@@ -100,7 +100,7 @@ return {
         -- que piden (pesos): un sobre, varios del mismo set (2 a "maxVarios"),
         -- un blister entero o una ETB (solo si los tienes). Los de varios
         -- sobres o productos esperan "masTiempo" veces mas
-        pedir = { sobre = 70, varios = 16, blister = 9, etb = 5 },
+        pedir = { sobre = 70, varios = 16, blister = 9, tin = 6, etb = 5, caja = 2 },
         maxVarios = 4, masTiempo = 1.5,
         -- compras de tu chat de Twitch (!comprar): como mucho estas a la vez entre
         -- todos y una por persona; con el tope lleno el !comprar no sale
@@ -114,6 +114,9 @@ return {
                                "quiero el blister de {s}", "el blister de {s} es mio" },
                    etb = { "ME PILLO UNA ETB DE {s}", "abreme una ETB de {s} entera", "ETB de {s} pa mi, sin miedo",
                            "pago la ETB de {s}, hoy me arruino", "ETB {s} y que salga la chase" },
+                   tin = { "me pillo un tin de {s}", "abreme el tin de {s}", "tin de {s} pa mi, los tops tambien", "el tin de {s} es mio" },
+                   caja = { "ME PILLO LA CAJA DE {s} ENTERA", "caja de {s} pa mi, hoy me arruino", "abreme una caja de {s} sobre a sobre",
+                            "pago la caja de {s}, vamos con todo" },
                    otro = { "otro mas!", "sigue sigue", "el siguiente es el bueno", "venga el otro", "vamos con el siguiente", "uno mas" },
                    bien = { "LETS GOOO QUE ES MIO", "NO PUEDE SER MI CARTAAA", "GOAT GOAT GOAT", "vale esto ya lo pago", "MADRE MIA QUE SUERTE", "te compro otro ya" },
                    mal = { "bueno otra vez sera", "L tremenda", "todo bulk bro", "mi cartera llora", "ni una rara jajaja", "el siguiente sale fijo" },
@@ -124,6 +127,8 @@ return {
                    varios = { "ill take {n} {s}", "{n} {s} packs for me", "open {n} {s} in a row", "{n} {s} lets gamble" },
                    blister = { "ill take a {s} blister", "open a {s} blister for me", "whole {s} blister, paying", "the {s} blister is mine" },
                    etb = { "IM BUYING A {s} ETB", "open a whole {s} ETB for me", "{s} ETB for me, no fear", "paying for the {s} ETB" },
+                   tin = { "ill take a {s} tin", "open the {s} tin for me", "{s} tin is mine" },
+                   caja = { "IM BUYING THE WHOLE {s} BOX", "open a {s} box for me pack by pack", "{s} box for me, going all in" },
                    otro = { "next one!", "keep going", "next one hits", "come on the next", "one more" },
                    bien = { "LETS GOOO ITS MINE", "NO WAY MY CARD", "GOATED PULL", "worth every cent", "INSANE LUCK", "buying another one" },
                    mal = { "unlucky", "massive L", "all bulk bro", "my wallet is crying", "not even a rare lol", "next one hits for sure" },
