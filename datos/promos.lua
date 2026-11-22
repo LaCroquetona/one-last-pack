@@ -7,12 +7,13 @@
 --   tin:      igual que el blister                                       sin marco
 --   preventa: compra de 15 € o mas mientras el set esta anunciado         rayos plata
 --   torneo:   sobres de torneo del mercado, 1 de 2 (la final, dorada)    apaisada
--- Colabs (una cada 15-20 dias, solo en el mercado) y las placas del canal van aparte.
+-- Colabs (una cada 15-20 dias, 2-4 dias en el mercado) y las placas del canal van aparte.
 -- valor: veces lo que cuesta un sobre del set (su precio de base en el mercado).
 -- Ids: 5000 + set * 100 + n (promos) y 9000 + n (colabs).
 local p = require "datos.paleta"
 local sobres = require "datos.sobres"
 local productos = require "datos.productos"
+local sets = require "datos.sets"
 
 local ORO = { 0.84, 0.62, 0.16 }
 local PLATA = { 0.70, 0.74, 0.82 }
@@ -44,12 +45,14 @@ local promos = {
     -- torneo: sobres en el mercado; precio = lo que vale de media lo que trae
     -- x margen x (1 + dias desde que salio el set / subida); cada dia hay menos
     torneo = { margen = 1.15, subida = 90, stock = 5, menosCada = 25 },
-    -- colabs: cada cuanto sale una, cuantas copias hay, que parte compra la gente
-    -- cada dia, cuanto sube en reventa al agotarse (escasez: x1 con todo el
-    -- stock, x(1 + escasez) agotada), cuantas puedes comprar tu y cuantos dias
-    -- sigue en la lista del mercado ya agotada (para ir a la reventa)
-    colab = { cada = { 15, 20 }, primera = 12, stock = { 18, 28 }, venden = { 0.3, 0.55 }, escasez = 1.8,
-              maximo = 5, valor = 2.5, diasAgotada = 20 },
+    -- colabs: cada cuanto sale una, cuantos dias esta a la venta (luego se
+    -- retira y solo queda la reventa), cuantas copias hay, que parte compra la
+    -- gente cada dia (casi todas se venden en su ventana), cuanto sube en
+    -- reventa al agotarse (escasez: x1 con todo el stock, x(1 + escasez)
+    -- agotada), cuantas puedes comprar tu y cuantos dias sigue en la lista del
+    -- mercado desde que sale (para ir a la reventa)
+    colab = { cada = { 15, 20 }, primera = 12, dias = { 2, 4 }, stock = { 18, 28 }, venden = { 0.5, 0.65 }, escasez = 1.8,
+              maximo = 5, valor = 2.5, diasAgotada = 10 },
     marcas = {
         { "MCDONAS", p.rojo, p.amarillo, p.rojo }, { "NAIK", p.blanco, p.negro, p.blanco },
         { "TELEPIZO", p.azul, p.rojo, p.blanco }, { "KOLALOKA", p.negro, p.rojo, p.blanco },
@@ -102,7 +105,7 @@ function promos.crear(lista)
     local num, base = 0, nil
     for i, tipo in ipairs(sobres.lista) do
         local bases = basesDe(lista, tipo.set)
-        local usados, k = {}, i * 3
+        local usados, k = {}, sets[tipo.set].antes * 3
         local function siguiente()
             local def
             repeat
@@ -123,7 +126,7 @@ function promos.crear(lista)
             table.insert(nuevas, {
                 id = 5000 + i * 100 + n, set = tipo.set, promo = d.origen, estilo = d.estilo,
                 colores = d.tinte and d.tinte(tipo.colores) or d.colores, oro = d.oro, plata = d.plata, alt = d.alt, num = num, codigo = string.format("P%03d", num),
-                nombre = base.nombre, elemento = base.elemento, semilla = base.semilla or base.id * 7919 + 13, deCarta = base.id,
+                nombre = base.nombre, elemento = base.elemento, semilla = base.semilla or base.id * 7919 + 13, deCarta = base.id, deAntes = base.idAntes,
                 rareza = d.oro and "holo" or "rara", valor = math.floor(tipo.precio * d.valor + 0.5), peso = d.peso,
             })
             ::siguiente::

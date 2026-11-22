@@ -127,7 +127,7 @@ end
 -- B. NOCHE (caja): negra con estrellas y el bicho con aura
 local function noche(def)
     R(p.negro, 0, 0, W, H)
-    local rng = love.math.newRandomGenerator(def.deCarta or def.id)
+    local rng = love.math.newRandomGenerator(def.deAntes or def.deCarta or def.id)
     for _ = 1, 22 do R(rng:random() < 0.3 and ORO or p.gris, rng:random(3, W - 4), rng:random(3, 31), 1, 1) end
     for _, s in ipairs({ { 6, 8 }, { 30, 26 } }) do R(p.blanco, s[1] - 1, s[2], 3, 1) R(p.blanco, s[1], s[2] - 1, 1, 3) end
     bich(def, 7, 6, def.colores[1])

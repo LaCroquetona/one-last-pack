@@ -21,9 +21,9 @@ end
 
 -- ETB: el motivo de su set
 local ETB = {
-    { "llamas", "LLAMAS", p.naranja }, { "olas", "OLAS", p.celeste }, { "dunas", "DUNAS", p.amarillo },
-    { "galaxia", "GALAXIA", p.violeta }, { "burbujas", "BURBUJAS", p.lima }, { "nubes", "NUBES", p.cian },
-    { "escamas", "ESCAMAS", p.verde }, { "sol", "SOL", p.amarillo },
+    { "llamas", "LLAMAS", p.naranja }, { "dunas", "DUNAS", p.amarillo }, { "nubes", "NUBES", p.cian },
+    { "olas", "OLAS", p.celeste }, { "burbujas", "BURBUJAS", p.lima }, { "galaxia", "GALAXIA", p.violeta },
+    { "sol", "SOL", p.amarillo }, { "escamas", "ESCAMAS", p.verde },
 }
 for i, e in ipairs(ETB) do
     f({ id = e[1], nombre = e[2], corto = e[2], familia = "etb", set = "s" .. i, de = "ETB DEL SET " .. i, color = e[3] })
@@ -44,7 +44,7 @@ f({ id = "holo", nombre = "HOLO", corto = "HOLO", familia = "especial", de = "1 
 f({ id = "plata", nombre = "PLATA", corto = "PLATA", familia = "especial", de = "1 DE CADA 10 ETB", color = p.grisclaro })
 f({ id = "dorada", nombre = "DORADA", corto = "DORADA", familia = "especial", de = "PREMIO: MASTER SET", color = ORO_CLARO })
 -- la de la chase de cada set, al completarlo al 100%
-local CHASE = { 40, 164, 258, 348, 456, 565 }
+local CHASE = { 40, 158, 265, 364, 456, 548 }
 local cartas = require "datos.cartas"
 local porId = {}
 for _, c in ipairs(cartas) do porId[c.id] = c end
