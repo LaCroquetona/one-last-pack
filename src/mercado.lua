@@ -58,7 +58,8 @@ for _, c in ipairs(cartas) do
     if c.promo then
         base[c.id] = c.valor * datos.valorCartas
     else
-        base[c.id] = sets[c.set].valores[rarezas.clave(c) or c.rareza] * variacion(c.de or c.id) * datos.valorCartas
+        local suya = porId[c.de or c.id]
+        base[c.id] = sets[c.set].valores[rarezas.clave(c) or c.rareza] * variacion(suya.idAntes or suya.id) * datos.valorCartas
     end
 end
 
@@ -910,10 +911,13 @@ local function avisosCalendario(dia)
 end
 
 -- Colabs: ONE LAST PACK X MARCA. Salen cada 15-20 dias con unas pocas copias
--- que solo se compran en el mercado; la gente las compra deprisa y suben.
+-- que solo se compran en el mercado, y solo unos dias: se anuncian el dia
+-- antes, la gente las compra deprisa y al acabar su ventana se retiran (lo que
+-- quede se lo llevan los revendedores: solo reventa).
 -- estado.colabs = { sig = dia de la siguiente, n = cuantas han salido, salidas = ids,
---   dias = { [id] = dia en que salio }, stock = { [id] = copias que quedan },
---   inicial = { [id] = copias con las que salio }, oficial = { [id] = precio oficial } }
+--   dias = { [id] = dia en que salio }, hasta = { [id] = ultimo dia a la venta },
+--   stock = { [id] = copias que quedan }, inicial = { [id] = copias con las
+--   que salio }, oficial = { [id] = precio oficial } }
 local function estadoColabs()
     local e = mercado.estado
     if not e.colabs then
@@ -923,25 +927,35 @@ local function estadoColabs()
     return e.colabs
 end
 
+-- la siguiente que no ha salido y cuyo set ya esta en las tiendas ese dia
+local function siguienteColab(k, dia)
+    for _, c in ipairs(colabs) do
+        if not k.dias[c.id] and calendario.salido(c.set, dia) then return c end
+    end
+end
+
 function mercado.avanzarColabs(dia)
     local e = mercado.estado
     local k = estadoColabs()
     local C = datosPromos.colab
-    -- la gente compra las que quedan
+    k.hasta = k.hasta or {}
+    -- la gente compra las que quedan; acabada su ventana, se retira
     for id, n in pairs(k.stock) do
         if n > 0 and k.dias[id] < dia then
-            k.stock[id] = math.max(0, n - math.max(1, math.floor(n * (C.venden[1] + love.math.random() * (C.venden[2] - C.venden[1])) + 0.5)))
+            n = math.max(0, n - math.max(1, math.floor(n * (C.venden[1] + love.math.random() * (C.venden[2] - C.venden[1])) + 0.5)))
+            if dia > (k.hasta[id] or math.huge) then n = 0 end
+            k.stock[id] = n
+        end
+    end
+    if dia == k.sig - 1 then
+        local def = siguienteColab(k, k.sig)
+        if def then
+            anadirNoticia({ clave = "colabAnuncio", tono = "info", set = def.set, carta = def.id,
+                texto = "Mañana sale ONE LAST PACK X " .. def.marca .. ": solo unos días en el mercado" })
         end
     end
     if dia < k.sig then return end
-    -- la siguiente que no ha salido y cuyo set ya esta en las tiendas
-    local def
-    for _, c in ipairs(colabs) do
-        if not k.dias[c.id] and calendario.salido(c.set, dia) then
-            def = c
-            break
-        end
-    end
+    local def = siguienteColab(k, dia)
     k.sig = dia + love.math.random(C.cada[1], C.cada[2])
     if not def then return end
     k.n = k.n + 1
@@ -951,6 +965,7 @@ function mercado.avanzarColabs(dia)
     k.stock[def.id] = love.math.random(C.stock[1], C.stock[2])
     k.inicial = k.inicial or {}
     k.inicial[def.id] = k.stock[def.id]
+    k.hasta[def.id] = dia + love.math.random(C.dias[1], C.dias[2]) - 1
     local c = nuevaCarta(def.id)
     c.h0 = dia
     e.cartas[def.id] = c
@@ -959,7 +974,7 @@ function mercado.avanzarColabs(dia)
     k.oficial = k.oficial or {}
     k.oficial[def.id] = mercado.valor(def.id, true)
     anadirNoticia({ clave = "colab", tono = "sube", set = def.set, carta = def.id,
-        texto = "ONE LAST PACK X " .. def.marca .. ": sale la carta colab. Pocas copias, solo en el mercado" })
+        texto = "ONE LAST PACK X " .. def.marca .. ": sale la carta colab. Pocas copias, solo en el mercado y hasta el día " .. k.hasta[def.id] })
 end
 
 -- colabs en la lista del mercado (con stock o agotadas hace poco, para ir a la
@@ -991,6 +1006,14 @@ end
 
 function mercado.stockColab(id)
     return estadoColabs().stock[id] or 0
+end
+
+-- dias que le quedan a la venta contando hoy (1: hoy es el ultimo; nil: ya no se vende)
+function mercado.diasColab(id)
+    local k = estadoColabs()
+    local hasta = k.hasta and k.hasta[id]
+    if not hasta or (k.stock[id] or 0) <= 0 or mercado.estado.dia > hasta then return nil end
+    return hasta - mercado.estado.dia + 1
 end
 
 function mercado.comprarColab(id)
@@ -1077,9 +1100,10 @@ local function desdeV1(e)
     end
 end
 
--- al cargar una partida el plan se vuelve a sacar de la semilla
+-- al cargar una partida el plan se vuelve a sacar de la semilla (salvo que
+-- la partida traiga el suyo: partidas pasadas del orden de sets de antes)
 function mercado.cargar(estado)
-    calendario.plan = calendario.generar(estado.semilla)
+    calendario.plan = estado.plan or calendario.generar(estado.semilla)
     mercado.estado = estado
     if (estado.version or 1) < VERSION then desdeV1(estado) end
     for _, s in ipairs(sets.lista) do
