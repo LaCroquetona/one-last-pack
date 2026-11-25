@@ -25,7 +25,7 @@ Lo hago en Lua con LÖVE, a 640x360 en pixel art. Funciona en PC y en Android. E
 ## Qué hay
 
 **Las cartas**
-- 8 sets, cada uno con su elemento, su precio de sobre (de 2 a 15 €) y de 50 a 80 cartas. Un set nuevo cada 18 días.
+- 8 sets, cada uno con su elemento, su precio de sobre (de 2 a 15 €) y de 50 a 80 cartas. Al principio sale un set nuevo cada 10 días y luego cada vez más espaciados (hasta 20).
 - Seis rarezas, chase, god pack y piedad. Las cartas se generan por código: un bicho, su fondo y su acabado según la rareza.
 - Cartas de fuera de set (secretas, ALT, SILVER y GOLDEN): no cuentan para el 100% del set, pero sí para el MASTER SET.
 - Cada set sale en 1ª edición, se agota, pasa a reventa y luego llegan las reimpresiones.

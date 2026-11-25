@@ -10,6 +10,27 @@ fase 3 = v0.7.2-0.7.4, fase 4 = v0.8.0-0.8.2. Desde la v0.9.0 ya no hay
 fases: se sigue el roadmap. La v0.9.0 se preparó como v0.8.3 y salió con
 otro número.
 
+## v0.11.0 - 2026-11-11 - Sets reordenados, calendario y colabs
+
+- **Sets en otro orden**, para que la subida de precio sea más suave al
+  principio: S1 (2 €), S2 tierra (5 €, antes S3), S3 viento (3 €, antes
+  S6), S4 hielo y metal (8 €, antes S2), S5 veneno (6 €), S6 astral (12 €,
+  antes S4), S7 luz (9 €, antes S8) y S8 dragón (15 €, antes S7). Cada set
+  conserva sus cartas, sus dibujos, sus precios y sus colores; solo cambia
+  el número. Las promos y fundas van con su set (el tin ahora es del S1 y
+  del S2 nuevo).
+- **Calendario**: el S1 sale el primer día y los siguientes, al principio
+  cada 10 días y luego más espaciados (hasta 20). La 1ª edición dura algo
+  menos (16-20 días).
+- **Colabs**: se anuncian el día antes y solo se venden 2-4 días a precio
+  oficial; en el móvil pone QUEDAN N DÍAS o HOY ÚLTIMO DÍA. Después, solo
+  en la reventa.
+- **Mesa**: sin los bocadillos amarillos de ayuda.
+- Las partidas de versiones anteriores no cargan (cambian los sets).
+- Herramientas: el arnés va más rápido (PC y móvil a la vez, reloj y
+  semilla fijos, las pruebas salen iguales en cada pasada) y los bots
+  pueden dejar partidas guardadas como punto de partida.
+
 ## v0.10.5 - 2026-11-10 - Arreglos de la 0.10.4
 
 - **ALT**: ahora tienen ALT todas las holo y las full art (antes solo unas
