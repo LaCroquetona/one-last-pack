@@ -152,6 +152,7 @@ return {
 
     -- lo que se explica la primera vez que sale cada noticia
     explicaciones = {
+        colabAnuncio = "Las colabs solo están unos días en el mercado del móvil, a su precio y como mucho 5 por cliente. Luego solo quedan de reventa.",
         torneoAviso = "Se acerca un torneo nacional. El mazo que gane lleva cartas de ese set y esas cartas se disparan. ¿Compras antes?",
         torneoNacional = "Las cartas del mazo campeón suben mucho unos días. Luego la subida se va deshaciendo poco a poco.",
         lanzamiento = "Los sobres de un set nuevo se compran en la tienda a su precio. Sus cartas son de 1ª edición y al principio todo el mundo las quiere.",

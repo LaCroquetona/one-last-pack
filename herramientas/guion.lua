@@ -316,7 +316,7 @@ return function(t)
     partida.generarEncargo()
     partida.generarEncargo()
     local e = partida.ofertasEncargo[1]
-    e.tipo, e.n, e.primera = "set1", 1, nil
+    e.clase, e.tipo, e.n, e.primera = "abrir", "set1", 1, nil
     click("ir_movil")
     esperar(30)
     click("m_app_encargos")
@@ -327,12 +327,16 @@ return function(t)
     partida.guardados, partida.guardados1, partida.cajaAbierta = {}, {}, nil
     partida.regalar("set1", 1, true)
     click("ir_mesa")
-    esperar(10)
+    esperar(30)
     local dinero = partida.dinero
     dev.saltar = true
     love.keypressed("space")
-    esperar(10)
-    ok(#partida.encargos == 0 and partida.dinero >= dinero + e.pago, "encargo cumplido y cobrado (" .. e.pago .. ")")
+    for _ = 1, 120 do
+        if #partida.encargos == 0 then break end
+        esperar(1)
+    end
+    ok(#partida.encargos == 0 and partida.dinero >= dinero + e.pago, "encargo cumplido y cobrado (" .. e.pago .. "; quedan " .. #partida.encargos
+        .. ", cobrado " .. (partida.dinero - dinero) .. ", hechos " .. tostring(e.hechos) .. "/" .. e.n .. ", clase " .. tostring(e.clase) .. ")")
     esperar(120)
 
     -- peticion del chat

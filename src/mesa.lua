@@ -83,8 +83,6 @@ local pulsoSobre
 local chipCaja
 -- donde se pinta cada caja cerrada de la caja de carton (para el chip)
 local sitioCajas = {}
--- bocadillo de ayuda que se esta viendo (cada uno sale una vez por partida)
-local pistaVista
 local reporte = require "src.reporte"
 
 local function dentro(r, x, y)
@@ -362,12 +360,6 @@ local function volarACaja(tipoId, x0, y0, e0, a, deCaja, primera)
     table.insert(vuelos, { tipo = tipoId, x0 = x0, y0 = y0, x1 = x1, y1 = y1, e0 = e0, a = a or 0, t = 0 })
 end
 
-local function verPista(id)
-    if partida.pistas[id] then return end
-    partida.pistas[id] = true
-    partida.guardar()
-end
-
 -- guarda el sobre del tapete sin abrirlo (boton, ESC o clic derecho)
 function mesa.cancelar()
     local r = apertura.cancelar()
@@ -376,7 +368,6 @@ function mesa.cancelar()
     volarACaja(r.tipo, cx, cy, 3, 0, r.deCaja, r.primera)
     sonido.tocar("giro")
     fx.texto(cx, cy - 60, "GUARDADO", p.lima)
-    verPista("guardar")
     pulsoSobre = nil
     reporte.apuntar("sobre guardado " .. r.tipo)
     partida.guardar()
@@ -408,7 +399,6 @@ local function sacarDeCajaCerrada(pid, tipoId)
     local s = sitioCajas[pid .. "_" .. tipoId]
     sonido.tocar("giro")
     fx.texto(s and s.x or CAJA.x + CAJA.w / 2, (s and s.y or CAJA.y + 170) - 20, "+" .. n .. " SOBRES", p.lima)
-    verPista("sacar")
     partida.guardar()
 end
 
@@ -1072,54 +1062,6 @@ local function dibujarVuelos()
     end
 end
 
--- bocadillos de ayuda: cada gesto nuevo se explica una vez, cuando toca
-local PISTAS = {
-    guardar = "¿MEJOR LUEGO? TOCA GUARDAR O ARRASTRA EL SOBRE A TU CAJA",
-    sacar = "TOCA UNA CAJA PARA SACAR SUS SOBRES SIN ABRIRLA",
-    cajaAbierta = "ARRASTRA UN SOBRE DE LA CAJA A TU CAJA Y SE GUARDAN TODOS",
-    sueltos = "ARRASTRA LAS FUNDAS Y LOS TOPS A TU CAJA PARA GUARDARLOS",
-}
-
--- la pista que toca ahora y donde apunta
-local function pistaQueToca()
-    if partida.tutorial or ui.overlay or ui.modal or mano or animCaja then return nil end
-    if apertura.cancelable() and not partida.pistas.guardar then
-        local cx = apertura.centro()
-        return "guardar", cx, 300
-    end
-    if apertura.activa() then return nil end
-    if partida.cajaAbierta and not partida.pistas.cajaAbierta then
-        return "cajaAbierta", ESQUINA.x - 20, ESQUINA.y + 40
-    end
-    if not partida.pistas.sacar then
-        for _, s in pairs(sitioCajas) do
-            if partida.prodDisponibles(s.pid, s.tipo) > 0 then return "sacar", s.x + 20, s.y - 26 end
-        end
-    end
-    if haySueltos() and not partida.pistas.sueltos then return "sueltos", SUELTOS.x - 30, SUELTOS.y + 34 end
-end
-
-local function dibujarPista()
-    local id, x, y = pistaQueToca()
-    if not id then
-        pistaVista = nil
-        return
-    end
-    if not pistaVista or pistaVista.id ~= id then pistaVista = { id = id, t = 0 } end
-    local texto = PISTAS[id]
-    local w = math.min(200, fuentes.ancho(texto) + 12)
-    local _, lineas = fuentes.envolver(texto, w - 12)
-    local h = #lineas * fuentes.linea() + 8
-    local bx = math.max(TAPETE.x + 4, math.min(TAPETE.x + TAPETE.w - w - 4, x - w / 2))
-    local by = math.min(TAPETE.y + TAPETE.h - h - 4, y)
-    local a = math.min(1, pistaVista.t * 4)
-    lg.setColor(0, 0, 0, 0.5 * a)
-    lg.rectangle("fill", bx + 2, by + 3, w, h, 3, 3)
-    lg.setColor(p.amarillo[1], p.amarillo[2], p.amarillo[3], a)
-    lg.rectangle("fill", bx, by, w, h, 3, 3)
-    fuentes.parrafo(texto, bx + 6, by + 4, { 0, 0, 0, a }, w - 12)
-end
-
 function mesa.dibujar()
     dibujarTapete()
     dibujarCaja()
@@ -1148,7 +1090,6 @@ function mesa.dibujar()
         local cx = apertura.centro()
         ui.boton("mesa_cancelar", "GUARDAR", cx - 30, 280, 60, 12, p.gris)
     end
-    dibujarPista()
     -- lo que vuela y lo que llevas en la mano gira, asi que va encima
     encima.anotar(dibujarVuelos)
     if mano then encima.anotar(dibujarMano) end
@@ -1171,11 +1112,6 @@ function mesa.update(dt)
     if chipCaja then
         chipCaja.t = chipCaja.t - dt
         if chipCaja.t <= 0 then chipCaja = nil end
-    end
-    -- cada bocadillo se ve unos segundos y ya no vuelve
-    if pistaVista then
-        pistaVista.t = pistaVista.t + dt
-        if pistaVista.t > 6 then verPista(pistaVista.id) end
     end
 
     -- abriendo una caja: al saltar la tapa, fiesta
@@ -1522,13 +1458,11 @@ function mesa.soltar(x, y)
             local n = partida.cerrarCajaAbierta()
             sonido.tocar("giro")
             fx.texto(x, y - 10, "+" .. n .. " SOBRES GUARDADOS", p.lima)
-            verPista("cajaAbierta")
             partida.guardar()
             table.insert(vuelos, { tipo = m.tipo, x0 = m.x, y0 = m.y + sobre.ALTO * m.escala / 2, x1 = CAJA.x + CAJA.w / 2,
                                    y1 = CAJA.y + 60, e0 = m.escala, a = m.a, t = 0 })
             return
         end
-        if dentro(CAJA, x, y) then verPista("guardar") end
         -- fuera del tapete: vuelve a su sitio en la caja
         table.insert(vuelos, { tipo = m.tipo, x0 = m.x, y0 = m.y + sobre.ALTO * m.escala / 2, x1 = m.hx, y1 = m.hy,
                                e0 = m.escala, a = m.a, t = 0 })
@@ -1581,7 +1515,6 @@ function mesa.soltar(x, y)
             if n > 0 then
                 brilloFunda(x, y)
                 fx.texto(x, y - 10, "+" .. n .. (m.que == "fundas" and " FUNDAS" or " TOPS"), m.que == "fundas" and p.cian or p.celeste)
-                verPista("sueltos")
             end
         end
     elseif m.cosa == "funda" or m.cosa == "top" then
@@ -1756,7 +1689,7 @@ end
 -- al empezar o cargar otra partida
 function mesa.reiniciar()
     mano, mesaSel, animCaja = nil, nil, nil
-    pulsoSobre, chipCaja, pistaVista = nil, nil, nil
+    pulsoSobre, chipCaja = nil, nil
     paginaTablero = 1
     filtro = "todo"
     vuelos = {}

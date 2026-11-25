@@ -19,8 +19,9 @@ partida.RANURAS = 3
 partida.ranura = 1
 local ARCHIVO = "partida.lua"
 local function archivoDe(n) return n == 1 and "partida.lua" or ("partida" .. n .. ".lua") end
--- v6: cada copia se guarda por separado. Las partidas v5 se convierten al cargar
-local VERSION = 6
+-- v6: cada copia se guarda por separado. v7 (0.11): los sets cambiaron de
+-- orden; las partidas de antes ya no cargan
+local VERSION = 7
 
 local porId = {}
 for _, c in ipairs(cartas) do
@@ -111,7 +112,7 @@ function partida.nueva()
     partida.desbloqueos = {}     -- lo que ya ha salido (src/desbloqueos.lua)
     partida.sequia = {}          -- sobres seguidos sin holo, por tipo (la piedad)
     partida.tiradas = {}         -- sobres que se guardaron sin abrir: ya tienen sus cartas
-    partida.pistas = {}          -- bocadillos de la mesa que ya se han visto
+    partida.pistas = {}          -- de los bocadillos de la mesa (ya no salen); se guarda por las partidas viejas
     partida.guia = { visto = {} } -- explicaciones ya vistas (src/guia.lua)
     partida.buscadas = {}        -- cartas que buscas: id = true
     partida.encontradas = {}     -- buscadas que acaban de salir (main.lua avisa)
@@ -1570,17 +1571,21 @@ local function entre(r)
     return r[1] + love.math.random() * (r[2] - r[1])
 end
 
+-- en orden fijo: con pairs la misma semilla daria cosas distintas en cada ejecucion
 local function alAzar(pesos)
-    local total = 0
-    for _, w in pairs(pesos) do total = total + (type(w) == "table" and w.peso or w) end
-    local r = love.math.random() * total
-    local ultimo
+    local claves, total = {}, 0
     for k, w in pairs(pesos) do
+        claves[#claves + 1] = k
+        total = total + (type(w) == "table" and w.peso or w)
+    end
+    table.sort(claves, function(a, b) return tostring(a) < tostring(b) end)
+    local r = love.math.random() * total
+    for _, k in ipairs(claves) do
+        local w = pesos[k]
         r = r - (type(w) == "table" and w.peso or w)
-        ultimo = k
         if r <= 0 then return k end
     end
-    return ultimo
+    return claves[#claves]
 end
 
 -- cartas de una rareza que trae de media un sobre
@@ -2119,42 +2124,6 @@ function partida.update(dt)
     end
 end
 
--- v5 guardaba cuantas copias tenias de cada carta, cuantas de 1ª edicion y
--- cuantas enfundadas. Se reparten: las fundas primero en las de 1ª edicion
-local function desdeV5(datos)
-    local inv, uid = {}, 0
-    for id, n in pairs(datos.coleccion or {}) do
-        if porId[id] and n > 0 then
-            local p1 = math.min(n, (datos.primeras or {})[id] or 0)
-            local f = math.min(n, (datos.fundas or {})[id] or 0)
-            local l = {}
-            for k = 1, n do
-                uid = uid + 1
-                l[k] = { u = uid, p = k <= p1 or nil, f = k <= f or nil }
-            end
-            inv[id] = l
-        end
-    end
-    -- cada anuncio se queda con una copia libre de su edicion
-    local anuncios = {}
-    for _, a in ipairs(datos.anuncios or {}) do
-        local l = inv[a.id]
-        for k = l and #l or 0, 1, -1 do
-            local c = l[k]
-            if not c.a and (c.p or false) == (a.primera or false) then
-                c.a = true
-                a.u = c.u
-                table.insert(anuncios, a)
-                break
-            end
-        end
-    end
-    datos.inv, datos.uid, datos.anuncios = inv, uid, anuncios
-    datos.mesa = {}
-    datos.version = VERSION
-    return datos
-end
-
 local function leer(archivo)
     archivo = archivo or ARCHIVO
     if not love.filesystem.getInfo(archivo) then return nil end
@@ -2162,7 +2131,6 @@ local function leer(archivo)
     if not ok or not trozo then return nil end
     local bien, datos = pcall(trozo)
     if not bien or type(datos) ~= "table" or not datos.mercado then return nil end
-    if datos.version == 5 then return desdeV5(datos) end
     if datos.version ~= VERSION then return nil end
     return datos
 end

@@ -569,6 +569,11 @@ local function appMercado()
             local compradas = partida.colabCompradas[def.id] or 0
             if compradas > 0 then fuentes.texto("TUYAS " .. compradas, x, y + 4, 1, p.lima, "right", w - 4) end
             fuentes.texto(rarezas.nombre(def):upper(), x + 26, y + 13, 1, p.blanco)
+            local dias = mercado.diasColab(def.id)
+            if dias then
+                fuentes.texto(dias == 1 and "HOY ÚLTIMO DÍA" or ("QUEDAN " .. dias .. " DÍAS"), x, y + 13, 1,
+                    dias == 1 and p.rojo or p.amarillo, "right", w - 4)
+            end
             local quedan = mercado.stockColab(def.id)
             if quedan > 0 then
                 fuentes.texto("QUEDAN " .. quedan .. "  MÁX. " .. datosPromos.colab.maximo .. " POR CLIENTE", x + 26, y + 20, 1, p.grisclaro)
@@ -1374,7 +1379,8 @@ local function appCalendario()
         y = y + 10
     end
     y = y + 6
-    local ayuda = "CADA " .. datosCalendario.cada .. " DÍAS MÁS O MENOS SALE UN SET NUEVO. CUANDO UNO SE AGOTA, " ..
+    local C = datosCalendario.cada
+    local ayuda = "CADA " .. C[1] .. "-" .. C[#C] .. " DÍAS SALE UN SET NUEVO. CUANDO UNO SE AGOTA, " ..
         "TARDE O TEMPRANO VUELVE COMO REIMPRESIÓN."
     fuentes.texto(ayuda, x, y, 1, p.gris, "left", w)
     local _, l = fuentes.envolver(ayuda, w)
