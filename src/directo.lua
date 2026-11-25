@@ -849,6 +849,15 @@ function directo.anularReserva(pe)
     partida.guardar()
 end
 
+-- el taco de un comprador sale por correo: el chat reacciona
+function directo.enviado(pe)
+    if not d then return end
+    poner({ sistema = true, texto = "PAQUETE ENVIADO A " .. pe.nombre:upper(), color = p.lima, nace = d.t })
+    local textos = V.textos[partida.canal.idioma].enviado
+    if textos then table.insert(cola, { t = 0.6, nombre = pe.nombre, color = pe.color, texto = azar(textos) }) end
+    if d.esp >= 2 then emojis.lanzar({ "cohete", "fuego", "OLE" }, 2, 1) end
+end
+
 function directo.forzarPedido()
     if d then nuevoPedido() end
 end
