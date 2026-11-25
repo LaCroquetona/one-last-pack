@@ -328,7 +328,74 @@ local function patrimonio()
     return partida.dinero + partida.valorColeccion() + s
 end
 
+-- ESCENARIOS=1: el bot meneses juega con la semilla 1 y guarda partidas de prueba
+-- (escenarios.sh las copia a herramientas/escenarios/)
+local function llenarSellado(sobresPorSet, prodsPorTipo)
+    local dinero = partida.dinero
+    partida.dinero = 1e9
+    for _, x in ipairs(enTienda()) do
+        if sobresPorSet > 0 then partida.meterSobres(x.t.id, sobresPorSet, false) end
+        for _, prod in ipairs(mercado.productosDe(x.t, true)) do
+            for _ = 1, prodsPorTipo do partida.comprarProd(prod, x.t) end
+        end
+    end
+    partida.dinero = dinero
+end
+
+local ESCENARIOS = {
+    { "dia20", 20, nil, 36 },
+    { "armario_lleno", 20, function() llenarSellado(40, 3) end, 36 },
+    { "directo_venta", 20, function()
+        llenarSellado(0, 2)
+        partida.canal.seguidores = math.max(partida.canal.seguidores, 120)
+    end, 36 },
+    { "dia300", 300, nil, 100 },
+    { "master_set", 300, function()
+        for _, l in ipairs({ mercado.cartasDe("s1"), mercado.fueraDe("s1") }) do
+            for _, c in ipairs(l) do
+                if not partida.inv[c.id] then partida.anadir(c.id, false) end
+            end
+        end
+    end, 100 },
+}
+
+local function generarEscenarios()
+    for _, e in ipairs(ESCENARIOS) do
+        local nombre, dias, retocar, guarda = e[1], e[2], e[3], e[4]
+        love.math.setRandomSeed(1)
+        math.randomseed(1)
+        VENTA, COSTE, seguidoresSueltos = 0, 0, 0
+        partida.nueva()
+        mercado.nuevo(1)
+        for _ = 1, dias do
+            abiertosHoy = 0
+            ESTRATEGIAS.meneses()
+            partida.pasarDia()
+        end
+        -- como un jugador que ya ha pasado el tutorial y lo tiene todo a la vista
+        partida.tutorial = false
+        partida.desbloqueos = { todo = true }
+        partida.guia = { todo = true }
+        -- el bot lo vende todo: al final abre unos sobres de cada set salido y se los queda
+        for _, t in ipairs(sobres.lista) do
+            for _, st in ipairs(mercado.setsSalidos()) do
+                if st.id == t.set then
+                    for _ = 1, guarda do abrir(t, false) end
+                end
+            end
+        end
+        if retocar then retocar() end
+        love.filesystem.write("escenario_" .. nombre .. ".lua", partida.texto())
+        print(string.format("%-14s dia %d  dinero %.0f€  coleccion %.0f€  seguidores %d", nombre, mercado.dia(), partida.dinero / 100, partida.valorColeccion() / 100, partida.canal.seguidores))
+    end
+end
+
 function love.load()
+    if os.getenv("ESCENARIOS") then
+        generarEscenarios()
+        love.event.quit()
+        return
+    end
     local nombres = { "nada", "abreRapido", "abreMovil", "directo", "lanzamiento", "guardar", "mixto", "vendeDirecto", "ludopata", "especulador", "novato", "meneses" }
     -- SOLO=directo ./bots.sh: solo esa estrategia
     if os.getenv("SOLO") then nombres = { os.getenv("SOLO") } end
@@ -358,9 +425,11 @@ function love.load()
                 partida.pasarDia()
                 for k, dia in ipairs(res) do
                     if d == dia then
-                        suma[k] = suma[k] or { 0, 0 }
+                        suma[k] = suma[k] or { 0, 0, 0, 0 }
                         suma[k][1] = suma[k][1] + partida.dinero / SEM
                         suma[k][2] = suma[k][2] + patrimonio() / SEM
+                        suma[k][3] = suma[k][3] + partida.valorColeccion() / SEM
+                        suma[k][4] = suma[k][4] + partida.abiertos / SEM
                     end
                 end
             end
@@ -368,6 +437,18 @@ function love.load()
             prop = prop + partida.canal.propinas / SEM
             abiertos = abiertos + partida.abiertos / SEM
             for _, n in pairs(partida.mejoras) do mejorasT = mejorasT + n / SEM end
+        end
+        -- RESUMEN=1: solo dinero, sobres abiertos y valor de la coleccion los dias 20, 30 y 240
+        if os.getenv("RESUMEN") then
+            local l = string.format("%-12s", nombre)
+            for k, dia in ipairs(res) do
+                if dia == 20 or dia == 30 or dia == 240 then
+                    l = l .. string.format("  d%d: dinero %.0f€ sobres %.0f coleccion %.0f€", dia, suma[k][1] / 100, suma[k][4], suma[k][3] / 100)
+                end
+            end
+            if quiebras > 0 then l = l .. string.format("  SIN BLANCA %d/%d", quiebras, SEM) end
+            print(l)
+            goto siguiente
         end
         local linea = string.format("%-12s", nombre)
         for k, dia in ipairs(res) do linea = linea .. string.format("  d%d: %7.2f€ (total %8.2f€)", dia, suma[k][1] / 100, suma[k][2] / 100) end
@@ -378,6 +459,7 @@ function love.load()
             linea = linea .. string.format(", seguidores %d, propinas %.2f€", seg, prop / 100)
         end
         print(linea)
+        ::siguiente::
     end
     love.event.quit()
 end

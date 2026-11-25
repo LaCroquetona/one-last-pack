@@ -14,9 +14,16 @@ No son parte del juego. Sirven para probarlo sin jugarlo, para ver si la econom�
 
 Se elige con `GUION=guion_visual.lua`. Con `OLP_VENTANA=2400x1080 OLP_MOVIL=1` se prueba como en un móvil alargado con el texto grande. La mascota está apagada en las pruebas para que no tape nada; `GUIA=1` la enciende.
 
+El arnés juega siempre igual: semilla fija (`SEMILLA=N` para otra) y reloj fijo a 60 frames por segundo, así que dos pasadas dan las mismas capturas. Para ir rápido solo pinta 1 de cada 4 frames (`OLP_PINTAR=1` los pinta todos), y siempre antes de cada clic y de cada foto. Ignora el ratón y el foco de la pantalla virtual: los pone el guion.
+
+- `SALTAR=1`: los sobres se abren sin animación (para guiones que no prueban la apertura).
+- `PARTIDA=/ruta/partida.lua`: empieza con esa partida guardada.
+- `OLP_TIEMPO=N`: segundos antes de cortar la prueba (900 por defecto).
+- `OLP_DATOS=/carpeta` y `OLP_PANTALLA=N`: otra carpeta de guardado y otra pantalla virtual, para correr dos pruebas a la vez (PC y móvil).
+
 ## Bots de economía
 
-`bots.sh` + `bots/main.lua`: bots que juegan 240 días cada uno con una estrategia y dicen cuánto dinero y patrimonio tienen, cuántos sobres abren y, los que hacen directo, seguidores y propinas.
+`bots.sh` + `bots/main.lua`: bots que juegan 240 días cada uno con una estrategia y dicen cuánto dinero y patrimonio tienen, cuántos sobres abren y, los que hacen directo, seguidores y propinas. `ESCENARIOS=1` hace que el bot `meneses` juegue con la semilla 1 y guarde partidas de prueba (día 20, día 300, armario lleno, directo de venta y MASTER SET del S1) en la carpeta de guardado de los bots.
 
 Estrategias: `nada`, `abreRapido`, `abreMovil`, `lanzamiento` (compra el día de salida), `guardar` (sobres cerrados), `mixto`, `directo`, `vendeDirecto` (el que sabe: revende en directos de venta), `ludopata`, `especulador`, `novato` y `meneses` (como juego yo: compro todo, cajas de tienda y de vendedores, las vendo en directo y vendo rápido lo malo).
 
@@ -32,6 +39,10 @@ La referencia que uso: un buen jugador tiene para unas 2 cajas el día 20 y un n
 ## Simulador de mercado
 
 `simular.sh 1 2 3` + `sim/main.lua`: simula 600 días de mercado sin jugar, con las semillas que le pases, y saca un CSV por semilla (`sim_N.csv`) con los precios de las chase, de algunas holo y de los sobres sellados, más las noticias. Sirve para dibujar las gráficas y ver si las burbujas y los crashes quedan bien.
+
+## Simulador de las ALT
+
+`GUION=guion_v0105_alt.lua SOBRES=100000 ./correr.sh`: abre esos sobres de cada set y cuenta, de cada carta con ALT, cuántas salen normales y cuántas ALT, más lo que vale el sobre de media. Lo deja en `sim_alt.txt` en la carpeta de guardado. Ninguna ALT debería pasar de 1 de cada 5 copias de su carta.
 
 ## Reportes de bugs
 
