@@ -88,38 +88,22 @@ return function(t)
     ok(apertura.enResumen(), "acaba en el resumen")
     foto("16_resumen")
 
-    -- al momento las cartas pasan a estar sueltas en la mesa
+    -- en directo las cartas pasan al taco y a hits (v0.11.1)
     for _ = 1, 200 do
         if #partida.mesa > 0 then break end
         esperar(1)
     end
     esperar(30)
-    ok(#partida.mesa >= 7 and not apertura.activa(), "las cartas del sobre quedan sueltas en la mesa (" .. #partida.mesa .. ")")
+    ok(#partida.mesa >= 7 and not apertura.activa() and partida.mesa[1].zona ~= nil,
+        "las cartas del sobre quedan en el taco y en hits (" .. #partida.mesa .. ")")
     foto("16b_cartas_sueltas")
     ok(partida.tutorial == false, "intro acabada al abrir el primer sobre (" .. tostring(partida.tutorial) .. ")")
 
-    -- se puede mover una
-    local s1 = partida.mesa[1]
-    local zs = Z["m" .. s1.u]
-    ok(zs ~= nil, "la carta suelta se puede tocar")
-    if zs then
-        local x0 = s1.x
-        t.pulsar(zs.x + zs.w / 2, zs.y + zs.h / 2)
-        for k = 1, 10 do
-            t.mover(zs.x + zs.w / 2 + k * 6, zs.y + zs.h / 2 + k * 8)
-            esperar(1)
-        end
-        t.soltar()
-        esperar(3)
-        ok(math.abs(s1.x - x0) > 20, "la carta se ha movido")
-    end
-
-    -- funda: de la caja a una carta suelta
+    -- funda: de la caja a la carta de arriba del taco
     local fundas = partida.fundasLibres
     local zf = Z["caja_funda"]
     ok(zf ~= nil, "las fundas se pueden coger con el sobre abierto")
-    local s2 = partida.mesa[3]
-    local zr = Z["m" .. s2.u]
+    local zr = Z["zt_pila"]
     if zf and zr then
         t.pulsar(zf.x + zf.w / 2, zf.y + zf.h / 2)
         for k = 1, 12 do
@@ -132,10 +116,17 @@ return function(t)
         ok(partida.fundasLibres == fundas - 1, "la funda se gasta al soltarla en la carta")
         foto("18_carta_enfundada")
     end
-    -- tocar una carta suelta: sus botones
-    local zt = Z["m" .. partida.mesa[2].u]
+    -- tocar el taco: INSPECCIONAR la de arriba
+    local zt = Z["zt_pila"]
     if zt then t.clickEn(zt.x + zt.w / 2, zt.y + zt.h / 2) end
     esperar(3)
+    -- con el dedo se abre el abanico: se toca una
+    if not Z["insp_vender"] then
+        for k, z in pairs(Z) do
+            if k:match("^zt_%d") then t.clickEn(z.x + 2, z.y + z.h / 2) break end
+        end
+        esperar(3)
+    end
     -- desde la 0.10.2 tocarla abre INSPECCIONAR (con VENDER ESTA y AL ARMARIO)
     ok(Z["insp_vender"] ~= nil and Z["insp_armario"] ~= nil, "la carta suelta tiene sus botones")
     esperar(2)
@@ -152,7 +143,7 @@ return function(t)
     ok(apertura.bloqueada(), "espacio abre el siguiente sobre")
     local quedan = 0
     for _, c in ipairs(enMesa) do if c.m then quedan = quedan + 1 end end
-    ok(#partida.mesa == 0 and quedan == 0, "al abrir otro, lo de la mesa vuelve al armario")
+    ok(#partida.mesa == #enMesa and quedan == #enMesa, "en directo, al abrir otro el taco y los hits se quedan")
     t.pulsar(310, 170)
     for _ = 1, 40 do
         if apertura.enResumen() then break end
@@ -273,8 +264,15 @@ return function(t)
     click("ir_armario")
     esperar(10)
     foto("25_armario")
-    local idM = next(partida.inv)
-    local c = partida.lista(idM)[1]
+    -- lo del taco del directo sigue en la mesa: se recoge y se saca una
+    partida.recogerMesa()
+    local idM, c
+    for id, l in pairs(partida.inv) do
+        for _, cc in ipairs(l) do
+            if not (cc.m or cc.a or cc.k) then idM, c = id, cc break end
+        end
+        if c then break end
+    end
     partida.aLaMesa(idM, c)
     click("ir_mesa")
     esperar(10)
