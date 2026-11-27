@@ -107,6 +107,8 @@ En PC se juega con ratón; en Android, igual pero tocando.
 
 **Directo**
 - En la mesa, ponle nombre al canal y dale a EMPEZAR DIRECTO. La tienda y el armario no lo cortan; ir al móvil o pasar el día, sí.
+- En directo, lo que abres se queda en el tapete: lo normal en TU TACO (pasa el ratón o tócalo para verlo en abanico) y de holo para arriba en HITS (las holo en su taquito y lo mejor en fila). Sus cartas se pueden sacar al tapete y vuelven solas con el siguiente sobre. Para guardarlo, arrastra el taco entero o un hit a tu caja: se va el grupo entero.
+- En la venta, cada comprador tiene su hueco en PEDIDOS con su post-it; al completarse, su taco sale solo en un sobre acolchado.
 
 ## Twitch
 
@@ -157,6 +159,7 @@ En `src/`:
 - `mesa.lua`, `apertura.lua`, `sobre.lua`, `caja.lua`, `productos.lua` y `encima.lua`: la mesa, abrir sobres, el dibujo de los sobres, la caja expositor, el dibujo de los demás productos sellados y lo que se pinta a resolución real (lo que se arrastra).
 - `muebles.lua` y `escritorio.lua`: estanterías, baldas, ganchos, blísters y álbumes en 3D, con la misma perspectiva que la caja, y la mesa de madera del fondo.
 - `directo.lua` y `emojis.lua`: el directo, su chat, los comandos y los emojis.
+- `zonas.lua`: TU TACO, HITS y PEDIDOS en el tapete durante el directo.
 - `twitch.lua`: el chat de Twitch por IRC (solo lectura, en un hilo aparte).
 - `movil.lua`, `grafica.lua` y `vendedores.lua`: el móvil con todas sus apps.
 - `tienda.lua`, `armario.lua`, `menu.lua`, `opciones.lua`, `reporte.lua` y `errores.lua`: el resto de pantallas.
