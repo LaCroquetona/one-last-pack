@@ -23,6 +23,7 @@ local encima = require "src.encima"
 local logros = require "src.logros"
 local apertura = require "src.apertura"
 local directo = require "src.directo"
+local zonas = require "src.zonas"
 local fx = require "src.fx"
 local sonido = require "src.sonido"
 local fuentes = require "src.fuentes"
@@ -62,11 +63,22 @@ local ESQUINA = { x = TAPETE.x + TAPETE.w - 36, y = TAPETE.y + 36, e = 1 }
 local ABANICO = { x = TAPETE.x + TAPETE.w - 70, y = TAPETE.y + 22 }
 -- fundas y tops sueltos que trae un producto
 local SUELTOS = { x = TAPETE.x + TAPETE.w - 30, y = TAPETE.y + 116 }
+-- con la columna de pedidos del directo, lo de la esquina se aparta a la izquierda
+local apartado = 0
+local function recolocar()
+    apartado = zonas.anchoColumna()
+    ESQUINA.x = TAPETE.x + TAPETE.w - 36 - apartado
+    ABANICO.x = TAPETE.x + TAPETE.w - 70 - apartado
+    SUELTOS.x = TAPETE.x + TAPETE.w - 30 - apartado
+    apertura.zona(TAPETE.x, zonas.anchoApertura(), zonas.activas())
+end
+zonas.preparar(TAPETE)
 -- animacion de abrir una caja (src/caja.lua)
 local animCaja
 local CW, CH = carta.ANCHO, carta.ALTO
--- tamaño de las cartas sueltas en la mesa (las del sobre y las sacadas del armario)
-local ESCALA_COPIA = 1.75
+-- tamaño de las cartas sueltas en la mesa (las del sobre y las sacadas del
+-- armario): el mismo que en el taco y los hits, y no cambia al moverlas
+local ESCALA_COPIA = 1.25
 local ESCALA_COGIDO = 2
 
 -- lo que llevas en la mano: { cosa = "sobre" | "funda" | "copia", ... }
@@ -229,7 +241,7 @@ local function sitioMesa(s, k)
     if s.x and dentro(TAPETE, s.x, s.y) then return s end
     local col, fila = (k - 1) % 5, math.floor((k - 1) / 5)
     s.x = TAPETE.x + 42 + col * 74 + love.math.random(-4, 4)
-    s.y = TAPETE.y + TAPETE.h - 50 - fila * 40 + love.math.random(-4, 4)
+    s.y = (zonas.activas() and TAPETE.y + 170 or TAPETE.y + TAPETE.h - 50) - fila * 40 + love.math.random(-4, 4)
     s.r = (love.math.random() - 0.5) * 0.15
     s.z = 0
     return s
@@ -284,7 +296,7 @@ end
 local function sitioPromo(i)
     -- con la ETB abierta, a la izquierda del abanico (debajo estan las fundas sueltas)
     if hayAbanico() then return ABANICO.x - 88 - (i - 1) * 14, TAPETE.y + 22 end
-    return TAPETE.x + TAPETE.w - 24 - (i - 1) * 14, TAPETE.y + 70
+    return TAPETE.x + TAPETE.w - 24 - apartado - (i - 1) * 14, TAPETE.y + 70
 end
 
 local function rincon()
@@ -320,7 +332,7 @@ local function soltarSobre(tipoId, x, y, a, escala, deCaja, ed)
     if not tipo then return false end
     -- lo que habia en la mesa vuelve solo al armario
     apertura.recoger()
-    partida.recogerMesa()
+    partida.recogerMesa(true)
     mesaSel = nil
     partida.guardar()
     sonido.tocar("giro")
@@ -337,7 +349,7 @@ local function soltarPromo(m)
     if m.deMesa then defs = partida.abrirPromoMesa(m.deMesa) else defs = partida.sacarPromoSobre(m.promo, m.tipoReal) end
     if not defs then return false end
     apertura.recoger()
-    partida.recogerMesa()
+    partida.recogerMesa(true)
     mesaSel = nil
     partida.guardar()
     sonido.tocar("giro")
@@ -375,15 +387,25 @@ function mesa.cancelar()
 end
 
 -- todas las cartas sueltas de la mesa al armario
+-- cartas sueltas en el tapete (sin las del taco y los hits del directo)
+local function haySueltasMesa()
+    for _, s in ipairs(partida.mesa) do
+        if not s.zona then return true end
+    end
+    return false
+end
+
+-- lo suelto de la mesa a su sitio: las cartas al armario (las sacadas del
+-- taco o de los hits vuelven ahi; el taco y los hits se guardan arrastrandolos)
 function mesa.recoger()
     if apertura.activa() or animCaja then return false end
-    if #partida.mesa == 0 and not hayAbanico() and not haySueltos() and #partida.promoMesa == 0 then return false end
+    if not haySueltasMesa() and not hayAbanico() and not haySueltos() and #partida.promoMesa == 0 then return false end
     -- los sobres del abanico vuelven con los guardados y lo suelto a su caja
     if hayAbanico() then partida.cerrarCajaAbierta() end
     partida.guardarPromoMesa()
     partida.guardarSueltos("fundas")
     partida.guardarSueltos("tops")
-    partida.recogerMesa()
+    partida.recogerMesa(true)
     mesaSel = nil
     sonido.tocar("giro")
     fx.texto(TAPETE.x + TAPETE.w / 2, TAPETE.y + TAPETE.h / 2, "AL ARMARIO", p.lima)
@@ -702,12 +724,21 @@ local function dibujarCaja()
     -- copias en la mesa
     -- copias en la mesa: solo al llevar una (arriba: abajo van las cajitas,
     -- donde soltarla la enfunda con su diseno)
-    if mano and mano.cosa == "copia" then
+    -- (encima del mueble ya sale el cartel sobre lo que llevas)
+    if mano and mano.cosa == "copia" and not dentro(CAJA, ui.mx, ui.my) then
         local y = TABLERO + 30
+        local e = entradaMesa(mano.u)
+        local grupo = e and (e.zona or e.vuelve)
         muebles.rect(p.negro, CAJA.x + 4, y - 3, CAJA.w - 8, 27, 0.8)
-        fuentes.texto("DEL ARMARIO " .. partida.propiasEnMesa() .. "/" .. partida.MAX_MESA, CAJA.x, y, 1, p.grisclaro, "center", CAJA.w)
-        fuentes.texto("SUÉLTALA AQUÍ PARA", CAJA.x, y + 8, 1, p.lima, "center", CAJA.w)
-        fuentes.texto("GUARDARLA", CAJA.x, y + 15, 1, p.lima, "center", CAJA.w)
+        if grupo then
+            fuentes.texto(grupo == "hits" and "TUS HITS" or "TU TACO", CAJA.x, y, 1, p.grisclaro, "center", CAJA.w)
+            fuentes.texto("SUÉLTALA AQUÍ:", CAJA.x, y + 8, 1, p.lima, "center", CAJA.w)
+            fuentes.texto("TODOS AL ARMARIO", CAJA.x, y + 15, 1, p.lima, "center", CAJA.w)
+        else
+            fuentes.texto("DEL ARMARIO " .. partida.propiasEnMesa() .. "/" .. partida.MAX_MESA, CAJA.x, y, 1, p.grisclaro, "center", CAJA.w)
+            fuentes.texto("SUÉLTALA AQUÍ PARA", CAJA.x, y + 8, 1, p.lima, "center", CAJA.w)
+            fuentes.texto("GUARDARLA", CAJA.x, y + 15, 1, p.lima, "center", CAJA.w)
+        end
     end
 end
 
@@ -759,13 +790,17 @@ local function dibujarTapete()
     end
 
     -- mientras se abre una caja no hay pistas: la caja es la protagonista
+    local conZonas = zonas.activas()
     if not animCaja and not apertura.activa() and #partida.mesa > 0 then
         -- con cartas en la mesa, la pista va abajo y pequeña
         local a = 0.45 + math.sin(love.timer.getTime() * 4) * 0.2
         local cad
         if quedanSobres() == 0 then
             cad = "SIN SOBRES: CÓMPRALOS EN LA TIENDA"
-            ui.boton("mesa_recoger", "RECOGER MESA", T.x + T.w - 92, T.y + T.h - 22, 84, 16, p.azul)
+            if not conZonas then ui.boton("mesa_recoger", "RECOGER MESA", T.x + T.w - 92, T.y + T.h - 22, 84, 16, p.azul) end
+        elseif conZonas then
+            -- en directo lo del taco y los hits se queda hasta RECOGER MESA
+            cad = love.system.getOS() == "Android" and "ARRASTRA OTRO SOBRE" or "ARRASTRA OTRO SOBRE O PULSA ESPACIO"
         elseif love.system.getOS() == "Android" then
             cad = "ARRASTRA OTRO SOBRE: LO DE LA MESA SE GUARDA SOLO"
         else
@@ -788,9 +823,17 @@ local function dibujarTapete()
         end
     end
     -- con un abanico o algo suelto, RECOGER MESA lo guarda todo
-    if not animCaja and not apertura.activa() and (hayAbanico() or haySueltos()) and not (#partida.mesa > 0 and quedanSobres() == 0) then
+    if not conZonas and not animCaja and not apertura.activa() and (hayAbanico() or haySueltos()) and not (#partida.mesa > 0 and quedanSobres() == 0) then
         ui.boton("mesa_recoger", "RECOGER MESA", T.x + T.w - 92, T.y + T.h - 22, 84, 16, p.azul)
     end
+end
+
+-- con las zonas del directo, RECOGER MESA va encima de los hits (si hay algo que recoger)
+local function botonRecogerZonas()
+    if not zonas.activas() or animCaja or apertura.bloqueada() then return end
+    if not haySueltasMesa() and not hayAbanico() and not haySueltos() and #partida.promoMesa == 0 then return end
+    local x, y, w, h = zonas.sitioRecoger()
+    ui.boton("mesa_recoger", "RECOGER MESA", x, y, w, h, p.azul)
 end
 
 local function dibujarCopias()
@@ -798,7 +841,9 @@ local function dibujarCopias()
     -- mientras se abre un sobre se apartan un poco (se ven de fondo)
     local fondo = apertura.bloqueada()
     local lista = {}
-    for k, s in ipairs(partida.mesa) do table.insert(lista, sitioMesa(s, k)) end
+    for k, s in ipairs(partida.mesa) do
+        if not s.zona then table.insert(lista, sitioMesa(s, k)) end
+    end
     table.sort(lista, function(a, b) return (a.z or 0) < (b.z or 0) end)
     for _, s in ipairs(lista) do
         -- la promo del blister o del tin que aun va volando (dibujarPromoVolando)
@@ -929,10 +974,37 @@ local function dibujarMano()
             fuentes.texto(esTop and "SUELTA PARA PONER TOP" or "SUELTA PARA ENFUNDAR", ui.mx - 50, ui.my + CH + 4, 1, color, "center", 100)
         end
     elseif mano.cosa == "copia" then
-        local def = partida.carta(mano.id)
-        local c = partida.copia(mano.id, mano.u)
-        if def and c then
-            carta.dibujar(def, mano.x, mano.y, ESCALA_COPIA * 1.1, ESCALA_COPIA * 1.1, mano.a, true, nil, c.f, { primera = c.p, top = c.t })
+        local alto
+        if mano.pila then
+            -- el taco entero (hasta que lo mueves, sigue en su sitio)
+            if not mano.movida then return end
+            zonas.dibujarPilaEn(mano.x, mano.y, mano.a)
+            alto = zonas.altoPila()
+        else
+            local def = partida.carta(mano.id)
+            local c = partida.copia(mano.id, mano.u)
+            if def and c then
+                carta.dibujar(def, mano.x, mano.y, ESCALA_COPIA, ESCALA_COPIA, mano.a, true, nil, c.f, { primera = c.p, top = c.t })
+            end
+            alto = CH * ESCALA_COPIA
+        end
+        -- encima de tu caja: el mueble se ilumina y el cartel va sobre lo que
+        -- llevas (abajo lo taparia)
+        if dentro(CAJA, ui.mx, ui.my) then
+            -- el mueble se ilumina: ahi se suelta
+            local brillo = 0.55 + 0.25 * math.sin(love.timer.getTime() * 8)
+            lg.setColor(p.lima[1], p.lima[2], p.lima[3], brillo)
+            lg.setLineWidth(2)
+            lg.rectangle("line", CAJA.x + 1, CAJA.y + 1, CAJA.w - 2, CAJA.h - 2)
+            lg.setLineWidth(1)
+            local e = entradaMesa(mano.u)
+            local grupo = e and (mano.pila and "taco" or e.zona or e.vuelve)
+            local cad = grupo and ((grupo == "hits" and "TODOS LOS HITS" or "TODO EL TACO") .. " AL ARMARIO") or "AL ARMARIO"
+            local w = fuentes.ancho(cad) + 8
+            local tx = math.max(ui.izq + 2, math.min(ui.der - w - 2, mano.x - w / 2))
+            local ty = math.max(2, mano.y - alto / 2 - 16)
+            ui.caja(tx, ty, w, 11, p.negro)
+            fuentes.texto(cad, tx, ty + 3, 1, p.lima, "center", w)
         end
     end
 end
@@ -1063,9 +1135,12 @@ local function dibujarVuelos()
 end
 
 function mesa.dibujar()
+    zonas.cogida = mano and mano.cosa == "copia" and not mano.pila and mano.u or nil
+    zonas.pilaCogida = mano and mano.cosa == "copia" and mano.pila and mano.movida or false
     dibujarTapete()
     dibujarCaja()
     directo.dibujar(DIRECTO.x, DIRECTO.y, DIRECTO.w, DIRECTO.h)
+    zonas.dibujar()
     if apertura.enLote() then
         -- abrir en lote (DEV) ocupa toda la pantalla
         lg.setColor(0, 0, 0, 0.85)
@@ -1084,11 +1159,18 @@ function mesa.dibujar()
         if animCaja.prod then prDib.dibujarAnim(animCaja, cx, cy) else caja.dibujarAnim(animCaja, cx, cy) end
         dibujarPromoVolando()
     end
+    zonas.ocupado = mano ~= nil
+    botonRecogerZonas()
+    zonas.dibujarEncima()
     botonesCopia()
     -- el sobre del tapete aun se puede guardar sin abrir
     if apertura.cancelable() and not mano then
-        local cx = apertura.centro()
-        ui.boton("mesa_cancelar", "GUARDAR", cx - 30, 280, 60, 12, p.gris)
+        local cx, cy = apertura.centro()
+        if zonas.activas() then
+            ui.boton("mesa_cancelar", "GUARDAR", cx + 64, cy - 6, 60, 12, p.gris)
+        else
+            ui.boton("mesa_cancelar", "GUARDAR", cx - 30, 280, 60, 12, p.gris)
+        end
     end
     -- lo que vuela y lo que llevas en la mano gira, asi que va encima
     encima.anotar(dibujarVuelos)
@@ -1098,7 +1180,7 @@ end
 -- logica
 
 function mesa.preparar()
-    apertura.zona(TAPETE.x, TAPETE.w)
+    recolocar()
 end
 
 -- lo que se mantiene pulsado para cargar el sobre (solo si el click empezo en el tapete)
@@ -1108,6 +1190,8 @@ function mesa.mantenido()
 end
 
 function mesa.update(dt)
+    recolocar()
+    zonas.update(dt)
     apertura.update(dt, mesa.mantenido())
     if chipCaja then
         chipCaja.t = chipCaja.t - dt
@@ -1139,6 +1223,14 @@ function mesa.update(dt)
 
     -- el resumen se queda un momento y las cartas pasan a estar sueltas en la mesa
     local listas = apertura.cartasListas()
+    if listas and zonas.activas() then
+        -- en directo: las tuyas al taco o a hits; las de un comprador, a su hueco
+        local pe = apertura.comprador()
+        if pe then zonas.recibirComprador(pe, listas) else zonas.recibir(listas) end
+        apertura.recoger(true)
+        partida.guardar()
+        listas = nil
+    end
     if listas then
         for _, c in ipairs(listas) do
             local s = c.copia and partida.aLaMesa(c.def.id, c.copia, true)
@@ -1203,6 +1295,8 @@ function mesa.update(dt)
         local G, tope = 0.015, 0.9
         if mano.cosa == "cajabox" then G, tope = 0.009, 0.5 end
         if mano.cosa == "copia" then G, tope = 0.012, 0.45 end
+        -- el taco entero pesa: se mece poco
+        if mano.pila then G, tope = 0.005, 0.15 end
         local K, C = 120, 7
         mano.w = (mano.w or 0) + (G * par - K * rel - C * mano.w) * dt
         mano.a = a0 + math.max(-tope, math.min(tope, rel + mano.w * dt))
@@ -1229,6 +1323,14 @@ end
 function mesa.presionar(id, x, y)
     pulsadoEnTapete = false
     pulsoSobre = nil
+    if zonas.presionar(id) then return true end
+    -- una carta del taco o de los hits: se arrastra como las sueltas
+    local sz, zx, zy = zonas.coger(id)
+    if sz then
+        mano = { cosa = "copia", u = sz.u, id = sz.id, x = zx, y = zy, ax = x - zx, ay = y - zy, a = 0,
+                 a0 = 0, w = 0, px = x, py = y, x0 = x, y0 = y, movida = false, pila = id == "zt_pila", holo = id == "zt_holo" }
+        return true
+    end
     if id == "mesa_velocidad" then
         -- la siguiente velocidad (tras la mas rapida, vuelve a la mas lenta)
         local lista, ahora = partida.velocidades(), partida.velocidad()
@@ -1482,14 +1584,18 @@ function mesa.soltar(x, y)
         if not deOtro and dentro(TAPETE, x, y) and not apertura.bloqueada() and not animCaja
             and partida.abrirProd(m.prod, sobres[m.tipo], nil, pe and pe.nombre or nil) then
             apertura.recoger()
-            partida.recogerMesa()
+            partida.recogerMesa(true)
             mesaSel = nil
             -- la promo del blister o del tin se queda en la mesa (para enfundarla...)
             local r, promoU = partida.promoReciente, nil
             if r then
                 partida.promoReciente = nil
                 local s = partida.aLaMesa(r.id, r.c, true)
-                if s then
+                if s and zonas.activas() then
+                    -- en directo, a tu taco o a hits cuando acaba de abrirse
+                    local cx, cy = apertura.centro()
+                    zonas.recibirSuelta(s, cx, cy - 30, 1.6, prDib.DURACION)
+                elseif s then
                     sitioMesa(s, #partida.mesa)
                     promoU = s.u
                 end
@@ -1524,6 +1630,12 @@ function mesa.soltar(x, y)
             if hacer(c.copia, x, y, m.id) then c.brillo = 1 end
             return
         end
+        -- un hit o la de arriba del taco
+        local cz = zonas.copiaEn(x, y)
+        if cz then
+            hacer(cz, x, y, m.id)
+            return
+        end
         -- la copia de la mesa de mas arriba en ese punto
         local s
         for _, e in ipairs(partida.mesa) do
@@ -1537,7 +1649,29 @@ function mesa.soltar(x, y)
     elseif m.cosa == "copia" then
         local s = entradaMesa(m.u)
         if not s then return end
-        -- tocada sin arrastrar: INSPECCIONAR (girarla, funda, top, vender)
+        -- tocada sin arrastrar: INSPECCIONAR (girarla, funda, top, vender); el
+        -- taco, con el dedo, abre su abanico
+        if not m.movida and (m.pila or m.holo) and ui.tactil then
+            zonas.alternarAbanico(m.holo and "holo" or "taco")
+            return
+        end
+        -- el taco entero: al armario se guarda todo; en otro sitio vuelve
+        if m.pila and m.movida then
+            if dentro(CAJA, x, y) then
+                local n = 0
+                for _, e in ipairs(zonas.grupo("taco")) do
+                    if partida.guardarDeMesa(e.u) then n = n + 1 end
+                end
+                sonido.tocar("giro")
+                fx.texto(x, y - 10, "TACO AL ARMARIO (" .. n .. ")", p.lima)
+                mesaSel = nil
+                partida.guardar()
+            else
+                zonas.soltarPila(m.x, m.y, m.a)
+                sonido.tocar("giro", 0.8)
+            end
+            return
+        end
         if not m.movida then
             mesaSel = nil
             inspeccionar.abrir(s.id, s.u, { alArmario = function()
@@ -1562,6 +1696,29 @@ function mesa.soltar(x, y)
                 return
             end
         end
+        -- del taco o de los hits: a tu caja se guarda el grupo entero;
+        -- soltada en su zona, se queda ahi
+        local grupo = s.zona or s.vuelve
+        if grupo and dentro(CAJA, x, y) then
+            local n = 0
+            for _, e in ipairs(zonas.grupo(grupo)) do
+                if partida.guardarDeMesa(e.u) then n = n + 1 end
+            end
+            sonido.tocar("giro")
+            fx.texto(x, y - 10, (grupo == "hits" and "HITS" or "TACO") .. " AL ARMARIO (" .. n .. ")", p.lima)
+            mesaSel = nil
+            partida.guardar()
+            return
+        end
+        if grupo and zonas.enZona(x, y) then
+            if s.vuelve then
+                s.zona, s.vuelve = s.vuelve, nil
+                s.x, s.y, s.r, s.ra, s.z = nil, nil, nil, nil, nil
+            end
+            sonido.tocar("giro")
+            partida.guardar()
+            return
+        end
         if dentro(CAJA, x, y) then
             if partida.guardarDeMesa(s.u) then
                 sonido.tocar("giro")
@@ -1570,8 +1727,14 @@ function mesa.soltar(x, y)
             end
             return
         end
+        -- sacada del taco o de los hits al tapete: suelta hasta el siguiente sobre
+        if s.zona then
+            s.vuelve, s.zona, s.vuelo = s.zona, nil, nil
+            zMesa = zMesa + 1
+            s.z = zMesa
+        end
         local w, h = CW * ESCALA_COPIA / 2, CH * ESCALA_COPIA / 2
-        s.x = math.max(TAPETE.x + w, math.min(TAPETE.x + TAPETE.w - w, m.x))
+        s.x = math.max(TAPETE.x + w, math.min(TAPETE.x + TAPETE.w - apartado - w, m.x))
         s.y = math.max(TAPETE.y + h, math.min(TAPETE.y + TAPETE.h - h, m.y))
         -- se queda como cayo y se asienta poco a poco
         s.r, s.ra = m.a, (love.math.random() - 0.5) * 0.2
@@ -1694,6 +1857,7 @@ function mesa.reiniciar()
     filtro = "todo"
     vuelos = {}
     apertura.recoger()
+    zonas.reiniciar()
 end
 
 return mesa

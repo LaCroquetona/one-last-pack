@@ -386,7 +386,9 @@ function partida.anadir(id, primera, deSobre)
     local o = partida.opciones
     -- solo con la mejora SERVICIO DE FUNDAS (1: fundas, 2: tambien tops)
     local auto = partida.efecto("autofundas")
-    if auto >= 1 and (o.fundaDesde or 0) > 0 and nivel >= o.fundaDesde and partida.fundasLibres > 0 then
+    -- las promos, siempre (tienen la rareza de la holo, pero se cuidan aparte)
+    local promo = porId[id].promo
+    if auto >= 1 and (o.fundaDesde or 0) > 0 and (nivel >= o.fundaDesde or promo) and partida.fundasLibres > 0 then
         partida.fundasLibres = partida.fundasLibres - 1
         c.f = true
     end
@@ -1484,13 +1486,26 @@ function partida.aLaMesa(id, c, deSobre)
     return s
 end
 
--- se recoge la mesa entera: todo vuelve al armario
-function partida.recogerMesa()
+-- se recoge la mesa entera: todo vuelve al armario. soloSueltas: se quedan
+-- las del taco y los hits del directo (s.zona) y las que se sacaron de ahi
+-- al tapete vuelven a su zona (s.vuelve)
+function partida.recogerMesa(soloSueltas)
+    local quedan = {}
     for _, s in ipairs(partida.mesa) do
-        local c = partida.copia(s.id, s.u)
-        if c then c.m = nil end
+        if soloSueltas and s.vuelve then
+            s.zona, s.vuelve = s.vuelve, nil
+            -- vuelve volando desde donde estaba (src/zonas.lua)
+            if s.x then s.vuelo = { x = s.x, y = s.y, e = s.e or 1.75, t = 0 } end
+            s.x, s.y, s.r, s.ra, s.e, s.z, s.nueva = nil, nil, nil, nil, nil, nil, nil
+            table.insert(quedan, s)
+        elseif soloSueltas and s.zona then
+            table.insert(quedan, s)
+        else
+            local c = partida.copia(s.id, s.u)
+            if c then c.m = nil end
+        end
     end
-    partida.mesa = {}
+    partida.mesa = quedan
     tocar()
 end
 

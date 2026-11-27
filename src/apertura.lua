@@ -41,10 +41,14 @@ local idx, fase, tf
 local carga = 0
 local latido = 0
 local pulsado = false
+-- en directo abajo van las zonas del tapete (src/zonas.lua): todo un poco mas arriba
+local compacta = false
 
-function apertura.zona(x, w)
+function apertura.zona(x, w, compactar)
     ZX, ZW = x, w
     CX = x + w / 2
+    compacta = compactar or false
+    CY = compacta and 148 or 160
 end
 
 local function ranuraX(i)
@@ -80,10 +84,11 @@ end
 
 local function resumenY(i)
     -- un poco bajado: arriba a la derecha va la caja abierta
-    if filasResumen() == 1 then return 165 end
+    local centro = compacta and 140 or 172
+    if filasResumen() == 1 then return compacta and 140 or 165 end
     local alto = carta.ALTO * escalaResumen()
     local fila = math.floor((i - 1) / porFila())
-    return 172 + (fila == 0 and -1 or 1) * (alto / 2 + 11)
+    return centro + (fila == 0 and -1 or 1) * (alto / 2 + 11)
 end
 
 -- tipo: entrada de datos/sobres.lua (ya descontada de los guardados)
@@ -496,7 +501,7 @@ local function dibujarSobre()
 
     if estado == "sobre" then
         local b = parpadeo()
-        texto("MANTÉN CLICK O ESPACIO PARA ABRIR", 268, 1, {1, 1, 1, b})
+        texto("MANTÉN CLICK O ESPACIO PARA ABRIR", compacta and CY + 93 or 268, 1, {1, 1, 1, b})
     end
 end
 
@@ -630,7 +635,7 @@ local function dibujarNueva(c)
     fuentes.texto("¡NUEVA!", -w / 2, -5, 2, p.amarillo, "center", w)
     lg.pop()
     fx.chispas(x, y, 90, 26, p.amarillo, 14)
-    texto("+1 A TU COLECCIÓN  (" .. c.coleccion .. ")", 280, 1, { p.amarillo[1], p.amarillo[2], p.amarillo[3], math.min(1, tv * 3) })
+    texto("+1 A TU COLECCIÓN  (" .. c.coleccion .. ")", compacta and CY + 80 or 280, 1, { p.amarillo[1], p.amarillo[2], p.amarillo[3], math.min(1, tv * 3) })
 end
 
 local function dibujarActual(c)
@@ -758,9 +763,9 @@ local function dibujarResumen()
     if t > 0.5 then
         local a = parpadeo() * 0.7
         if partida.sobresGuardados() > 0 then
-            texto(ANDROID and "ARRASTRA OTRO SOBRE DE LA CAJA" or "ARRASTRA OTRO SOBRE  -  ESPACIO: SIGUIENTE", 296, 1, {1, 1, 1, a})
+            texto(ANDROID and "ARRASTRA OTRO SOBRE DE LA CAJA" or "ARRASTRA OTRO SOBRE  -  ESPACIO: SIGUIENTE", compacta and 342 or 296, 1, {1, 1, 1, a})
         else
-            texto("NO TE QUEDAN SOBRES: CÓMPRALOS EN LA TIENDA", 296, 1, {1, 1, 1, a})
+            texto("NO TE QUEDAN SOBRES: CÓMPRALOS EN LA TIENDA", compacta and 342 or 296, 1, {1, 1, 1, a})
         end
     end
 end
@@ -806,9 +811,15 @@ function apertura.cartasListas()
     return mano
 end
 
+-- de quien es el sobre del resumen (comprador del directo) o nil
+function apertura.comprador()
+    return paraOtro
+end
+
 -- se recoge la mesa: las cartas ya estan en el armario
-function apertura.recoger()
-    if paraOtro and mano then
+-- callado: sin el ENVIADO A (las del comprador van a su hueco de pedidos)
+function apertura.recoger(callado)
+    if paraOtro and mano and not callado then
         fx.texto(CX, CY - 40, "ENVIADO A " .. paraOtro.nombre:upper(), p.lima)
         sonido.tocar("giro")
     end

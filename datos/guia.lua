@@ -27,13 +27,13 @@ return {
 
     -- la primera vez que haces un directo de venta (en la mesa)
     venta = { titulo = "DIRECTO DE VENTA", requiere = "venta", bloquea = false, pasos = {
-        { texto = "AQUÍ NO ABRES PARA TI: EL CHAT TE COMPRA LOS SOBRES QUE TIENES GUARDADOS. CADA PEDIDO SALE EN EL MÓVIL DEL TRÍPODE: QUÉ SET QUIERE, CUÁNTO PAGA Y CUÁNTO ESPERA.",
+        { texto = "AQUÍ EL CHAT TE COMPRA SOBRES. CADA COMPRADOR SALE EN PEDIDOS, A LA DERECHA DEL TAPETE: ABRE UN SOBRE DE SU SET Y SUS CARTAS VAN A SU TAQUITO.",
           apunta = "dir_vender", pose = "saludo" },
-        { texto = "PARA VENDÉRSELO, ABRE UN SOBRE DE ESE SET EN EL TAPETE: COBRAS AL MOMENTO Y LAS CARTAS SON SUYAS. SI TARDAS MUCHO, SE CANSA Y SE VA.",
+        { texto = "CUANDO SU PEDIDO SE COMPLETA, SE LO ENVÍAS SOLO Y COBRAS. SI TARDAS MUCHO, SE CANSA Y SE VA.",
           pose = "pulgar" },
-        { texto = "¿QUIERES ABRIR UNO PARA TI? TOCA VENDIENDO Y PASA A PARA MÍ: LO QUE ABRES ES TUYO Y LOS PEDIDOS ESPERAN SIN CORRER EL TIEMPO.",
-          apunta = "dir_vender", pose = "piensa" },
-        { texto = "CUANTO MÁS ABRES Y MEJOR SALE, MÁS HYPE (LA RAYITA NARANJA): LLEGAN MÁS COMPRADORES Y PAGAN MÁS.",
+        { texto = "LO QUE ABRES PARA TI VA A TU TACO, Y DE HOLO PARA ARRIBA, A HITS. PUEDES SACARLAS AL TAPETE; PARA GUARDARLAS, ARRASTRA EL TACO O UN HIT A TU CAJA.",
+          pose = "piensa" },
+        { texto = "PARA ABRIR PARA TI, TOCA VENDIENDO Y PASA A PARA MÍ. CUANTO MEJOR SALE, MÁS HYPE: MÁS COMPRADORES Y PAGAN MÁS.",
           apunta = "dir_vender", pose = "pulgar" },
     } },
 

@@ -10,6 +10,38 @@ fase 3 = v0.7.2-0.7.4, fase 4 = v0.8.0-0.8.2. Desde la v0.9.0 ya no hay
 fases: se sigue el roadmap. La v0.9.0 se preparó como v0.8.3 y salió con
 otro número.
 
+## v0.11.1 - 2026-11-11 - Cartas en la mesa durante el directo
+
+- **En directo, las cartas se quedan en la mesa**, en zonas pintadas en el
+  tapete:
+  - **TU TACO** (abajo a la izquierda): lo que no es hit, en un taco con su
+    contador que coge 1 px de grosor cada 4 cartas (cian si van
+    enfundadas) y se le ve un poco el lado. Si no cabe en su recuadro,
+    asoma por arriba. Al dejar el ratón encima se abre en abanico (en el
+    móvil, tocándolo); tocar una carta la abre en INSPECCIONAR. La promo del
+    blíster y del tin también va aquí (o a hits).
+  - **HITS** (abajo): las holo, en su propio taquito con abanico; al lado,
+    en fila, lo de encima (alt holo, full art, secretas) y todas las
+    promos. Si no caben se solapan con la mejor delante. Se les puede soltar una funda o un top encima.
+  - Las cartas del taco y de los hits se pueden sacar al tapete; al abrir
+    el siguiente sobre vuelven a su sitio.
+  - **PEDIDOS** (en la venta, a la derecha): un hueco por comprador con su
+    post-it (nombre y progreso, "S1 2/3") y su taquito. Al completarse, el
+    taco se mete en un sobre acolchado y sale volando con lo cobrado; el
+    chat reacciona.
+- El taco y los hits se quedan aunque abras otro sobre o acabe el directo.
+  Para guardarlos, arrastra el taco (te lo llevas entero) o un hit a tu
+  caja: se van todos los de ese grupo. Si sueltas el taco en otro sitio,
+  vuelve al suyo. Sin directo, la mesa va como
+  siempre.
+- El primer directo de venta lo explica todo en cuatro frases.
+- Las cartas de la mesa tienen siempre el mismo tamaño: no cambian al
+  moverlas.
+- Las promos se enfundan siempre con el servicio de fundas.
+- En directo, el resumen del sobre y los textos de ayuda van más arriba, y
+  lo de la esquina (caja abierta, sobres de la ETB) se aparta para dejar
+  sitio a los pedidos.
+
 ## v0.11.0 - 2026-11-11 - Sets reordenados, calendario y colabs
 
 - **Sets en otro orden**, para que la subida de precio sea más suave al

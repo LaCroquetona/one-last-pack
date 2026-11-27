@@ -282,8 +282,11 @@ function fx.dibujarParticulas()
         local c = t.color
         local a = math.min(1, t.vida * 2)
         local w = fuentes.ancho(t.cad, 2)
-        fuentes.texto(t.cad, t.x - w / 2 + 1, t.y + 1, 2, {0, 0, 0, a * 0.6})
-        fuentes.texto(t.cad, t.x - w / 2, t.y, 2, {c[1], c[2], c[3], a})
+        -- que no se salga por los lados (p. ej. al soltar algo en el armario)
+        local ui = require "src.ui"
+        local x = math.max(ui.izq + w / 2 + 2, math.min(ui.der - w / 2 - 2, t.x))
+        fuentes.texto(t.cad, x - w / 2 + 1, t.y + 1, 2, {0, 0, 0, a * 0.6})
+        fuentes.texto(t.cad, x - w / 2, t.y, 2, {c[1], c[2], c[3], a})
     end
     love.graphics.setColor(1, 1, 1)
 end
